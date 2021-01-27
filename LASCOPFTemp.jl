@@ -1,46 +1,31 @@
 # Main function for implementing APMP Algorithm for the LASCOPF for Post-Contingency Restoration Controlling Line Temperature case in serial mode
 module LASCOPFTemp
-import julia
-import os
-import math
-import subprocess
-import pandas as pd
-import numpy as np
-import json
-import sys
-import traceback
-#from Python_src.log import log
-#from Python_src.profiler import Profiler
+export runSimLASCOPFTemp
+
+using JuMP # used for mathematical programming
+using DataFrames #This package allows put together data into a matrix
+using Gurobi #Gurobi solver
+using MathProgBase #for fix_integers
+using CSV
+using StatsBase
+using LinearAlgebra
+using JSON
+using superNetwork
 include("Julia_src/superNetwork.jl")
 
-function runSimLASCOPFTemp() #function runSimLASCOPFTemp begins program execution
+function runSimLASCOPFTemp(setting::Dict, inputPath::AbstractString) #function runSimLASCOPFTemp begins program execution
 	last = 0 #flag to indicate the last interval; last = 0, for dispatch interval that is not the last one; last = 1, for the last interval
-	futureNetVector = [] #Vector of future look-ahead dispatch interval supernetwork objects
-	println("Enter the number of nodes to initialize the network. (Allowed choices are 2, 3, 5, 14, 30, 48, 57, 118, and 300 Bus IEEE Test Bus Systems as of now. So, please restrict yourself to one of these)")
-	netID = parse(Int64, readline())
-	println("Enter the switch value to select between whether an extensive/exhaustive (and presumably more accurate) solver for contingency scenarios is desired, or just a simpler one is desired; 1 for former, 0 for latter")
-	contSolverAccuracy = parse(Int64, readline())
-	println("Enter the choice of the solver for SCOPF of each dispatch interval, 1 for GUROBI-APMP(ADMM/PMP+APP), 2 for CVXGEN-APMP(ADMM/PMP+APP), 3 for GUROBI APP Coarse Grained, 4 for centralized GUROBI SCOPF")
-	solverChoice =  parse(Int64, readline())
-	println("Enter the choice pertaining to whether you want to consider the ramping constraint to the next interval, for the last interval: 0 for not considering and 1 for considering")
-	nextChoice = parse(Int64, readline())
+	futureNetVector = Dict() #Vector of future look-ahead dispatch interval supernetwork objects
 	if (solverChoice==1) or (solverChoice==2) #APMP Fully distributed, Bi-layer (N-1) SCOPF Simulation
 		println("Enter the tuning mode; Enter 1 for maintaining Rho * primTol = dualTol; 2 for primTol = dualTol; anything else for Adaptive Rho (with mode-1 being implemented for the first 3000 iterations and then Rho is held constant).") 
 		setRhoTuning = parse(Int64, readline())
 	else
 		setRhoTuning = 0 #Otherwise, if we aren't using ADMM-PMP, Rho tuning is unnecessary, 0 is a dummy value
 	end
-	println("Enter the choice pertaining to whether to include a dummy interval at the start or not (Inclusion of a dummy interval may speed up convergence and/or improve accuracy of solution). Enter 1 to include and 0 to not include")
-	dummyIntervalChoice =  parse(Int64, readline())
-
-	println("Enter the number of look-ahead dispatch intervals for restoring line flows to within normal long-term ratings.")
-	RNDIntervals = parse(Int64, readline())
-	println("Enter the number of furthermore look-ahead dispatch intervals for making the system secure w.r.t. next set of contingencies.")
-	RSDIntervals = parse(Int64, readline())
 
 	log.info("\n*** SUPERNETWORK INITIALIZATION STAGE BEGINS ***")
 	#GRBEnv* environmentGUROBI = new GRBEnv("GUROBILogFile.log"); // GUROBI Environment object for storing the different optimization models
-	supernet = superNetwork(netID, solverChoice, setRhoTuning, 0, 0, 0, 0, nextChoice, dummyIntervalChoice, contSolverAccuracy, 0, RNDIntervals, RSDIntervals) #create the network instances for the future dummy zero dispatch intervals
+	supernet = superNetwork(netID, setting['solverChoice'], setting['setRhoTuning'], 0, 0, 0, 0, setting['nextChoice'], setting['dummyIntervalChoice'], setting['contSolverAccuracy'], 0, setting['RNDIntervals'], setting['RSDIntervals']) #create the network instances for the future dummy zero dispatch intervals
 	numberOfCont = supernet.retContCount() #gets the number of contingency scenarios in the variable numberOfCont
 	futureNetVector.append(supernet) #push to the vector of future network instances 
 	supernet1 = superNetwork(netID, solverChoice, setRhoTuning, 0, 0, 1, 0, nextChoice, dummyIntervalChoice, contSolverAccuracy, 0, RNDIntervals, RSDIntervals) #create the network instances for the future upcoming dispatch intervals
