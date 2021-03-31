@@ -282,8 +282,4 @@ function runSimLASCOPFTemp(setting::Dict, inputPath::AbstractString) #function r
 
 end
 print("\nThis is the simulation program for running LASCOPF problem for (N-1-1) post-contingency restoration in multiple dispatch intervals with explicit control of line-temperature rise in Python+Julia/JuMP\n")
-
-try:
-    if __name__ == '__main__': runSimLASCOPFTemp()
-except:
-    log.warning("Simulation FAILED !!!!")
+end #end the module

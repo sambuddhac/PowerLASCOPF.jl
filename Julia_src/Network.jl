@@ -1,223 +1,192 @@
+module Network
+
 #Member functions for class Network
-import julia
-import os
-import subprocess
-import math
-import pandas as pd
-import numpy as np
-import json
-import sys
-import traceback
-from Python_src.log import log
-from Python_src.profiler import Profiler
+using JSON
 # include definitions for classes generator, load, transmission line, network and node
-from Python_src.generator import Generator
-from Python_src.tranline import transmissionLine
-from Python_src.load import Load
-from Python_src.node import Node
+using Generator
+using transmissionLine
+using Load
+using Node
 
-profiler = Profiler()
+function network_init_var(val, postContScen, scenarioContingency, lineOutaged, prePostScenario, solverChoice, dummy, accuracy, intervalNum, lasIntFlag, nextChoice, outagedLine)
+	networkVar = Dict()
+	networkVar["MAX_ITER"] = 80002
+	#networkVar["LINE_CAP"] = 100.00
+	networkVar["networkID"] = val #constructor begins; initialize networkID  and Rho through constructor initializer list
+	networkVar["Rho"] = 1.0
+	networkVar["scenarioIndex"] = scenarioContingency #this is always zero for a base-case network instance, even if that corresponds to an outaged base case, or in other words, if postContScen is not zero
+	networkVar["postContScenario"] = postContScen
+	networkVar["prePostContScen"] = prePostScenario
+	networkVar["dummyZ"] = dummy
+	networkVar["Accuracy"] = accuracy
+	networkVar["OutagedLine"] = lineOutaged
+	networkVar["contingencyCount"] = 0
+	networkVar["intervalID"] = intervalNum
+	networkVar["lastFlag"] = lasIntFlag
+	networkVar["baseOutagedLine"] = outagedLine
+	networkVar["solverChoice"] = solverChoice
+	#Initializes the number and fields of Transmission lines, Generators, Loads, Nodes, and Device Terminals.
+	networkVar["translNumber"] = 0
+	networkVar["translFields"] = 0
+	networkVar["genNumber"] = 0
+	networkVar["genFields"] = 0
+	networkVar["loadNumber"] = 0
+	networkVar["loadFields"] = 0
+	networkVar["deviceTermCount"] = 0
+	networkVar["nodeNumber"] = 0
+	networkVar["assignedNodeSer"] = 0
+	networkVar["divConvMWPU"] = 100.0 # Divisor, which is set to 100 for all other systems, except two bus system, for which it is set to 1
+	networkVar["outagedLine"] = Int[]
+	networkVar["connNodeNumList"] = []
+	networkVar["nodeValList"] = []
+	set_network_variables(networkVar, nextChoice) #sets the variables of the networkID
+end # end constructor
 
-if sys.platform in ["darwin", "linux"]:
-	log.info("Using Julia executable in {}".format(str(subprocess.check_output(["which", "julia"]), 'utf-8').strip('\n')))
-elif sys.platform in ["win32", "win64", "cygwin"]:
-	log.info("Using Julia executable in {}".format(str(subprocess.check_output(["which", "julia"]), 'utf-8').strip('\n')))
+function getGenNumber(networkVar::Dict)
+	return networkVar["genNumber"] #returns the number of Generators in the network
+end
 
-log.info("\nLoading Julia...")
-profiler.start()
-julSol = julia.Julia()
-julSol.using("Pkg")
-julSol.eval('Pkg.activate(".")')
-julSol.include(os.path.join("JuMP_src", "LASCOPFSolCentralized.jl")) # definition of Gensolver class for base case scenario first interval
-log.info(("\nJulia took {:..2f} seconds to start and include LASCOPF models.".format(profiler.get_interval())))
+function retContCount(networkVar::Dict)
+	return networkVar["contingencyCount"] #returns the number of contingency scenarios
+end
 
+function indexOfLineOut(contScen::Int64)
+	return outagedLine[contScen-1] #returns the serial number of the outaged line
+end
 
-class Network(object):
-	MAX_ITER = 80002
-	#LINE_CAP = 100.00
-	def __init__(self, val, postContScen, scenarioContingency, lineOutaged, prePostScenario, solverChoice, dummy, accuracy, intervalNum, lasIntFlag, nextChoice, outagedLine):
-		self.networkID = val #constructor begins; initialize networkID  and Rho through constructor initializer list
-		self.Rho = 1.0
-		self.scenarioIndex = scenarioContingency #this is always zero for a base-case network instance, even if that corresponds to an outaged base case, or in other words, if postContScen is not zero
-		self.postContScenario = postContScen
-		self.prePostContScen = prePostScenario
-		self.dummyZ = dummy
-		self.Accuracy = accuracy
-		self.OutagedLine = lineOutaged
-		self.contingencyCount = 0
-		self.intervalID = intervalNum
-		self.lastFlag = lasIntFlag
-		self.baseOutagedLine = outagedLine
-		self.solverChoice = solverChoice
-		#Initializes the number and fields of Transmission lines, Generators, Loads, Nodes, and Device Terminals.
-		self.translNumber = 0
-		self.translFields = 0
-		self.genNumber = 0
-		self.genFields = 0
-		self.loadNumber = 0
-		self.loadFields = 0
-		self.deviceTermCount = 0
-		self.nodeNumber = 0
-		self.assignedNodeSer = 0
-		self.divConvMWPU = 100.0 # Divisor, which is set to 100 for all other systems, except two bus system, for which it is set to 1
-		self.outagedLine = []
-		self.connNodeNumList = []
-		self.nodeValList = []
-		setNetworkVariables(networkID, nextChoice) #sets the variables of the networkID
-		# end constructor
+function set_network_variables(netVar::Dict, nextChoice::Int64) #Function setNetworkVariables starts to initialize the parameters and variables
+	Verbose = False #disable intermediate result display. If you want, make it "true"
 
-	def __del__(self): # destructor
-		log.info("\nNetwork instance: {} for this simulation destroyed. You can now open the output files to view the results of the simulation".format(networkID))
-		# end destructor
-	def getGenNumber(self):
-		return self.genNumber #returns the number of Generators in the network
-	def retContCount(self):
-		return self.contingencyCount #returns the number of contingency scenarios
+	nodeNumber = netVar["networkID"] #set the number of nodes of the network
 
-	def indexOfLineOut(self, contScen):
-		return self.outagedLine[contScen-1] #returns the serial number of the outaged line
-
-	def setNetworkVariables(self, networkID, nextChoice): #Function setNetworkVariables starts to initialize the parameters and variables
-		Verbose = False #disable intermediate result display. If you want, make it "true"
-
-		self.nodeNumber = networkID #set the number of nodes of the network
-
-		if  self.nodeNumber == 14: # 14 Bus case	
-			self.genFile = open(os.path.join("data", "Gen14.json"))		
-			self.tranFile = open(os.path.join("data", "Tran14.json"))
-			self.loadFile = open(os.path.join("data", "Load14.json"))
-		elif  self.nodeNumber == 30: # 30 Bus case
-			self.genFile = open(os.path.join("data", "Gen30.json"))
-			self.tranFile = open(os.path.join("data", "Tran30.json"))
-			self.loadFile = open(os.path.join("data", "Load30.json"))
-		elif  self.nodeNumber == 57: # 30 Bus case
-			self.genFile = open(os.path.join("data", "Gen57.json"))
-			self.tranFile = open(os.path.join("data", "Tran57.json"))
-			self.loadFile = open(os.path.join("data", "Load57.json"))
-		elif  self.nodeNumber == 118: # 30 Bus case
-			self.genFile = open(os.path.join("data", "Gen118.json"))
-			self.tranFile = open(os.path.join("data", "Tran118.json"))
-			self.loadFile = open(os.path.join("data", "Load118.json"))
-		elif  self.nodeNumber == 300: # 30 Bus case
-			self.genFile = open(os.path.join("data", "Gen300.json"))
-			self.tranFile = open(os.path.join("data", "Tran300.json"))
-			self.loadFile = open(os.path.join("data", "Load300.json"))
-		elif  self.nodeNumber == 3: # 30 Bus case
-			self.genFile = open(os.path.join("data", "Gen3A.json"))
-			self.tranFile = open(os.path.join("data", "Tran3A.json"))
-			self.loadFile = open(os.path.join("data", "Load3A.json"))
-		elif  self.nodeNumber == 5: # 30 Bus case
-			self.genFile = open(os.path.join("data", "Gen5.json"))
-			self.tranFile = open(os.path.join("data", "Tran5.json"))
-			self.loadFile = open(os.path.join("data", "Load5.json"))
-		elif  self.nodeNumber == 2: # 30 Bus case
-			self.genFile = open(os.path.join("data", "Gen2.json"))
-			self.tranFile = open(os.path.join("data", "Tran2.json"))
-			self.loadFile = open(os.path.join("data", "Load2.json"))
-		elif  self.nodeNumber == 48: # 30 Bus case
-			self.genFile = open(os.path.join("data", "Gen48.json"))
-			self.tranFile = open(os.path.join("data", "Tran48.json"))
-			self.loadFile = open(os.path.join("data", "Load48.json"))
+	if  nodeNumber == 14 # 14 Bus case	
+		genFile = DataFrame(CSV.File(string(path,sep,"Gen14.csv"), header=true), copycols=true)
+		tranFile = DataFrame(CSV.File(string(path,sep,"Tran14.csv"), header=true), copycols=true)
+		loadFile = DataFrame(CSV.File(string(path,sep,"Load14.csv"), header=true), copycols=true)
+	elseif  nodeNumber == 30 # 30 Bus case
+		genFile = DataFrame(CSV.File(string(path,sep,"Gen30.csv"), header=true), copycols=true)
+		tranFile = DataFrame(CSV.File(string(path,sep,"Tran30.csv"), header=true), copycols=true)
+		loadFile = DataFrame(CSV.File(string(path,sep,"Load30.csv"), header=true), copycols=true)
+	elseif  nodeNumber == 57 # 30 Bus case
+		genFile = DataFrame(CSV.File(string(path,sep,"Gen57.csv"), header=true), copycols=true)
+		tranFile = DataFrame(CSV.File(string(path,sep,"Tran57.csv"), header=true), copycols=true)
+		loadFile = DataFrame(CSV.File(string(path,sep,"Load57.csv"), header=true), copycols=true)
+	elseif  nodeNumber == 118 # 30 Bus case
+		genFile = DataFrame(CSV.File(string(path,sep,"Gen118.csv"), header=true), copycols=true)
+		tranFile = DataFrame(CSV.File(string(path,sep,"Tran118.csv"), header=true), copycols=true)
+		loadFile = DataFrame(CSV.File(string(path,sep,"Load118.csv"), header=true), copycols=true)
+	elseif  nodeNumber == 300 # 30 Bus case
+		genFile = DataFrame(CSV.File(string(path,sep,"Gen300.csv"), header=true), copycols=true)
+		tranFile = DataFrame(CSV.File(string(path,sep,"Tran300.csv"), header=true), copycols=true)
+		loadFile = DataFrame(CSV.File(string(path,sep,"Load300.csv"), header=true), copycols=true)
+	elseif  nodeNumber == 3 # 30 Bus case
+		genFile = DataFrame(CSV.File(string(path,sep,"Gen3A.csv"), header=true), copycols=true)
+		tranFile = DataFrame(CSV.File(string(path,sep,"Tran3A.csv"), header=true), copycols=true)
+		loadFile = DataFrame(CSV.File(string(path,sep,"Load3A.csv"), header=true), copycols=true)
+	elseif  nodeNumber == 5 # 30 Bus case
+		genFile = DataFrame(CSV.File(string(path,sep,"Gen5.csv"), header=true), copycols=true)
+		tranFile = DataFrame(CSV.File(string(path,sep,"Tran5.csv"), header=true), copycols=true)
+		loadFile = DataFrame(CSV.File(string(path,sep,"Load5.csv"), header=true), copycols=true)
+	elseif  nodeNumber == 2 # 30 Bus case
+		genFile = DataFrame(CSV.File(string(path,sep,"Gen2.csv"), header=true), copycols=true)
+		tranFile = DataFrame(CSV.File(string(path,sep,"Tran2.csv"), header=true), copycols=true)
+		loadFile = DataFrame(CSV.File(string(path,sep,"Load2.csv"), header=true), copycols=true)
+	elseif  nodeNumber == 48 # 30 Bus case
+		genFile = DataFrame(CSV.File(string(path,sep,"Gen48.csv"), header=true), copycols=true)
+		tranFile = DataFrame(CSV.File(string(path,sep,"Tran48.csv"), header=true), copycols=true)
+		loadFile = DataFrame(CSV.File(string(path,sep,"Load48.csv"), header=true), copycols=true)
 			
-		else: # catch all other entries
-			log.info("\nSorry, invalid case. Can't do simulation at this moment.")
-			#exit switch
-		if self.nodeNumber == 2:
-			self.divConvMWPU = 1.0
+	else # catch all other entries
+		println("Sorry, invalid case. Can't do simulation at this moment.")
+			
+	end #exit switch
+	if nodeNumber == 2
+		netVar["divConvMWPU"] = 1.0
+	end
+	# Transmission lines
+	matrixFirstFile = size(collect(skipmissing(tranFile[!,:Capacity])),1)
+	netVar["transmission"] = tranFile
+	#Count the total number of contingency scenarios
+	for item in 1:matrixFirstFile
+		netVar["contingencyCount"] += tranFile[!,:ContingencyMarked][item] #count the number of contingency scenarios
+	end
+	if netVar["prePostContScen"] == 0
+		for index in 1:matrixFirstFile
+			if netVar["transmission"][!,:ContingencyMarked][index] == 1
+				push!(netVar["outagedLine"], index)
+			end
+		end
+	end
 
-		# Transmission Lines
-		matrixFirstFile = json.load(tranFile) #opens the file of Transmission line
-		matrixTranList = []
-		#Transmission line matrix
-		#read the Transmission line matrix
-		for item in matrixFirstFile:
-			matrixTran = {"fromNode": None, "toNode": None, "Resistance": None, "Reactance": None, "ContingencyMarked": None, "Capacity": None}
-			matrixTran['fromNode'] = item['fromNode']
-			matrixTran['toNode'] = item['toNode']
-			matrixTran['Resistance'] = item['Resistance']
-			matrixTran['Reactance'] = item['Reactance']
-			matrixTran['ContingencyMarked'] = item['ContingencyMarked']
-			matrixTran['Capacity'] = item['Capacity']
-			matrixTranList.append(matrixTran)
-
-		#Count the total number of contingency scenarios
-		for item in matrixFirstFile:
-			self.contingencyCount += item['ContingencyMarked'] #count the number of contingency scenarios
-		  
-		if self.prePostContScen == 0:
-			for index in range(len(matrixTranList)):
-				if matrixTranList[index]['ContingencyMarked'] == 1:
-					self.outagedLine.append(index + 1)
-
-		#print("\nThe total number of contingency scenarios considerred is : {}".format(contingencyCount))
-		#self.contingencyCount = 0 #Uncomment this statement for purposes of Base-Case/OPF Simulation (Comment out for SCOPF Simulation)
-		#Nodes
-		for l in range(self.nodeNumber):
-			#print("\nCreating the {} -th Node:\n".format(l+1))
-			if self.postContScenario == 0: #for no outage case
-				modifiedContCount = self.contingencyCount #modified contingency count, to account for the change in contingency scenarios in different post-cont scenarios
-			else: #for the outaged cases
-				modifiedContCount = self.contingencyCount - 1
+	#print("\nThe total number of contingency scenarios considerred is : {}".format(contingencyCount))
+	#self.contingencyCount = 0 #Uncomment this statement for purposes of Base-Case/OPF Simulation (Comment out for SCOPF Simulation)
+	#Nodes
+	for l in range(self.nodeNumber):
+		#print("\nCreating the {} -th Node:\n".format(l+1))
+		if self.postContScenario == 0: #for no outage case
+			modifiedContCount = self.contingencyCount #modified contingency count, to account for the change in contingency scenarios in different post-cont scenarios
+		else: #for the outaged cases
+			modifiedContCount = self.contingencyCount - 1
 		
-			nodeInstance = Node(l + 1, modifiedContCount) #creates nodeInstance object with ID l + 1
-			self.nodeObject.append(nodeInstance) #pushes the nodeInstance object into the vector
-			#end initialization for Nodes
+		nodeInstance = Node(l + 1, modifiedContCount) #creates nodeInstance object with ID l + 1
+		self.nodeObject.append(nodeInstance) #pushes the nodeInstance object into the vector
+		#end initialization for Nodes
 
-		contingencyTracker = 0 #contingency tracker for centralized GUROBI solver
-		#Resume Creation of Transmission Lines
-		for item in range(len(matrixTranList)):
-			if self.nodeNumber == 300: #Since for IEEE 300 bus system, the nodes are not serialy numbered, but name-numbered instead, below is conversion code
-				tNodeID1300 = matrixTranList[item]['fromNode'] #From end node identifier
-				tNodeID2300 = matrixTranList[item]['toNode'] #To end node identifier
-				if tNodeID1300 in self.connNodeNumList: #If node identifier value for this particular node is present in the list
-					pos = self.connNodeNumList.index(tNodeID1300) # find the position of the node identifier in the chart of node identifiers
-					tNodeID1 = self.nodeValList[pos] # Get the serial number of the node from the nodeValList
-					#print("For line {} Identifier of the From Node: {} From Node assigned Serial: {} FRESH".format(index + 1 , tNodeID1300, tNodeID1))
-				else:
-					self.connNodeNumList.append(tNodeID1300) #For a new node identifier
-					assignedNodeSer += 1
-					self.nodeValList.append(assignedNodeSer) #Assign the node serial
-					tNodeID1 = assignedNodeSer #Get the serial number of the node from the nodeValList
-					#print("For line {} Identifier of the From Node: {} From Node assigned Serial: {} FRESH".format(index + 1 , tNodeID1300, tNodeID1))
-				if tNodeID2300 in self.connNodeNumList: #If node identifier value for this particular node is present in the list
-					pos = self.connNodeNumList.index(tNodeID2300) # find the position of the node identifier in the chart of node identifiers
-					tNodeID2 = self.nodeValList[pos] # Get the serial number of the node from the nodeValList
-					#print("For line {} Identifier of the From Node: {} From Node assigned Serial: {} FRESH".format(index + 1 , tNodeID2300, tNodeID2))
-				else:
-					self.connNodeNumList.append(tNodeID2300) #For a new node identifier
-					assignedNodeSer += 1
-					self.nodeValList.append(assignedNodeSer) #Assign the node serial
-					tNodeID2 = assignedNodeSer #Get the serial number of the node from the nodeValList
-					#print("For line {} Identifier of the From Node: {} From Node assigned Serial: {} FRESH".format(index + 1 , tNodeID2300, tNodeID2))
-				#print("\nStuck while creating nodes of transmission line: {}".format(index + 1))
-				#node IDs of the node objects to which this transmission line is connected.
+	contingencyTracker = 0 #contingency tracker for centralized GUROBI solver
+	#Resume Creation of Transmission Lines
+	for item in range(len(matrixTranList)):
+		if self.nodeNumber == 300: #Since for IEEE 300 bus system, the nodes are not serialy numbered, but name-numbered instead, below is conversion code
+			tNodeID1300 = matrixTranList[item]['fromNode'] #From end node identifier
+			tNodeID2300 = matrixTranList[item]['toNode'] #To end node identifier
+			if tNodeID1300 in self.connNodeNumList: #If node identifier value for this particular node is present in the list
+				pos = self.connNodeNumList.index(tNodeID1300) # find the position of the node identifier in the chart of node identifiers
+				tNodeID1 = self.nodeValList[pos] # Get the serial number of the node from the nodeValList
+				#print("For line {} Identifier of the From Node: {} From Node assigned Serial: {} FRESH".format(index + 1 , tNodeID1300, tNodeID1))
 			else:
-				tNodeID1 = matrixTranList[item]['fromNode'] #From end
-				tNodeID2 = matrixTranList[item]['toNode'] #To end
-			if (self.OutagedLine != (item + 1)) and (self.baseOutagedLine != (item + 1)):
-				#Parameters for Transmission Line
-				#print("Stuck while creating transmission line: {}".format( index + 1 ))
-				#Resistance:
-				resT = matrixTranList[item]['Resistance']
-				#Reactance:
-				reacT = matrixTranList[item]['Reactance']
-				#values of maximum allowable power flow on line in the forward and reverse direction:
-				#Forward direction:
-				ptMax = matrixTranList[item]['Capacity'] / self.divConvMWPU #LINE_CAP
-				ptMin = -ptMax #Reverse direction
-				if matrixTranList[item]['ContingencyMarked'] == 1:
-					contingencyTracker += matrixTran[item]['ContingencyMarked'] #Get the serial number of the contingency scenario when this line is outaged, if it's marked for contingency analysis
-				#creates transLineInstance object with ID item + 1
-				if (matrixTranList[item]['ContingencyMarked'] == 1) and (self.prePostContScen == 0):
-					tempTracker = contingencyTracker
-				else:
-					tempTracker = 0
-				transLineInstance = transmissionLine(item + 1, nodeObject[tNodeID1 - 1], nodeObject[tNodeID2 - 1], ptMax, reacT, resT, tempTracker)
-				self.translObject.append( transLineInstance ) #pushes the transLineInstance object into the vector
+				self.connNodeNumList.append(tNodeID1300) #For a new node identifier
+				assignedNodeSer += 1
+				self.nodeValList.append(assignedNodeSer) #Assign the node serial
+				tNodeID1 = assignedNodeSer #Get the serial number of the node from the nodeValList
+				#print("For line {} Identifier of the From Node: {} From Node assigned Serial: {} FRESH".format(index + 1 , tNodeID1300, tNodeID1))
+			if tNodeID2300 in self.connNodeNumList: #If node identifier value for this particular node is present in the list
+				pos = self.connNodeNumList.index(tNodeID2300) # find the position of the node identifier in the chart of node identifiers
+				tNodeID2 = self.nodeValList[pos] # Get the serial number of the node from the nodeValList
+				#print("For line {} Identifier of the From Node: {} From Node assigned Serial: {} FRESH".format(index + 1 , tNodeID2300, tNodeID2))
 			else:
-				if matrixTranList[index]['ContingencyMarked'] == 1:
-					contingencyTracker += matrixTranList[index]['ContingencyMarked'] #Get the serial number of the contingency scenario when this line is outaged, if it's marked for contingency analysis
-		#end initialization for Transmission Lines
+				self.connNodeNumList.append(tNodeID2300) #For a new node identifier
+				assignedNodeSer += 1
+				self.nodeValList.append(assignedNodeSer) #Assign the node serial
+				tNodeID2 = assignedNodeSer #Get the serial number of the node from the nodeValList
+				#print("For line {} Identifier of the From Node: {} From Node assigned Serial: {} FRESH".format(index + 1 , tNodeID2300, tNodeID2))
+			#print("\nStuck while creating nodes of transmission line: {}".format(index + 1))
+			#node IDs of the node objects to which this transmission line is connected.
+		else:
+			tNodeID1 = matrixTranList[item]['fromNode'] #From end
+			tNodeID2 = matrixTranList[item]['toNode'] #To end
+		if (self.OutagedLine != (item + 1)) and (self.baseOutagedLine != (item + 1)):
+			#Parameters for Transmission Line
+			#print("Stuck while creating transmission line: {}".format( index + 1 ))
+			#Resistance:
+			resT = matrixTranList[item]['Resistance']
+			#Reactance:
+			reacT = matrixTranList[item]['Reactance']
+			#values of maximum allowable power flow on line in the forward and reverse direction:
+			#Forward direction:
+			ptMax = matrixTranList[item]['Capacity'] / self.divConvMWPU #LINE_CAP
+			ptMin = -ptMax #Reverse direction
+			if matrixTranList[item]['ContingencyMarked'] == 1:
+				contingencyTracker += matrixTran[item]['ContingencyMarked'] #Get the serial number of the contingency scenario when this line is outaged, if it's marked for contingency analysis
+			#creates transLineInstance object with ID item + 1
+			if (matrixTranList[item]['ContingencyMarked'] == 1) and (self.prePostContScen == 0):
+				tempTracker = contingencyTracker
+			else:
+				tempTracker = 0
+			transLineInstance = transmissionLine(item + 1, nodeObject[tNodeID1 - 1], nodeObject[tNodeID2 - 1], ptMax, reacT, resT, tempTracker)
+			self.translObject.append( transLineInstance ) #pushes the transLineInstance object into the vector
+		else:
+			if matrixTranList[index]['ContingencyMarked'] == 1:
+				contingencyTracker += matrixTranList[index]['ContingencyMarked'] #Get the serial number of the contingency scenario when this line is outaged, if it's marked for contingency analysis
+	#end initialization for Transmission Lines
 
 		#Generators
 		matrixSecondFile = json.load(genFile) #opens the file of Generators

@@ -1,39 +1,6 @@
-# Member functions for class Generator.
-import julia
-import os
-import subprocess
-import pandas as pd
-import numpy as np
-import json
-import sys
-import traceback
-from Python_src.log import log
-from Python_src.node import Node
-from Python_src.profiler import Profiler
-import gurobipy as gp
-from gurobipy import GRB
-julia.install() #need to run this only the first time while using the julia package (or if changing python path)
-
-# Include definition of Node class 
-#include "node.h"
-# Include Generator solver class defintion
-profiler = Profiler()
-log.info("Loading Julia...")
-profiler.start()
-julSol = julia.Julia()
-julSol.using("Pkg")
-julSol.eval('Pkg.activate(".")')
-julSol.include(os.path.join("JuMP_src", "gensolverFirst.jl")) # definition of Gensolver class for base case scenario first interval
-julSol.include(os.path.join("JuMP_src", "gensolverFirstBase.jl")) # definition of Gensolver class for base case scenario dummy zeroth interval in case of Dummy zero (i.e. gensolver for zeroth interval)
-julSol.include(os.path.join("JuMP_src", "gensolverFirstCont.jl")) # definition of Gensolver class for contingency case scenario first interval
-julSol.include(os.path.join("JuMP_src", "gensolverFirstDZ.jl")) # definition of Gensolver class for base case scenario first interval with dummy zero interval
-julSol.include(os.path.join("JuMP_src", "gensolverFirstDZCont.jl")) # definition of Gensolver class for contingency case scenario first interval with dummy zero interval
-julSol.include(os.path.join("JuMP_src", "gensolverSecondBase.jl")) # definition of Gensolver class for base case scenario for second interval
-julSol.include(os.path.join("JuMP_src", "gensolverSecondCont.jl")) # definition of Gensolver class for contingency case scenario for second interval
-julSol.include(os.path.join("JuMP_src", "gensolverCont.jl")) # definition of Gensolver class for contingency scenario
-log.info(("Julia took {:..2f} seconds to start and include LASCOPF models.".format(profiler.get_interval())))
-#include "gurobi_c++.h" // includes definition of the GUROBI solver header file
-
+module Generator
+#functions for Generator module
+using Node
 class Generator(object):
 	# constructor begins
 	def __init__(self, idOfGen, interval, lastFlag, contScenarioCount, PCScenarioCount, baseCont, dummyZero, accuracy, nodeConng, 
@@ -65,36 +32,36 @@ class Generator(object):
 		self.PgenPrev = genSolverFirstBase.getPgPrev()
 		self.setGenData() # calls setGenData member function to set the parameter values
 
-	def __del__(self): # destructor
-		print("The generator object having ID {} have been destroyed".format(self.genID))
-
-	def getGenID(): # function getGenID begins
-		return genID # returns the ID of the generator object
+function getGenID() # function getGenID begins
+	return genID # returns the ID of the generator object
+end
 	   
-	def getGenNodeID(): # function getGenNodeID begins
-		return self.connNodegPtr.getNodeID() # returns the ID number of the node to which the generator object is connected
+function getGenNodeID() # function getGenNodeID begins
+	return getNodeID() # returns the ID number of the node to which the generator object is connected
+end
 
-	def setGenData(): # start setGenData function
-		Pg = 0.0 # Initialize power iterate
-		PgenNextPtr = NULL
-		Thetag = 0.0 # Initialize angle iterate
-		v = 0.0 # Initialize the Lagrange multiplier corresponding voltage angle constraint to zero
+function setGenData() # start setGenData function
+	Pg = 0.0 # Initialize power iterate
+	PgenNextPtr = NULL
+	Thetag = 0.0 # Initialize angle iterate
+	v = 0.0 # Initialize the Lagrange multiplier corresponding voltage angle constraint to zero
+end
 
-	def gpowerangleMessage(outerAPPIt, APPItCount, gsRho, Pgenprev, Pgenavg, Powerprice, Angpriceavg, Angavg, Angprice, 
+function gpowerangleMessage(outerAPPIt, APPItCount, gsRho, Pgenprev, Pgenavg, Powerprice, Angpriceavg, Angavg, Angprice, 
                            	PgenPrevAPP, PgenAPP, PgenAPPInner, PgenNextAPP, AAPPExternal, BAPPExternal, 
 				DAPPExternal, LambAPP1External, LambAPP2External, LambAPP3External, 
-				LambAPP4External, BAPP, LambAPP1):
-		BAPPNew = np.zeros(contCountGen, float)
-		LambdaAPPNew = np.zeros(contCountGen, float)
-		BAPPExtNew = np.zeros(contCountGen+1, float)
-		DAPPExtNew = np.zeros(contCountGen+1, float)
-		LambdaAPP1ExtNew = np.zeros(contCountGen+1, float)
-		LambdaAPP2ExtNew = np.zeros(contCountGen+1, float)
-		PgNextAPPNew = np.zeros(contCountGen+1, float)
-		if baseContScenario == 0: # Use the solver for base cases
-			if dummyZeroIntFlag == 1: # If dummy zero interval is considered
+				LambAPP4External, BAPP, LambAPP1)
+		BAPPNew = zeros(Float64, contCountGen)
+		LambdaAPPNew = zeros(Float64, contCountGen)
+		BAPPExtNew = zeros(Float64, contCountGen+1)
+		DAPPExtNew = zeros(Float64, contCountGen+1)
+		LambdaAPP1ExtNew = zeros(Float64, contCountGen+1)
+		LambdaAPP2ExtNew = zeros(Float64, contCountGen+1)
+		PgNextAPPNew = zeros(Float64, contCountGen+1)
+		if baseContScenario == 0 # Use the solver for base cases
+			if dummyZeroIntFlag == 1 # If dummy zero interval is considered
 				if (dispatchInterval== 0) and (flagLast == 0): # For the dummy zeroth interval
-					for counterCont in range(contCountGen):
+					for counterCont in 1:contCountGen
 						BAPPNew[counterCont] = BAPP[counterCont*numberOfGenerators+(genID-1)]
 						LambdaAPPNew[counterCont] = LambAPP1[counterCont*numberOfGenerators+(genID-1)]
 					BAPPExtNew = BAPPExternal 
