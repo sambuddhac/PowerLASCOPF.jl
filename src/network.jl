@@ -1,118 +1,59 @@
-#!/usr/bin/env python3
 # Member functions for class Network
 # include definitions for classes generator, load, transmission line, network and node
-from Python_src.generator import Generator
-from Python_src.tranline import transmissionLine
-from Python_src.load import Load
-from Python_src.node import Node
+mutable struct Network <: Subsystem
+	max_iter = 80002
+	line_capacity = 100.00
+	network_id::Int64 #constructor begins; initialize networkID  and Rho through constructor initializer list
+	tuning_rho::Float64
+	scenario_index::Int64 #this is always zero for a base-case network instance, even if that corresponds to an outaged base case, or in other words, if postContScen is not zero
+	post_cont_scenario::Int64
+	pre_post_cont_scen::Int64
+	dummy_zero::
+	Accuracy = accuracy
+	OutagedLine = lineOutaged
+	contingency_count = 0
+	intervalID = intervalNum
+	lastFlag = lasIntFlag
+	baseOutagedLine = outagedLine
+	solverChoice = solverChoice
+	#Initializes the number and fields of Transmission lines, Generators, Loads, Nodes, and Device Terminals.
+	translNumber = 0
+	translFields = 0
+	genNumber = 0
+	genFields = 0
+	loadNumber = 0
+	loadFields = 0
+	deviceTermCount = 0
+	node_number = 0
+	assignedNodeSer = 0
+	divConvMWPU = 100.0 # Divisor, which is set to 100 for all other systems, except two bus system, for which it is set to 1
+	outaged_line = []
+	connNodeNumList = []
+	nodeValList = []
+	setNetworkVariables(self.networkID, nextChoice) #sets the variables of the networkID
+end
 
-profiler = Profiler()
+function get_gen_number(network_instance::Network)
+	return network_instance.gen_number #returns the number of Generators in the network
+end
 
-if sys.platform in ["darwin", "linux"]:
-	log.info("Using Julia executable in {}".format(str(subprocess.check_output(["which", "julia"]), 'utf-8').strip('\n')))
-elif sys.platform in ["win32", "win64", "cygwin"]:
-	log.info("Using Julia executable in {}".format(str(subprocess.check_output(["which", "julia"]), 'utf-8').strip('\n')))
+function ret_cont_count(network_instance::Network)
+	return network_instance.contingency_count #returns the number of contingency scenarios
+end
 
-log.info("\nLoading Julia...")
-profiler.start()
-julSol = julia.Julia()
-julSol.using("Pkg")
-julSol.eval('Pkg.activate(".")')
-julSol.include(os.path.join("JuMP_src", "LASCOPFSolCentralized.jl")) # definition of Gensolver class for base case scenario first interval
-log.info(("\nJulia took {:..2f} seconds to start and include LASCOPF models.".format(profiler.get_interval())))
+function index_of_line_out(network_instance::Network, cont_scen::Int64)
+	return network_instance.outaged_line[cont_scen-1] #returns the serial number of the outaged line
+end
 
+function set_network_variables(network_instance::Network, next_choice::Bool) #Function setNetworkVariables starts to initialize the parameters and variables
+	verbose = false #disable intermediate result display. If you want, make it "true"
 
-class Network(object):
-	MAX_ITER = 80002
-	#LINE_CAP = 100.00
-	def __init__(self, val, postContScen, scenarioContingency, lineOutaged, prePostScenario, solverChoice, dummy, accuracy, intervalNum, lasIntFlag, nextChoice, outagedLine):
-		self.networkID = val #constructor begins; initialize networkID  and Rho through constructor initializer list
-		self.Rho = 1.0
-		self.scenarioIndex = scenarioContingency #this is always zero for a base-case network instance, even if that corresponds to an outaged base case, or in other words, if postContScen is not zero
-		self.postContScenario = postContScen
-		self.prePostContScen = prePostScenario
-		self.dummyZ = dummy
-		self.Accuracy = accuracy
-		self.OutagedLine = lineOutaged
-		self.contingencyCount = 0
-		self.intervalID = intervalNum
-		self.lastFlag = lasIntFlag
-		self.baseOutagedLine = outagedLine
-		self.solverChoice = solverChoice
-		#Initializes the number and fields of Transmission lines, Generators, Loads, Nodes, and Device Terminals.
-		self.translNumber = 0
-		self.translFields = 0
-		self.genNumber = 0
-		self.genFields = 0
-		self.loadNumber = 0
-		self.loadFields = 0
-		self.deviceTermCount = 0
-		self.nodeNumber = 0
-		self.assignedNodeSer = 0
-		self.divConvMWPU = 100.0 # Divisor, which is set to 100 for all other systems, except two bus system, for which it is set to 1
-		self.outagedLine = []
-		self.connNodeNumList = []
-		self.nodeValList = []
-		setNetworkVariables(self.networkID, nextChoice) #sets the variables of the networkID
-		# end constructor
+	network_instance.node_number = network_instance.network_id #set the number of nodes of the network
 
-	def __del__(self): # destructor
-		log.info("\nNetwork instance: {} for this simulation destroyed. You can now open the output files to view the results of the simulation".format(networkID))
-		# end destructor
-	def getGenNumber(self):
-		return self.genNumber #returns the number of Generators in the network
-	def retContCount(self):
-		return self.contingencyCount #returns the number of contingency scenarios
-
-	def indexOfLineOut(self, contScen):
-		return self.outagedLine[contScen-1] #returns the serial number of the outaged line
-
-	def setNetworkVariables(self, networkID, nextChoice): #Function setNetworkVariables starts to initialize the parameters and variables
-		Verbose = False #disable intermediate result display. If you want, make it "true"
-
-		self.nodeNumber = networkID #set the number of nodes of the network
-
-		if  self.nodeNumber == 14: # 14 Bus case	
-			self.genFile = open(os.path.join("data", "Gen14.json"))		
-			self.tranFile = open(os.path.join("data", "Tran14.json"))
-			self.loadFile = open(os.path.join("data", "Load14.json"))
-		elif  self.nodeNumber == 30: # 30 Bus case
-			self.genFile = open(os.path.join("data", "Gen30.json"))
-			self.tranFile = open(os.path.join("data", "Tran30.json"))
-			self.loadFile = open(os.path.join("data", "Load30.json"))
-		elif  self.nodeNumber == 57: # 30 Bus case
-			self.genFile = open(os.path.join("data", "Gen57.json"))
-			self.tranFile = open(os.path.join("data", "Tran57.json"))
-			self.loadFile = open(os.path.join("data", "Load57.json"))
-		elif  self.nodeNumber == 118: # 30 Bus case
-			self.genFile = open(os.path.join("data", "Gen118.json"))
-			self.tranFile = open(os.path.join("data", "Tran118.json"))
-			self.loadFile = open(os.path.join("data", "Load118.json"))
-		elif  self.nodeNumber == 300: # 30 Bus case
-			self.genFile = open(os.path.join("data", "Gen300.json"))
-			self.tranFile = open(os.path.join("data", "Tran300.json"))
-			self.loadFile = open(os.path.join("data", "Load300.json"))
-		elif  self.nodeNumber == 3: # 30 Bus case
-			self.genFile = open(os.path.join("data", "Gen3A.json"))
-			self.tranFile = open(os.path.join("data", "Tran3A.json"))
-			self.loadFile = open(os.path.join("data", "Load3A.json"))
-		elif  self.nodeNumber == 5: # 30 Bus case
-			self.genFile = open(os.path.join("data", "Gen5.json"))
-			self.tranFile = open(os.path.join("data", "Tran5.json"))
-			self.loadFile = open(os.path.join("data", "Load5.json"))
-		elif  self.nodeNumber == 2: # 30 Bus case
-			self.genFile = open(os.path.join("data", "Gen2.json"))
-			self.tranFile = open(os.path.join("data", "Tran2.json"))
-			self.loadFile = open(os.path.join("data", "Load2.json"))
-		elif  self.nodeNumber == 48: # 30 Bus case
-			self.genFile = open(os.path.join("data", "Gen48.json"))
-			self.tranFile = open(os.path.join("data", "Tran48.json"))
-			self.loadFile = open(os.path.join("data", "Load48.json"))
-			
-		else: # catch all other entries
-			log.info("\nSorry, invalid case. Can't do simulation at this moment.")
-			#exit switch
-		if self.nodeNumber == 2:
+	gen_df = open(os.path.join("data", "Gen14.json"))		
+	tran_df = open(os.path.join("data", "Tran14.json"))
+	load_df = open(os.path.join("data", "Load14.json"))
+	if self.nodeNumber == 2:
 			self.divConvMWPU = 1.0
 
 		# Transmission Lines
