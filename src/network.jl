@@ -10,9 +10,9 @@ mutable struct Network <: Subsystem
 	pre_post_cont_scen::Int64
 	dummy_zero::
 	Accuracy = accuracy
-	OutagedLine = lineOutaged
-	contingency_count = 0
-	intervalID = intervalNum
+	outaged_line::Int64 = lineOutaged
+	contingency_count::Int64 = 0
+	interval_id::Int64 = intervalNum
 	lastFlag = lasIntFlag
 	baseOutagedLine = outagedLine
 	solverChoice = solverChoice
@@ -26,8 +26,8 @@ mutable struct Network <: Subsystem
 	deviceTermCount = 0
 	node_number = 0
 	assignedNodeSer = 0
-	divConvMWPU = 100.0 # Divisor, which is set to 100 for all other systems, except two bus system, for which it is set to 1
-	outaged_line = []
+	div_conv_MWPU::Float64 = 100.0 # Divisor, which is set to 100 for all other systems, except two bus system, for which it is set to 1
+	outaged_line::Array{Float64}
 	connNodeNumList = []
 	nodeValList = []
 	setNetworkVariables(self.networkID, nextChoice) #sets the variables of the networkID
@@ -45,54 +45,48 @@ function index_of_line_out(network_instance::Network, cont_scen::Int64)
 	return network_instance.outaged_line[cont_scen-1] #returns the serial number of the outaged line
 end
 
+function read_input_data(path::AbstractString, sep::AbstractString)
+	gen_df = DataFrame(CSV.File(string(path,sep,"Generators.csv"), header=true), copycols=true)	
+	tran_df = DataFrame(CSV.File(string(path,sep,"Transmission_Line.csv"), header=true), copycols=true)
+	load_df = DataFrame(CSV.File(string(path,sep,"Load_data.csv"), header=true), copycols=true)
+	if network_instance.node_number == 2
+		network_instance.div_conv_MWPU = 1.0
+	end
+	return gen_df, tran_df, load_df
+end
+
 function set_network_variables(network_instance::Network, next_choice::Bool) #Function setNetworkVariables starts to initialize the parameters and variables
 	verbose = false #disable intermediate result display. If you want, make it "true"
 
 	network_instance.node_number = network_instance.network_id #set the number of nodes of the network
 
-	gen_df = open(os.path.join("data", "Gen14.json"))		
-	tran_df = open(os.path.join("data", "Tran14.json"))
-	load_df = open(os.path.join("data", "Load14.json"))
-	if self.nodeNumber == 2:
-			self.divConvMWPU = 1.0
-
-		# Transmission Lines
-		matrixFirstFile = json.load(tranFile) #opens the file of Transmission line
-		matrixTranList = []
-		#Transmission line matrix
-		#read the Transmission line matrix
-		for item in matrixFirstFile:
-			matrixTran = {"fromNode": None, "toNode": None, "Resistance": None, "Reactance": None, "ContingencyMarked": None, "Capacity": None}
-			matrixTran['fromNode'] = item['fromNode']
-			matrixTran['toNode'] = item['toNode']
-			matrixTran['Resistance'] = item['Resistance']
-			matrixTran['Reactance'] = item['Reactance']
-			matrixTran['ContingencyMarked'] = item['ContingencyMarked']
-			matrixTran['Capacity'] = item['Capacity']
-			matrixTranList.append(matrixTran)
-
-		#Count the total number of contingency scenarios
-		for item in matrixFirstFile:
-			self.contingencyCount += item['ContingencyMarked'] #count the number of contingency scenarios
+	# Transmission Lines
+	gen_df, tran_df, load_df = read_input_data(path, sep)
+	#Count the total number of contingency scenarios
+	network_instance.contingency_count = sum(tran_df.ContingencyMarked) #count the number of contingency scenarios
 		  
-		if self.prePostContScen == 0:
-			for index in range(len(matrixTranList)):
-				if matrixTranList[index]['ContingencyMarked'] == 1:
-					self.outagedLine.append(index + 1)
+	if network_instance.pre_post_cont_scen == 0
+		for index in 1:nrow(tran_df)
+			if matrixTranList[index]['ContingencyMarked'] == 1
+				self.outagedLine.append(index)
+			end
+		end
+	end
 
-		#print("\nThe total number of contingency scenarios considerred is : {}".format(contingencyCount))
-		#self.contingencyCount = 0 #Uncomment this statement for purposes of Base-Case/OPF Simulation (Comment out for SCOPF Simulation)
-		#Nodes
-		for l in range(self.nodeNumber):
-			#print("\nCreating the {} -th Node:\n".format(l+1))
-			if self.postContScenario == 0: #for no outage case
-				modifiedContCount = self.contingencyCount #modified contingency count, to account for the change in contingency scenarios in different post-cont scenarios
-			else: #for the outaged cases
-				modifiedContCount = self.contingencyCount - 1
-		
-			nodeInstance = Node(l + 1, modifiedContCount) #creates nodeInstance object with ID l + 1
-			self.nodeObject.append(nodeInstance) #pushes the nodeInstance object into the vector
-			#end initialization for Nodes
+	#print("\nThe total number of contingency scenarios considerred is : {}".format(contingencyCount))
+	#self.contingencyCount = 0 #Uncomment this statement for purposes of Base-Case/OPF Simulation (Comment out for SCOPF Simulation)
+	#Nodes
+	for l in 1:nrow(tran_df)
+		#print("\nCreating the {} -th Node:\n".format(l+1))
+		if network_instance.post_cont_scenario == 0 #for no outage case
+			modified_cont_count = network_instance.contingency_count #modified contingency count, to account for the change in contingency scenarios in different post-cont scenarios
+		else #for the outaged cases
+			modified_cont_count = network_instance.contingency_count - 1
+		end
+		node_instance = Node(l + 1, modified_cont_count) #creates nodeInstance object with ID l + 1
+		self.nodeObject.append(nodeInstance) #pushes the nodeInstance object into the vector
+		#end initialization for Nodes
+	end
 
 		contingencyTracker = 0 #contingency tracker for centralized GUROBI solver
 		#Resume Creation of Transmission Lines
