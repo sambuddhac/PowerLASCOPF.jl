@@ -67,7 +67,7 @@ function set_network_variables(network_instance::Network, next_choice::Bool) #Fu
 		  
 	if network_instance.pre_post_cont_scen == 0
 		for index in 1:nrow(tran_df)
-			if matrixTranList[index]['ContingencyMarked'] == 1
+			if matrixTranList[index, :ContingencyMarked] == 1
 				self.outagedLine.append(index)
 			end
 		end
