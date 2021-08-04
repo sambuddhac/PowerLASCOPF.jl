@@ -27,7 +27,7 @@ mutable struct Network <: Subsystem
 	node_number = 0
 	assignedNodeSer = 0
 	div_conv_MWPU::Float64 = 100.0 # Divisor, which is set to 100 for all other systems, except two bus system, for which it is set to 1
-	outaged_line::Array{Float64}
+	outaged_line=Vector{Int64}()
 	connNodeNumList = []
 	nodeValList = []
 	setNetworkVariables(self.networkID, nextChoice) #sets the variables of the networkID
@@ -55,6 +55,18 @@ function read_input_data(path::AbstractString, sep::AbstractString)
 	return gen_df, tran_df, load_df
 end
 
+function populate_out_line_vector(network_instance::Network)		  
+	if network_instance.pre_post_cont_scen == 0
+		for index in 1:nrow(tran_df)
+			if tran_df[index, :ContingencyMarked] == 1
+				push!(network_instance.outaged_line, index)
+			end
+		end
+	end
+
+	return network_instance.outaged_line
+end
+
 function set_network_variables(network_instance::Network, next_choice::Bool) #Function setNetworkVariables starts to initialize the parameters and variables
 	verbose = false #disable intermediate result display. If you want, make it "true"
 
@@ -64,16 +76,8 @@ function set_network_variables(network_instance::Network, next_choice::Bool) #Fu
 	gen_df, tran_df, load_df = read_input_data(path, sep)
 	#Count the total number of contingency scenarios
 	network_instance.contingency_count = sum(tran_df.ContingencyMarked) #count the number of contingency scenarios
-		  
-	if network_instance.pre_post_cont_scen == 0
-		for index in 1:nrow(tran_df)
-			if matrixTranList[index, :ContingencyMarked] == 1
-				self.outagedLine.append(index)
-			end
-		end
-	end
+	network_instance.outaged_line = populate_out_line_vector(network_instance)
 
-	#print("\nThe total number of contingency scenarios considerred is : {}".format(contingencyCount))
 	#self.contingencyCount = 0 #Uncomment this statement for purposes of Base-Case/OPF Simulation (Comment out for SCOPF Simulation)
 	#Nodes
 	for l in 1:nrow(tran_df)
