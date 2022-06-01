@@ -7,7 +7,7 @@ import json
 import sys
 import traceback
 
-class Node(object):
+mutable struct Node(object)
 	def __init__(self, idOfNode, numberOfScenarios): #constructor begins
 		self.nodeID = idOfNode
 		self.contingencyScenarios = numberOfScenarios
