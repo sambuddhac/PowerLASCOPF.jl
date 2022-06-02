@@ -59,7 +59,7 @@ mutable struct superNetwork(object)
 	def retContCount(self):
 		return self.numberOfCont #gets the number of contingency scenarios in the variable numberOfCont
 
-	def runSimulation(self, outerIter, LambdaOuter, powDiffOuter, powSelfBel, powNextBel, powPrevBel, lambdaLine, powerDiffLine, powSelfFlowBel, powNextFlowBel): #runs the distributed SCOPF simulations using ADMM-PMP with CVXGEN custom solver
+	function run_simulation(supernetwork_instance::SuperNetwork, outerIter, LambdaOuter, powDiffOuter, powSelfBel, powNextBel, powPrevBel, lambdaLine, powerDiffLine, powSelfFlowBel, powNextFlowBel): #runs the distributed SCOPF simulations using ADMM-PMP with CVXGEN custom solver
 		lambdaAPP = np.zeros(self.consLagDim, float) #Array of APP Lagrange Multipliers for achieving consensus among the values of power generated, as guessed by scenarios
 		powDiff = np.zeros(self.consLagDim, float) #Array of lack of consensus between generation values, as guessed by scenarios
 		self.alphaAPP = 100.0 #APP Parameter/Path-length
@@ -266,6 +266,7 @@ mutable struct superNetwork(object)
 			outputAPPFileName = "APP_GUROBI_Centralized_SCOPF"
 		with open(os.path.join('results', '_{}_resultOuterAPP-SCOPF'.format(outputAPPFileName) + '.json'), 'w') as f:
                 	json.dump(matrixResultAPPOut, f, indent=4)	
+	end
 	def getPowSelf(self, generCount):
 		return self.contNetVector[0].getPowSelf(generCount)
 		#returns the difference in the values of what I think about myself Vs. what next door fellow thinks about me

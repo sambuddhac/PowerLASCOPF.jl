@@ -311,7 +311,7 @@ function set_network_variables(netVar::Dict, nextChoice::Int64) #Function setNet
 	# end setNetworkVariables function
 
 	#runSimulation function definition
-	def runSimulation(self, outerIter, LambdaOuter, powDiffOuter, setRhoTuning, countOfAPPIter, appLambda, diffOfPow, powSelfBel, powNextBel, powPrevBel, lambdaLine, powerDiffLine, powSelfFlowBel, powNextFlowBel): #Function runSimulation begins
+	function run_simulation(network_instance::Network, outerIter, LambdaOuter, powDiffOuter, setRhoTuning, countOfAPPIter, appLambda, diffOfPow, powSelfBel, powNextBel, powPrevBel, lambdaLine, powerDiffLine, powSelfFlowBel, powNextFlowBel): #Function runSimulation begins
 		#Declaration of intermerdiate variables and parameters for running the simulation
 		iteration_count = 1 #iteration counter
 		dualTol = 1.0 #initialize the dual tolerance

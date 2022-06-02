@@ -10,7 +10,7 @@ from Python_src.log import log
 from Python_src.profiler import Profiler
 from Python_src.node import Node
 
-mutable struct Load(object)
+class Load(object):
 	def __init__(self, idOfLoad, nodeConnl, Load_P): #constructor begins
 		self.loadID = idOfLoad
 		self.Pl = Load_P
@@ -69,18 +69,16 @@ mutable struct Load(object)
 		return Theta_tilde #return the deviation
 		#function calcThetatilde ends
 
-function calcvtilde(self) #function calcvtilde begins
-	v_avg = self.connNodelPtr.vavMessage() #get the average of the Lagrange multiplier corresponding to voltage angle balance 
-	v_tilde = self.v - v_avg #calculate the deviation of the node Lagrange multiplier to the average
-	return v_tilde #return the deviation 
-	#function calcvtilde ends
-end
+	def calcvtilde(self): #function calcvtilde begins
+		v_avg = self.connNodelPtr.vavMessage() #get the average of the Lagrange multiplier corresponding to voltage angle balance 
+		v_tilde = self.v - v_avg #calculate the deviation of the node Lagrange multiplier to the average
+		return v_tilde #return the deviation 
+		#function calcvtilde ends
 
-function getv(self) #function getv begins
-	#print("v_initial: {}".format(v))
-	self.v = self.v + self.calcThetatilde() #Calculate the value of the Lagrange multiplier corresponding to angle constraint
-	#print("v_final: {}".format(v))
-	return self.v #Calculate the value of the Lagrange multiplier corresponding to angle constraint
-	#function getv ends
-end	
+	def getv(self): #function getv begins
+		#print("v_initial: {}".format(v))
+		self.v = self.v + self.calcThetatilde() #Calculate the value of the Lagrange multiplier corresponding to angle constraint
+		#print("v_final: {}".format(v))
+		return self.v #Calculate the value of the Lagrange multiplier corresponding to angle constraint
+		#function getv ends	
 	

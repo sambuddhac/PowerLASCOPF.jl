@@ -13,7 +13,7 @@ using JSON
 using superNetwork
 include("Julia_src/superNetwork.jl")
 
-function runSimLASCOPFTemp(setting::Dict, inputPath::AbstractString) #function runSimLASCOPFTemp begins program execution
+function run_sim_lascopf_temp(setting::Dict, inputPath::AbstractString) #function runSimLASCOPFTemp begins program execution
 	last = 0 #flag to indicate the last interval; last = 0, for dispatch interval that is not the last one; last = 1, for the last interval
 	futureNetVector = Dict() #Vector of future look-ahead dispatch interval supernetwork objects
 	if (solverChoice==1) or (solverChoice==2) #APMP Fully distributed, Bi-layer (N-1) SCOPF Simulation
