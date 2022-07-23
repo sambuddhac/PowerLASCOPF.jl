@@ -1,7 +1,7 @@
 module Generator
 #functions for Generator module
 using Node
-class Generator(object):
+mutable struct Generator(object)
 	# constructor begins
 	def __init__(self, idOfGen, interval, lastFlag, contScenarioCount, PCScenarioCount, baseCont, dummyZero, accuracy, nodeConng, 
                  	**paramOfGenFirstBase, **paramOfGenDZBase, **paramOfGenFirst, 
