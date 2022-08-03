@@ -20,7 +20,7 @@ using Cbc
 using Ipopt
 using MathOptInterface
 
-function linesolverBase(
+function linesolver_base(
     lambda_TXR::Array, # APP Lagrange Multiplier corresponding to the complementary slackness
     ECoeff::Array, #Line temperature evolution coefficients
     PgNextNu::Array, # Previous iterates of the corresponding decision variable values
