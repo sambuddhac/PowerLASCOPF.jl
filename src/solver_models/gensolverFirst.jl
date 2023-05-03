@@ -21,7 +21,7 @@ using Ipopt
 using MathOptInterface
 
 function gensolverFirst(
-    PgNextNu::Array, #nonnegative power in the next interval in the previous iteration
+    Pg_next_nu::Array, #nonnegative power in the next interval in the previous iteration
     B::Array, # Disagreement between the generator output values for the previous interval by the present and the previous interval, at the previous iteration
     D::Array, # Cumulative disagreement between the generator output values for the previous and next intervals by the present, next, and the previous intervals, at the previous iteration
     BSC::Array, # Cumulative disagreement between the generator output values for the previous and next intervals by the present, next, and the previous intervals, at the previous iteration
@@ -30,22 +30,22 @@ function gensolverFirst(
     dim = 200, #Number of contingency scenarios
     rho = 1, # ADMM tuning parameter
     beta = 1, # APP tuning parameter for across the dispatch intervals
-    betaInner = 1, # APP tuning parameter for across the dispatch intervals
+    beta_inner = 1, # APP tuning parameter for across the dispatch intervals
     gamma = 1, # APP tuning parameter for across the dispatch intervals
     gammaSC = 1, # APP tuning parameter
     ones = [1 for i in 1:dim], # Vector of all ones and zeroes
-    RgMax = 100, RgMin = -100, # Generator maximum ramp up and ramp down limits
-    PgMax = 100, PgMin = 0, # Generator Limits
+    Rg_max = 100, RgMin = -100, # Generator maximum ramp up and ramp down limits
+    Pg_max = 100, PgMin = 0, # Generator Limits
     c2 = 1, c1 = 1, c0 = 1, # Generator cost coefficients, quadratic, liear and constant terms respectively
-    Pg_N_init = 0, # Generator injection from last iteration for base case and contingencies
-    Pg_N_avg = 0, # Net average power from last iteration for base case and contingencies
-    Thetag_N_avg = 0, # Net average bus voltage angle from last iteration for base case and contingencies
-    ug_N = 0, # Dual variable for net power balance for base case and contingencies
-    vg_N = 0, #  Dual variable for net angle balance for base case and contingencies
-    Vg_N_avg = 0, # Average of dual variable for net angle balance from last to last iteration for base case and contingencies
-    PgNu = 0, PgNuInner = 0, # Previous iterates of the corresponding decision variable values
-    PgPrev = 0, # Generator's output in the previous interval
-    solChoice=1, #Choice of the solver
+    Pg_n_init = 0, # Generator injection from last iteration for base case and contingencies
+    Pg_n_avg = 0, # Net average power from last iteration for base case and contingencies
+    thetag_n_avg = 0, # Net average bus voltage angle from last iteration for base case and contingencies
+    ug_n = 0, # Dual variable for net power balance for base case and contingencies
+    vg_n = 0, #  Dual variable for net angle balance for base case and contingencies
+    Vg_n_avg = 0, # Average of dual variable for net angle balance from last to last iteration for base case and contingencies
+    Pg_nu = 0, Pg_nu_inner = 0, # Previous iterates of the corresponding decision variable values
+    Pg_prev = 0, # Generator's output in the previous interval
+    sol_choice=1, #Choice of the solver
     )
     start_t = now()
     if solChoice == 1
