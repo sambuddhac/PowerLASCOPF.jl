@@ -22,7 +22,10 @@ function run_sim_lascopf_temp(setting::Dict, inputPath::AbstractString) #functio
 	else
 		setRhoTuning = 0 #Otherwise, if we aren't using ADMM-PMP, Rho tuning is unnecessary, 0 is a dummy value
 	end
+	supernetwork_initialization()
+end
 
+function supernetwork_initialization()
 	log.info("\n*** SUPERNETWORK INITIALIZATION STAGE BEGINS ***")
 	#GRBEnv* environmentGUROBI = new GRBEnv("GUROBILogFile.log"); // GUROBI Environment object for storing the different optimization models
 	supernet = superNetwork(netID, setting['solverChoice'], setting['setRhoTuning'], 0, 0, 0, 0, setting['nextChoice'], setting['dummyIntervalChoice'], setting['contSolverAccuracy'], 0, setting['RNDIntervals'], setting['RSDIntervals']) #create the network instances for the future dummy zero dispatch intervals
@@ -30,22 +33,29 @@ function run_sim_lascopf_temp(setting::Dict, inputPath::AbstractString) #functio
 	futureNetVector.append(supernet) #push to the vector of future network instances 
 	supernet1 = superNetwork(netID, solverChoice, setRhoTuning, 0, 0, 1, 0, nextChoice, dummyIntervalChoice, contSolverAccuracy, 0, RNDIntervals, RSDIntervals) #create the network instances for the future upcoming dispatch intervals
 	futureNetVector.append(supernet1) #push to the vector of future network instances 
-	for i in range(numberOfCont+1):
-		for j in range(RNDIntervals - 1):
+	for i in range(numberOfCont+1)
+		for j in range(RNDIntervals - 1)
 			lineOutaged = 0 #the serial number of transmission line outaged in any scenario: default value is zero
-			if i > 0: #for the post-contingency scenarios
+			if i > 0 #for the post-contingency scenarios
 				lineOutaged = futureNetVector[0].indexOfLineOut(i) #gets the serial number of transmission line outaged in this scenario 
+			end
 			#create the network instances for the future next-to-upcoming-dispatch intervals for pos-contingency cases
 			futureNetVector.append(superNetwork(netID, solverChoice, setRhoTuning, i, j+1, 2, last, nextChoice, dummyIntervalChoice, contSolverAccuracy, lineOutaged, RNDIntervals, RSDIntervals)) #push to the vector of future network instances
-		for j in range(RSDIntervals+1):
+		end
+		for j in range(RSDIntervals+1)
 			lineOutaged = 0 #the serial number of transmission line outaged in any scenario: default value is zero
-			if i > 0: #for the post-contingency scenarios
+			if i > 0 #for the post-contingency scenarios
 				lineOutaged = futureNetVector[0].indexOfLineOut(i) #gets the serial number of transmission line outaged in this scenario 
-			if j == RSDIntervals: #set the flag to 1 to indicate the last interval
+			end
+			if j == RSDIntervals #set the flag to 1 to indicate the last interval
 				last = 1 #set the flag to 1 to indicate the last interval
+			end
 			#create the network instances for the future next-to-upcoming-dispatch intervals for pos-contingency cases
 			futureNetVector.append(superNetwork(netID, solverChoice, setRhoTuning, i, (j+RNDIntervals), 2, last, nextChoice, dummyIntervalChoice, contSolverAccuracy, lineOutaged, RNDIntervals, RSDIntervals)) # push to the vector of future network instances
+		end
+	end
 	log.info("\n*** SUPERNETWORK INITIALIZATION STAGE ENDS ***\n")
+end
 
 	numberOfGenerators = futureNetVector[0].getGenNumber() #get the number of generators in the system
 	numberOfLines = futureNetVector[0].getTransNumber() #get the number of remaining transmission lines in the system

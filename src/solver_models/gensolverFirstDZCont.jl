@@ -1,24 +1,7 @@
 #=
     #gelsolverFirstDZCont() for first interval OPF solver for generator with dummy zero interval: Contingency scenario
-
-    #Author: Sambuddha Chakrabarti
     #This is the first interval Generator Optimization Model for the contingency case when there is a dummy zero interval preceding it 
 =#
-
-import Pkg
-Pkg.add("Gurobi")
-Pkg.add("GLPK")
-Pkg.add("MathOptInterfaceMosek")
-Pkg.add("MathOptInterface")
-Pkg.add("Cbc")
-Pkg.add("Ipopt")
-using JuMP
-using Gurobi
-using GLPK
-using MathOptInterfaceMosek
-using Cbc
-using Ipopt
-using MathOptInterface
 
 function gensolverFirstDZCont(
     dim=190,
@@ -49,19 +32,6 @@ function gensolverFirstDZCont(
     BSC, # Cumulative disagreement between the generator output values for the previous and next intervals by the present, next, and the previous intervals, at the previous iteration
     )
     start_t = now()
-    if solChoice == 1
-        model = Model(with_optimizer(Gurobi.Optimizer))
-    elseif solChoice == 2
-        model = Model(with_optimizer(GLPK.Optimizer))
-    elseif solChoice == 3
-        model = Model(with_optimizer(MathOptInterfaceMosek.Optimizer))
-    elseif solChoice == 4
-        model = Model(with_optimizer(Cbc.Optimizer))
-    elseif solChoice == 5
-        model = Model(with_optimizer(Ipopt.Optimizer))
-    else
-        error("Invalid Solver Choice:", solChoice)
-    end
     @variables model begin
         Pg # Generator real power output
         PgNext[1:dim] # Generator's belief about its output in the next interval

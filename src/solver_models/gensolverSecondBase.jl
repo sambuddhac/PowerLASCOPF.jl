@@ -1,24 +1,7 @@
 #=
     #GensolverSecondBase() for second interval base-case OPF solver for generator
-
-    #Author: Sambuddha Chakrabarti
     #This is the second (and subsequent) interval Generator Optimization Model for the base case
 =#
-
-import Pkg
-Pkg.add("Gurobi")
-Pkg.add("GLPK")
-Pkg.add("MathOptInterfaceMosek")
-Pkg.add("MathOptInterface")
-Pkg.add("Cbc")
-Pkg.add("Ipopt")
-using JuMP
-using Gurobi
-using GLPK
-using MathOptInterfaceMosek
-using Cbc
-using Ipopt
-using MathOptInterface
 
 function gensolverSecondBase(
     PgNext::Float64, # Generator's belief about its output in the next interval, which is taken as the last iterate value of the present interval belief  
@@ -47,19 +30,6 @@ function gensolverSecondBase(
     solChoice=1, #Choice of the solver
     )
     start_t = now()
-    if solChoice == 1
-        model = Model(with_optimizer(Gurobi.Optimizer, OUTPUTLOG=OUTPUTLOG, MAXTIME=-MAXTIME))
-    elseif solChoice == 2
-        model = Model(with_optimizer(GLPK.Optimizer, OUTPUTLOG=OUTPUTLOG, MAXTIME=-MAXTIME))
-    elseif solChoice == 3
-        model = Model(with_optimizer(MathOptInterfaceMosek.Optimizer, OUTPUTLOG=OUTPUTLOG, MAXTIME=-MAXTIME))
-    elseif solChoice == 4
-        model = Model(with_optimizer(Cbc.Optimizer, OUTPUTLOG=OUTPUTLOG, MAXTIME=-MAXTIME))
-    elseif solChoice == 5
-        model = Model(with_optimizer(Ipopt.Optimizer, OUTPUTLOG=OUTPUTLOG, MAXTIME=-MAXTIME))
-    else
-        error("Invalid Solver Choice:", solChoice)
-    end
 
     @variables model begin
         Pg # Generator real power output

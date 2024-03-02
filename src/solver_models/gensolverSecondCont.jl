@@ -1,24 +1,7 @@
 #=
     #gelsolverFirst() for first interval OPF solver for generator with dummy sero interval
-
-    #Author: Sambuddha Chakrabarti
     #This is the second interval Generator Optimization Model for the contingency case
 =#
-
-import Pkg
-Pkg.add("Gurobi")
-Pkg.add("GLPK")
-Pkg.add("MathOptInterfaceMosek")
-Pkg.add("MathOptInterface")
-Pkg.add("Cbc")
-Pkg.add("Cbc")
-using JuMP
-using Gurobi
-using GLPK
-using MathOptInterfaceMosek
-using Cbc
-using Ipopt
-using MathOptInterface
 
 function gensolverSecondCont(
   rho positive # ADMM tuning parameter
@@ -44,7 +27,7 @@ function gensolverSecondCont(
   BSC # Cumulative disagreement between the generator output values for the previous and next intervals by the present, next, and the previous intervals, at the previous iteration 
   PgNext nonnegative # Generator's belief about its output in the next interval, which is taken as the last iterate value of the present interval belief  
   selectZero # Selection parameter to include or not include the last interval for PgNext constraint on ramping select 0 to not include the constraint, and 1 otherwise
-end
+)
 
 variables
   Pg # Generator real power output

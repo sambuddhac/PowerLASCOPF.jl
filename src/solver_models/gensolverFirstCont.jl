@@ -1,24 +1,7 @@
 #=
     #gelsolverFirst() for first interval OPF solver for generator with dummy sero interval
-
-    #Author: Sambuddha Chakrabarti
     #This is the first interval Generator Optimization Model for the contingency case when there is no dummy zero interval preceding it 
 =#
-
-import Pkg
-Pkg.add("Gurobi")
-Pkg.add("GLPK")
-Pkg.add("MathOptInterfaceMosek")
-Pkg.add("MathOptInterface")
-Pkg.add("Cbc")
-Pkg.add("Cbc")
-using JuMP
-using Gurobi
-using GLPK
-using MathOptInterfaceMosek
-using Cbc
-using Ipopt
-using MathOptInterface
 
 function gensolverFirstCont(
     dim=200,
@@ -47,19 +30,6 @@ function gensolverFirstCont(
     PgPrev, # Generator's output in the previous interval
     )
     start_t = now()
-    if solChoice == 1
-        model = Model(with_optimizer(Gurobi.Optimizer, OUTPUTLOG=OUTPUTLOG, MAXTIME=-MAXTIME))
-    elseif solChoice == 2
-        model = Model(with_optimizer(GLPK.Optimizer, OUTPUTLOG=OUTPUTLOG, MAXTIME=-MAXTIME))
-    elseif solChoice == 3
-        model = Model(with_optimizer(MathOptInterfaceMosek.Optimizer, OUTPUTLOG=OUTPUTLOG, MAXTIME=-MAXTIME))
-    elseif solChoice == 4
-        model = Model(with_optimizer(Cbc.Optimizer, OUTPUTLOG=OUTPUTLOG, MAXTIME=-MAXTIME))
-    elseif solChoice == 5
-        model = Model(with_optimizer(Ipopt.Optimizer, OUTPUTLOG=OUTPUTLOG, MAXTIME=-MAXTIME))
-    else
-        error("Invalid Solver Choice:", solChoice)
-    end
 
     @variables model begin
         0 <= Pg # Generator real power output

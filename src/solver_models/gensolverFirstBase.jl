@@ -1,18 +1,7 @@
 #=
     #gelsolverFirstBase() for Dummy zero interval OPF solver for generator
-
-    #Author: Sambuddha Chakrabarti
     #This is the dummy zero Generator Optimization Model for the base case
 =#
-using Pkg
-Pkg.activate("LASCOPFJulEnv")
-using JuMP
-using Gurobi
-using GLPK
-using MathOptInterfaceMosek
-using Cbc
-using Ipopt
-using MathOptInterface
 
 function gensolverFirstBase(
     PgNextNu::Float64, # Previous iterates of the corresponding decision variable values
@@ -41,19 +30,6 @@ function gensolverFirstBase(
     solChoice=1, #Choice of the solver
     )
     start_t = now()
-    if settings["solChoice"] == "Gurobi"
-        model = Model(with_optimizer(Gurobi.Optimizer, OUTPUTLOG=OUTPUTLOG, MAXTIME=-MAXTIME))
-    elseif settings["solChoice"] == "GLPK"
-        model = Model(with_optimizer(GLPK.Optimizer, OUTPUTLOG=OUTPUTLOG, MAXTIME=-MAXTIME))
-    elseif settings["solChoice"] == "Mosek"
-        model = Model(with_optimizer(MathOptInterfaceMosek.Optimizer, OUTPUTLOG=OUTPUTLOG, MAXTIME=-MAXTIME))
-    elseif settings["solChoice"] == "Cbc"
-        model = Model(with_optimizer(Cbc.Optimizer, OUTPUTLOG=OUTPUTLOG, MAXTIME=-MAXTIME))
-    elseif settings["solChoice"] == "Ipopt"
-        model = Model(with_optimizer(Ipopt.Optimizer, OUTPUTLOG=OUTPUTLOG, MAXTIME=-MAXTIME))
-    else
-        error("Invalid Solver Choice:", solChoice)
-    end
 
     @variables model begin
         0 <= Pg # Generator real power output

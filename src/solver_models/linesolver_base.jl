@@ -1,24 +1,6 @@
 #=
     #gelsolverFirstBase() for Dummy zero interval OPF solver for generator
-
-    #Author: Sambuddha Chakrabarti
-    #This is the first interval Transmission line Optimization Model for the base case
 =#
-
-import Pkg
-Pkg.add("Gurobi")
-Pkg.add("GLPK")
-Pkg.add("MathOptInterfaceMosek")
-Pkg.add("MathOptInterface")
-Pkg.add("Cbc")
-Pkg.add("Ipopt")
-using JuMP
-using Gurobi
-using GLPK
-using MathOptInterfaceMosek
-using Cbc
-using Ipopt
-using MathOptInterface
 
 function linesolver_base(
     lambda_txr::Array, # APP Lagrange Multiplier corresponding to the complementary slackness
@@ -38,19 +20,6 @@ function linesolver_base(
     cont_count=1, #Number of contingency scenarios
     )
     start_t = now()
-    if solChoice == 1
-        model = Model(with_optimizer(Gurobi.Optimizer))
-    elseif solChoice == 2
-        model = Model(with_optimizer(GLPK.Optimizer))
-    elseif solChoice == 3
-        model = Model(with_optimizer(MathOptInterfaceMosek.Optimizer))
-    elseif solChoice == 4
-        model = Model(with_optimizer(Cbc.Optimizer))
-    elseif solChoice == 5
-        model = Model(with_optimizer(Ipopt.Optimizer))
-    else
-        error("Invalid Solver Choice:", solChoice)
-    end
     One = repeat([1], cont_count, (RND_int-1))
 
     @variables model begin
