@@ -1,3 +1,149 @@
+using Printf ### ChatGPT 4.0 Generated code translation from C++ to Julia
+
+struct SuperNetwork 
+    netID::Int
+    solverChoice::Int
+    setRhoTuning::Int
+    last::Int
+    nextChoice::Int
+    dummyIntervalChoice::Int
+    contSolverAccuracy::Int
+    futureNetVector::Vector{SuperNetwork}
+end
+
+function main()
+    println("Enter the number of nodes to initialize the network. (Allowed choices are 2, 3, 5, 14, 30, 48, 57, 118, and 300 Bus IEEE Test Bus Systems as of now. So, please restrict yourself to one of these)")
+    netID = parse(Int, readline())
+    
+    println("Enter the switch value to select between whether an extensive/exhaustive (and presumably more accurate) solver for contingency scenarios is desired, or just a simpler one is desired; 1 for former, 0 for latter")
+    contSolverAccuracy = parse(Int, readline())
+    
+    println("Enter the choice of the solver for SCOPF of each dispatch interval, 1 for GUROBI-APMP(ADMM/PMP+APP), 2 for CVXGEN-APMP(ADMM/PMP+APP), 3 for GUROBI APP Coarse Grained, 4 for centralized GUROBI SCOPF")
+    solverChoice = parse(Int, readline())
+    
+    println("Enter the choice pertaining to whether you want to consider the ramping constraint to the next interval, for the last interval: 0 for not considering and 1 for considering")
+    nextChoice = parse(Int, readline())
+    
+    if (solverChoice == 1) || (solverChoice == 2)
+        println("Enter the tuning mode; Enter 1 for maintaining Rho * primTol = dualTol; 2 for primTol = dualTol; anything else for Adaptive Rho (with mode-1 being implemented for the first 3000 iterations and then Rho is held constant).")
+        setRhoTuning = parse(Int, readline())
+    else
+        setRhoTuning = 0
+    end
+    
+    println("Enter the choice pertaining to whether to include a dummy interval at the start or not (Inclusion of a dummy interval may speed up convergence and/or improve accuracy of solution). Enter 1 to include and 0 to not include")
+    dummyIntervalChoice = parse(Int, readline())
+    
+    println("Enter the number of look-ahead dispatch intervals for restoring line flows to within normal long-term ratings.")
+    RNDIntervals = parse(Int, readline())
+    
+    println("Enter the number of furthermore look-ahead dispatch intervals for making the system secure w.r.t. next set of contingencies.")
+    RSDIntervals = parse(Int, readline())
+    
+    println("\n*** SUPERNETWORK INITIALIZATION STAGE BEGINS ***\n")
+    
+    futureNetVector = Vector{SuperNetwork}()
+    
+    supernet = SuperNetwork(netID, solverChoice, setRhoTuning, 0, 0, dummyIntervalChoice, contSolverAccuracy, [])
+    push!(futureNetVector, supernet)
+    
+    supernet1 = SuperNetwork(netID, solverChoice, setRhoTuning, 0, 1, dummyIntervalChoice, contSolverAccuracy, [])
+    push!(futureNetVector, supernet1)
+    
+    for i in 0:length(futureNetVector[1].futureNetVector)
+        for j in 1:RNDIntervals
+            lineOutaged = 0
+            if i > 0
+                lineOutaged = futureNetVector[1].futureNetVector[i].indexOfLineOut(i)
+            end
+            supernet = SuperNetwork(netID, solverChoice, setRhoTuning, i, j, dummyIntervalChoice, contSolverAccuracy, [])
+            push!(futureNetVector, supernet)
+        end
+        
+        for j in 0:RSDIntervals
+            lineOutaged = 0
+            if i > 0
+                lineOutaged = futureNetVector[1].futureNetVector[i].indexOfLineOut(i)
+            end
+            last = j == RSDIntervals ? 1 : 0
+            supernet = SuperNetwork(netID, solverChoice, setRhoTuning, i, j+RNDIntervals, dummyIntervalChoice, contSolverAccuracy, [])
+            push!(futureNetVector, supernet)
+        end
+    end
+    
+    println("\n*** SUPERNETWORK INITIALIZATION STAGE ENDS ***\n")
+
+    numberOfGenerators = futureNetVector[1].getGenNumber()  # get the number of generators in the system
+    numberOfLines = futureNetVector[1].getTransNumber()  # get the number of remaining transmission lines in the system
+    iterCountAPP = 1  # Iteration counter for APP coarse grain decomposition algorithm
+    alphaAPP = 100.0  # APP Parameter/Path-length
+    consLagDim::Int  # Dimension of the vectors of APP Lagrange Multipliers and Power Generation Consensus
+    consLineLagDim::Int  # Dimension of the vectors of APP Lagrange Multipliers and Line Flow consensus for (RND-1) intervals for temperature limiting
+
+    if dummyIntervalChoice == 1
+       consLagDim = 2 * ((numberOfCont + 1) * (RNDIntervals + RSDIntervals) + 1) * numberOfGenerators
+    else
+       consLagDim = 2 * ((numberOfCont + 1) * (RNDIntervals + RSDIntervals)) * numberOfGenerators
+    end
+    consLineLagDim = (RNDIntervals - 1) * numberOfLines * (numberOfCont + 1)
+
+    lambdaAPP = fill(0.0, consLagDim)  # Array of APP Lagrange Multipliers for achieving consensus among the values of power generated, as guessed by different intervals
+    powDiff = fill(0.0, consLagDim)  # Array of lack of consensus between generation values, as guessed by different intervals
+    lambdaAPPLine = fill(0.0, consLineLagDim)  # Array of APP Lagrange Multipliers for achieving consensus among the values of line flows, as guessed by different intervals
+    powDiffLine = fill(0.0, consLineLagDim)  # Array of lack of consensus between line flows, as guessed by different intervals
+
+    supernetNum::Int
+    supernetNumNext::Int
+    supernetLineNumNext::Int
+
+    if dummyIntervalChoice == 1
+       supernetNum = (numberOfCont + 1) * (RNDIntervals + RSDIntervals) + 2
+       supernetNumNext = (numberOfCont + 1) * (RNDIntervals + RSDIntervals + 1) + 1
+    else
+       supernetNum = (numberOfCont + 1) * (RNDIntervals + RSDIntervals) + 1
+       supernetNumNext = (numberOfCont + 1) * (RNDIntervals + RSDIntervals + 1)
+    end
+    supernetLineNumNext = (numberOfCont + 1) * numberOfLines * (RNDIntervals - 1)
+
+    powerSelfGen = fill(0.0, supernetNum * numberOfGenerators)  # what I think about myself
+    powerNextBel = fill(0.0, supernetNumNext * numberOfGenerators)  # what I think about next door fellow
+    powerPrevBel = fill(0.0, supernetNum * numberOfGenerators)  # what I think about previous door fellow
+    powerNextFlowBel = fill(0.0, supernetLineNumNext)  # what I think about flows for next door fellow
+    powerSelfFlowBel = fill(0.0, supernetLineNumNext)  # what I think about flows for myself (only look-ahead intervals 1 to (RNDIntervals-1))
+
+    for i in 1:consLagDim
+       lambdaAPP[i] = 0.0  # Initialize lambdaAPP for the first iteration of APP and ADMM-PMP
+       powDiff[i] = 0.0  # Initialize powDiff for the first iteration of APP and ADMM-PMP
+    end
+
+    for i in 1:consLineLagDim
+       lambdaAPPLine[i] = 0.0  # Initialize lambdaAPPLine for the first iteration of APP and ADMM-PMP
+       powDiffLine[i] = 0.0  # Initialize powDiffLine for the first iteration of APP and ADMM-PMP
+    end
+
+    # Initializing the self belief, next belief, and previous beliefs about MW generated by a warm start with the respective generation values of last realized dispatch
+    for i in 1:supernetNum
+       for j in 1:numberOfGenerators
+        powerSelfGen[(i-1)*numberOfGenerators+j] = futureNetVector[1].getPowPrev()[j]  # Use 0.0 if warm start is not desired
+        if i == 1
+            powerPrevBel[(i-1)*numberOfGenerators+j] = futureNetVector[1].getPowPrev()[j]  # Actual value of previous interval dispatch for the first interval
+        else
+            power
+end
+### ChatGPT 4.0 Generated code translation from C++ to Julia
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 function runSimLASCOPFTemp() #function runSimLASCOPFTemp begins program execution

@@ -1,3 +1,88 @@
+using Gurobi ### ChatGPT 4.0 Generated code translation from C++ to Julia
+
+mutable struct SuperNetwork
+    # Define the fields of the SuperNetwork struct here
+end
+
+function main()
+    netID::Int
+    solverChoice::Int
+    dummyIntervalChoice::Int
+    RNDIntervals::Int
+    RSDIntervals::Int
+    nextChoice::Int
+    contSolverAccuracy::Int
+    setRhoTuning::Int
+    last::Int = 0
+    futureNetVector = Vector{SuperNetwork}()
+
+    println("Enter the number of nodes to initialize the network. (Allowed choices are 2, 3, 5, 14, 30, 48, 57, 118, and 300 Bus IEEE Test Bus Systems as of now. So, please restrict yourself to one of these)")
+    netID = parse(Int, readline())
+    
+    println("Enter the switch value to select between whether an extensive/exhaustive (and presumably more accurate) solver for contingency scenarios is desired, or just a simpler one is desired; 1 for former, 0 for latter")
+    contSolverAccuracy = parse(Int, readline())
+    
+    println("Enter the choice of the solver for SCOPF of each dispatch interval, 1 for GUROBI-APMP(ADMM/PMP+APP), 2 for CVXGEN-APMP(ADMM/PMP+APP), 3 for GUROBI APP Coarse Grained, 4 for centralized GUROBI SCOPF")
+    solverChoice = parse(Int, readline())
+    
+    println("Enter the choice pertaining to whether you want to consider the ramping constraint to the next interval, for the last interval: 0 for not considering and 1 for considering")
+    nextChoice = parse(Int, readline())
+    
+    if solverChoice == 1 || solverChoice == 2
+        println("Enter the tuning mode; Enter 1 for maintaining Rho * primTol = dualTol; 2 for primTol = dualTol; anything else for Adaptive Rho (with mode-1 being implemented for the first 3000 iterations and then Rho is held constant).")
+        setRhoTuning = parse(Int, readline())
+    else
+        setRhoTuning = 0
+    end
+    
+    println("Enter the choice pertaining to whether to include a dummy interval at the start or not (Inclusion of a dummy interval may speed up convergence and/or improve accuracy of solution). Enter 1 to include and 0 to not include")
+    dummyIntervalChoice = parse(Int, readline())
+    
+    println("Enter the number of look-ahead dispatch intervals for restoring line flows to within normal long-term ratings.")
+    RNDIntervals = parse(Int, readline())
+    
+    println("Enter the number of furthermore look-ahead dispatch intervals for making the system secure w.r.t. next set of contingencies.")
+    RSDIntervals = parse(Int, readline())
+    
+    println("\n*** SUPERNETWORK INITIALIZATION STAGE BEGINS ***\n")
+    
+    environmentGUROBI = Gurobi.Env("GUROBILogFile.log")
+    supernet = SuperNetwork(netID, solverChoice, setRhoTuning, 0, 0, 0, 0, nextChoice, dummyIntervalChoice, contSolverAccuracy, 0, RNDIntervals, RSDIntervals)
+    numberOfCont = supernet.retContCount()
+    push!(futureNetVector, supernet)
+    
+    supernet1 = SuperNetwork(netID, solverChoice, setRhoTuning, 0, 0, 1, 0, nextChoice, dummyIntervalChoice, contSolverAccuracy, 0, RNDIntervals, RSDIntervals)
+    push!(futureNetVector, supernet1)
+    
+    for i in 0:numberOfCont
+        for j in 1:RNDIntervals-1
+            lineOutaged = 0
+            if i > 0
+                lineOutaged = futureNetVector[1].indexOfLineOut(i)
+            end
+            supernet = SuperNetwork(netID, solverChoice, setRhoTuning, i, j, 2, last, nextChoice, dummyIntervalChoice, contSolverAccuracy, lineOutaged, RNDIntervals, RSDIntervals)
+            push!(futureNetVector, supernet)
+        end
+        
+        for j in 0:RSDIntervals
+            lineOutaged = 0
+            if i > 0
+                lineOutaged = futureNetVector[1].indexOfLineOut(i)
+            end
+            
+            if j == RSDIntervals
+                last = 1
+            end
+            
+            supernet = SuperNetwork(netID, solverChoice, setRhoTuning, i, j + RNDIntervals, 2,
+
+### ChatGPT 4.0 Generated code translation from C++ to Julia
+
+
+
+
+
+
 # Main function for implementing APMP Algorithm for the LASCOPF for Post-Contingency Restoration Controlling Line Temperature case in serial mode
 module LASCOPFTemp
 export runSimLASCOPFTemp
