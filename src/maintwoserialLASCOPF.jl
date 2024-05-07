@@ -1,14 +1,14 @@
 using Printf ### ChatGPT 4.0 Generated code translation from C++ to Julia
 
 struct SuperNetwork 
-    netID::Int
-    solverChoice::Int
-    setRhoTuning::Int
+    net_id::Int
+    solver_choice::Int
+    set_rho_tuning::Int
     last::Int
-    nextChoice::Int
-    dummyIntervalChoice::Int
-    contSolverAccuracy::Int
-    futureNetVector::Vector{SuperNetwork}
+    next_choice::Int
+    dummy_interval_choice::Int
+    cont_solver_accuracy::Int
+    future_net_vector::Vector{SuperNetwork}
 end
 
 function main()
