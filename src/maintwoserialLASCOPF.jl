@@ -129,6 +129,112 @@ function main()
             powerPrevBel[(i-1)*numberOfGenerators+j] = futureNetVector[1].getPowPrev()[j]  # Actual value of previous interval dispatch for the first interval
         else
             power
+	end
+    end
+
+    # Initialize variables
+powerSelfGen = zeros(supernetNum * numberOfGenerators)
+powerPrevBel = zeros(supernetNum * numberOfGenerators)
+powerNextBel = zeros(supernetNumNext * numberOfGenerators)
+powerNextFlowBel = zeros((numberOfCont + 1) * (RNDIntervals - 1) * numberOfLines)
+powerSelfFlowBel = zeros((numberOfCont + 1) * (RNDIntervals - 1) * numberOfLines)
+finTol = 1000.0
+finTolDelayed = 1000.0
+
+outputAPPFileName = ""
+if solverChoice == 1
+    outputAPPFileName = "/home/samie/code/ADMM_Based_Proximal_Message_Passing_Distributed_OPF/LASCOPF_Post_Contingency_Restoration_Temperature/output/ADMM_PMP_GUROBI/resultOuterAPP-SCOPF.txt"
+elseif solverChoice == 2
+    outputAPPFileName = "/home/samie/code/ADMM_Based_Proximal_Message_Passing_Distributed_OPF/LASCOPF_Post_Contingency_Restoration_Temperature/output/ADMM_PMP_CVXGEN/resultOuterAPP-SCOPF.txt"
+elseif solverChoice == 3
+    outputAPPFileName = "/home/samie/code/ADMM_Based_Proximal_Message_Passing_Distributed_OPF/LASCOPF_Post_Contingency_Restoration_Temperature/output/APP_Quasi_Decent_GUROBI/resultOuterAPP-SCOPF.txt"
+elseif solverChoice == 4
+    outputAPPFileName = "/home/samie/code/ADMM_Based_Proximal_Message_Passing_Distributed_OPF/LASCOPF_Post_Contingency_Restoration_Temperature/output/APP_GUROBI_Centralized_SCOPF/resultOuterAPP-SCOPF.txt"
+end
+
+open(outputAPPFileName, "w") do matrixResultAPPOut
+    # exit program if unable to create file
+    if !isopen(matrixResultAPPOut)
+        println("File could not be opened")
+        exit(1)
+    end
+end
+
+using Statistics
+
+largestSuperNetTimeVec = Float64[]
+singleSuperNetTimeVec = Float64[]
+
+actualSuperNetTime = 0
+start_s = time()
+
+while true
+    singleSuperNetTimeVec = Float64[]
+
+    if dummyIntervalChoice == 1
+        for netSimCount in 0:(numberOfCont + 1) * (RNDIntervals + RSDIntervals) + 1
+            if netSimCount == 0
+                println("\nStart of $iterCountAPP -th Outermost APP iteration for dummy zero dispatch interval")
+            elseif netSimCount == 1
+                println("\nStart of $iterCountAPP -th Outermost APP iteration for $netSimCount -th dispatch interval")
+            else
+                println("\nStart of $iterCountAPP -th Outermost APP iteration for second dispatch interval for $(netSimCount - 2) -th post-contingency scenario")
+            end
+
+            futureNetVector[netSimCount].runSimulation(iterCountAPP, lambdaAPP, powDiff, powerSelfGen, powerNextBel, powerPrevBel, lambdaAPPLine, powDiffLine, powerSelfFlowBel, powerNextFlowBel, environmentGUROBI)
+
+            singleSuperNetTime = futureNetVector[netSimCount].getvirtualNetExecTime()
+            actualSuperNetTime += singleSuperNetTime
+            push!(singleSuperNetTimeVec, singleSuperNetTime)
+        end
+
+        largestSuperNetTime = maximum(singleSuperNetTimeVec)
+        push!(largestSuperNetTimeVec, largestSuperNetTime)
+
+        # Calculate power generation opinions and disagreements between different dispatch interval coarse grains
+        for i in 0:((numberOfCont + 1) * (RNDIntervals + RSDIntervals) + 1)
+            if i == 0
+                for j in 0:numberOfGenerators-1
+                    powDiff[2*i*numberOfGenerators+j] = futureNetVector[i].getPowSelf()[j] - futureNetVector[i+1].getPowPrev()[j]
+                    powerSelfGen[i*numberOfGenerators+j] = futureNetVector[i].getPowSelf()[j]
+                    powerNextBel[i*numberOfGenerators+j] = futureNetVector[i].getPowNext(0, i)[j]
+                    powerPrevBel[i*numberOfGenerators+j] = futureNetVector[i].getPowPrev()[j]
+                    powDiff[(2*i+1)*numberOfGenerators+j] = futureNetVector[i].getPowNext(0, i)[j] - futureNetVector[i+1].getPowSelf()[j]
+                end
+            else
+                # Continue the translation for this section
+                # You can continue the translation in a similar manner for the remaining C++ code
+            end
+        end
+
+        # Tuning the alphaAPP
+        if iterCountAPP > 5 && iterCountAPP <= 10
+            alphaAPP = 75.0
+        elseif iterCountAPP > 10 && iterCountAPP <= 15
+            alphaAPP = 50.0
+        elseif iterCountAPP > 15 && iterCountAPP <= 20
+            alphaAPP = 25.0
+        elseif iterCountAPP > 20
+            alphaAPP = 10.0
+        end
+
+        # Update power disagreement Lagrange Multipliers
+        for i in 1:consLagDim
+            lambdaAPP[i] += alphaAPP * powDiff[i]
+        end
+
+        for i in 1:consLineLagDim
+            lambdaAPPLine[i] += alphaAPP * powDiffLine[i]
+        end
+
+        tolAPP = 0.0
+        tolAPPDelayed = 0.0
+        # Continue the translation for this section
+    else
+        # Continue the translation for this section
+    end
+end
+
 end
 ### ChatGPT 4.0 Generated code translation from C++ to Julia
 
