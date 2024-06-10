@@ -1,14 +1,75 @@
-# Member functions for class Load.
-import os
-import subprocess
-import pandas as pd
-import numpy as np
-import json
-import sys
-import traceback
-from Python_src.log import log
-from Python_src.profiler import Profiler
-from Python_src.node import Node
+# Member functions for Load class
+using .load
+using .node
+mutable struct Load
+    loadID::Int
+    Pl::Float64
+    connNodelPtr::Ptr{Node}
+    Thetal::Float64
+    v::Float64
+end
+
+function Load(idOfLoad::Int, nodeConnl::Ptr{Node}, Load_P::Float64)
+	new(idOfLoad, Load_P, nodeConnl, 0.0)
+        connNodelPtr[] = idOfLoad, Pl
+        setLoadData()
+end
+
+function getLoadID()
+        return loadID
+end
+
+function getLoadNodeID()
+        return connNodelPtr[].getNodeID()
+end
+
+function setLoadData()
+        v = 0.0
+end
+
+function pinitMessage()
+        pinit = 0.0
+        pinit += connNodelPtr[].npinitMessage(Pl)
+        return pinit
+end
+
+function lpowerangleMessage(lRho::Float64, vprevavg::Float64, Aprevavg::Float64, vprev::Float64)
+        Thetal = vprevavg + Aprevavg - vprev
+        connNodelPtr[].powerangleMessage(Pl, v, Thetal)
+end
+
+function calcPtilde()
+        P_avg = connNodelPtr[].PavMessage()
+        Ptilde = Pl - P_avg
+        return Ptilde
+end
+
+function calcPavInit()
+        return Pl - connNodelPtr[].devpinitMessage()
+end
+
+function getu()
+        u = connNodelPtr[].uMessage()
+        return u
+end
+
+function calcThetatilde()
+        Theta_avg = connNodelPtr[].ThetaavMessage()
+        Theta_tilde = Thetal - Theta_avg
+        return Theta_tilde
+end
+
+function calcvtilde()
+        v_avg = connNodelPtr[].vavMessage()
+        v_tilde = v - v_avg
+        return v_tilde
+end
+
+function getv()
+        v += calcThetatilde()
+        return v
+end
+
 
 mutable struct Load(object)
 	def __init__(self, idOfLoad, nodeConnl, Load_P): #constructor begins

@@ -1,3 +1,65 @@
+mutable struct Node
+	nodeID::Int
+	gConnNumber::Int
+	tConnNumber::Int
+	lConnNumber::Int
+	P_avg::Float64
+	Theta_avg::Float64
+	connLoadVal::Float64
+	u::Float64
+	v_avg::Float64
+	PDevCount::Int
+	Pinitavg::Float64
+	contingencyScenarios::Int
+	nodeFlag::Int
+	genSerialNum::Vector{Int}
+	fromReact::Float64
+	toReact::Float64
+	ReactCont::Vector{Float64}
+	connNodeList::Vector{Int}
+	connReactRec::Vector{Float64}
+	tranFromSerial::Vector{Int}
+	tranToSerial::Vector{Int}
+	loadSerialNum::Vector{Int}
+	contScenList::Vector{Int}
+	scenNodeList::Vector{Int}
+    end
+    function Node(nodeID::Int, numberOfScenarios::Int)
+	node = Node(nodeID, numberOfScenarios)
+	node.gConnNumber = 0
+	node.tConnNumber = 0
+	node.lConnNumber = 0
+	node.nodeFlag = 0
+	node.fromReact = 0.0
+	node.toReact = 0.0
+	node.PDevCount = 0
+	node.P_avg = 0.0
+	node.Theta_avg = 0.0
+	node.u = 0.0
+	node.v_avg = 0.0
+	node.Pinitavg = 0.0
+	return node
+    end
+    function getNodeID(node::Node)
+	return node.nodeID
+    end
+    function setgConn(node::Node, serialOfGen::Int)
+	node.gConnNumber += 1
+	push!(node.genSerialNum, serialOfGen)
+    end
+    function getGenLength(node::Node)
+	return node.gConnNumber
+    end
+    function getGenSer(node::Node, colCount::Int)
+	return node.genSerialNum[colCount]
+    end
+    # Implement other member functions as needed
+    
+
+
+
+
+
 #!/usr/bin/env python3
 # Member functions for class Node
 import os
