@@ -8,6 +8,61 @@ using transmissionLine
 using Load
 using Node
 
+mutable struct Network
+	networkID::Int
+	scenarioIndex::Int
+	postContScenario::Int
+	prePostContScen::Int
+	genNumber::Int
+	genFields::Int
+	loadNumber::Int
+	loadFields::Int
+	translNumber::Int
+	translFields::Int
+	deviceTermCount::Int
+	dummyZ::Int
+	Accuracy::Int
+	nodeNumber::Int
+	Rho::Float64
+	intervalID::Int
+	lastFlag::Int
+	outagedLine::Vector{Int}
+	OutagedLine::Int
+	baseOutagedLine::Int
+	contingencyCount::Int
+	solverChoice::Int
+	Verbose::Bool
+	pSelfBeleif::Vector{Float64}
+	pSelfBeleifInner::Vector{Float64}
+	pPrevBeleif::Vector{Float64}
+	pNextBeleif::Vector{Float64}
+	connNodeNumList::Vector{Int}
+	nodeValList::Vector{Int}
+	assignedNodeSer::Int
+	pSelfBuffer::Vector{Float64}
+	pPrevBuffer::Vector{Float64}
+	pNextBuffer::Vector{Float64}
+	pSelfBufferGUROBI::Vector{Float64}
+	pNextBufferGUROBI::Vector{Float64}
+	pPrevBufferGUROBI::Vector{Float64}
+	matrixResultString::String
+	devProdString::String
+	iterationResultString::String
+	lmpResultString::String
+	objectiveResultString::String
+	primalResultString::String
+	dualResultString::String
+	genSingleTimeVec::Vector{Float64}
+	genADMMMaxTimeVec::Vector{Float64}
+	virtualExecTime::Float64
+	divConvMWPU::Float64
+	genObject::Vector{Generator}
+	loadObject::Vector{Load}
+	translObject::Vector{TransmissionLine}
+	nodeObject::Vector{Node}
+    end
+    
+
 function network_init_var(val, postContScen, scenarioContingency, lineOutaged, prePostScenario, solverChoice, dummy, accuracy, intervalNum, lasIntFlag, nextChoice, outagedLine)
 	networkVar = Dict()
 	networkVar["MAX_ITER"] = 80002

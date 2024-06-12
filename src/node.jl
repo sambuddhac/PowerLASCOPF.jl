@@ -53,7 +53,60 @@ mutable struct Node
     function getGenSer(node::Node, colCount::Int)
 	return node.genSerialNum[colCount]
     end
-    # Implement other member functions as needed
+    
+    function settConn(node::Node, tranID::Int, dir::Int, react::Float64, rankOfOther::Int, scenarioTracker::Int)
+	node.tConnNumber += 1
+	if scenarioTracker != 0
+	    push!(node.contScenList, scenarioTracker)
+	end
+	if dir == 1
+	    push!(node.tranFromSerial, tranID)
+	    node.fromReact += 1 / react
+	    if scenarioTracker != 0
+		push!(node.ReactCont, -1 / react)
+		push!(node.scenNodeList, rankOfOther)
+	    end
+	    pos = findfirst(x -> x == rankOfOther, node.connNodeList)
+	    if pos != nothing
+		node.connReactRec[pos] -= 1 / react
+	    else
+		push!(node.connNodeList, rankOfOther)
+		push!(node.connReactRec, -1 / react)
+	    end
+	else
+	    push!(node.tranToSerial, tranID)
+	    node.toReact -= 1 / react
+	    if scenarioTracker != 0
+		push!(node.ReactCont, 1 / react)
+		push!(node.scenNodeList, rankOfOther)
+	    end
+	    pos = findfirst(x -> x == rankOfOther, node.connNodeList)
+	    if pos != nothing
+		node.connReactRec[pos] += 1 / react
+	    else
+		push!(node.connNodeList, rankOfOther)
+		push!(node.connReactRec, 1 / react)
+	    end
+	end
+    end
+    function getToReact(node::Node, scenarioTracker::Int)
+	pos = findfirst(x -> x == scenarioTracker, node.contScenList)
+	if pos != nothing
+	    if node.ReactCont[pos] > 0
+		return node.toReact + node.ReactCont[pos]
+	    else
+		return node.toReact
+	    end
+	end
+	return node.toReact
+    end
+    function getFromReact(node::Node, scenarioTracker::Int)
+	pos = findfirst(x -> x == scenarioTracker, node.contScenList)
+	if pos != nothing
+	    if node.ReactCont[pos] <= 0
+		return node.fromReact + node.ReactCont[pos]
+	    else
+		return
     
 
 
