@@ -79,6 +79,294 @@ function main()
 ### ChatGPT 4.0 Generated code translation from C++ to Julia
 
 
+### Gemini generated code translation
+# ... (Your SuperNetwork type/struct definition would go here)
+
+# Input and Initialization
+println("Enter the number of nodes to initialize the network. (Allowed choices are 2, 3, 5, 14, 30, 48, 57, 118, and 300 Bus IEEE Test Bus Systems as of now. So, please restrict yourself to one of these)")
+netID = parse(Int, readline())  # Read and parse the input as an integer
+
+println("Enter the switch value to select between whether an extensive/exhaustive (and presumably more accurate) solver for contingency scenarios is desired, or just a simpler one is desired; 1 for former, 0 for latter")
+contSolverAccuracy = parse(Int, readline())  # Read and parse the input as an integer
+
+println("Enter the choice of the solver for SCOPF of each dispatch interval, 1 for GUROBI-APMP(ADMM/PMP+APP), 2 for CVXGEN-APMP(ADMM/PMP+APP), 3 for GUROBI APP Coarse Grained, 4 for centralized GUROBI SCOPF")
+solverChoice = parse(Int, readline())  # Read and parse the input as an integer
+
+println("Enter the choice pertaining to whether you want to consider the ramping constraint to the next interval, for the last interval: 0 for not considering and 1 for considering")
+nextChoice = parse(Int, readline())  # Read and parse the input as an integer
+
+# Conditional rho tuning (same logic as C++, but simpler syntax)
+setRhoTuning = if (solverChoice == 1) || (solverChoice == 2)
+    println("Enter the tuning mode; Enter 1 for maintaining Rho * primTol = dualTol; 2 for primTol = dualTol; anything else for Adaptive Rho (with mode-1 being implemented for the first 3000 iterations and then Rho is held constant).")
+    parse(Int, readline())
+else
+    0  # Dummy value when not using ADMM-PMP
+end
+
+println("Enter the choice pertaining to whether to include a dummy interval at the start or not (Inclusion of a dummy interval may speed up convergence and/or improve accuracy of solution). Enter 1 to include and 0 to not include")
+dummyIntervalChoice = parse(Int, readline())  # Read and parse the input as an integer
+
+println("Enter the number of look-ahead dispatch intervals for restoring line flows to within normal long-term ratings.")
+RNDIntervals = parse(Int, readline())  # Read and parse the input as an integer
+
+println("Enter the number of furthermore look-ahead dispatch intervals for making the system secure w.r.t. next set of contingencies.")
+RSDIntervals = parse(Int, readline())  # Read and parse the input as an integer
+
+
+# Create SuperNetwork instances (push! adds to the end of the vector)
+futureNetVector = SuperNetwork[]  
+
+# ... rest of the supernetwork initialization
+# ... (Previous input handling code) ...
+
+println("\n*** SUPERNETWORK INITIALIZATION STAGE BEGINS ***\n")
+
+# Set up the Gurobi environment (if using JuMP with Gurobi)
+# You'll need to install and load the Gurobi.jl package first
+env = Gurobi.Env() # Create Gurobi environment
+
+# Create initial SuperNetworks
+supernet = SuperNetwork(net_id, solver_choice, set_rho_tuning, 0, 0, 0, 0, next_choice, dummy_interval_choice, cont_solver_accuracy, 0, RND_intervals, RSD_intervals)
+number_of_cont = ret_cont_count(supernet)  # Assuming retContCount is defined in your SuperNetwork type
+push!(future_net_vector, supernet)
+
+supernet1 = SuperNetwork(net_id, solver_choice, set_rho_tuning, 0, 0, 1, 0, next_choice, dummy_interval_choice, cont_solver_accuracy, 0, RND_intervals, RSD_intervals)
+push!(future_net_vector, supernet1)
+
+spawn_networks!(future_net_vector, number_of_cont, RND_intervals, RSD_intervals, next_choice, dummy_interval_choice, cont_solver_accuracy)
+
+# Main loop to create SuperNetworks for contingencies and intervals
+function spawn_networks!(future_net_vector::Vector{SuperNetwork}, number_of_cont::Int64, RND_intervals::Int64, RSD_intervals::Int64, next_choice::Bool, dummy_interval_choice::Bool, cont_solver_accuracy::Bool)
+    	last = 0  # Flag to indicate the last interval
+	for i in 0:number_of_cont
+    		for j in 1:(RND_intervals - 1)
+        		line_outaged = if i > 0
+            			future_net_vector[1].index_of_line_out(i)  # Assuming indexOfLineOut is defined
+        		else
+            			0
+        		end
+		end
+        	supernet = SuperNetwork(netID, solverChoice, setRhoTuning, i, j, 2, last, nextChoice, dummyIntervalChoice, contSolverAccuracy, lineOutaged, RNDIntervals, RSDIntervals)
+        	push!(futureNetVector, supernet)
+    	end
+
+    	for j in 0:RSDIntervals
+        	lineOutaged = if i > 0
+            			futureNetVector[1].indexOfLineOut(i) 
+        		else
+            			0
+        		end
+        
+        	# Update last flag
+        	last = (j == RSDIntervals) ? 1 : 0 # Ternary operator for conditional assignment
+        
+        	supernet = SuperNetwork(netID, solverChoice, setRhoTuning, i, (j + RNDIntervals), 2, last, nextChoice, dummyIntervalChoice, contSolverAccuracy, lineOutaged, RNDIntervals, RSDIntervals)
+        	push!(futureNetVector, supernet)
+    	end
+end
+
+println("\n*** SUPERNETWORK INITIALIZATION STAGE ENDS ***\n")
+# ... (Previous SuperNetwork initialization code) ...
+
+# Retrieve data from the SuperNetwork
+numberOfGenerators = futureNetVector[1].getGenNumber()
+numberOfLines = futureNetVector[1].getTransNumber()
+
+# APP algorithm parameters and counters
+iterCountAPP = 1
+alphaAPP = 100.0
+
+# Calculate dimensions for Lagrange multipliers and consensus arrays
+consLagDim = if dummyIntervalChoice == 1
+    2 * ((numberOfCont + 1) * (RNDIntervals + RSDIntervals) + 1) * numberOfGenerators
+else
+    2 * ((numberOfCont + 1) * (RNDIntervals + RSDIntervals)) * numberOfGenerators
+end
+consLineLagDim = (RNDIntervals - 1) * numberOfLines * (numberOfCont + 1)
+
+# Initialize Lagrange multipliers and consensus arrays
+lambdaAPP = zeros(consLagDim)
+powDiff = zeros(consLagDim)
+lambdaAPPLine = zeros(consLineLagDim)
+powDiffLine = zeros(consLineLagDim)
+
+# Number of supernetworks based on dummy interval choice
+supernetNum = if dummyIntervalChoice == 1
+    (numberOfCont + 1) * (RNDIntervals + RSDIntervals) + 2
+else
+    (numberOfCont + 1) * (RNDIntervals + RSDIntervals) + 1
+end
+supernetNumNext = (numberOfCont + 1) * (RNDIntervals + RSDIntervals + 1) + (dummyIntervalChoice == 1 ? 1 : 0) # Condition for dummyInterval
+supernetLineNumNext = (numberOfCont + 1) * numberOfLines * (RNDIntervals - 1)
+
+# Power generation and line flow beliefs
+powerSelfGen = zeros(supernetNum * numberOfGenerators)  
+powerNextBel = zeros(supernetNumNext * numberOfGenerators)
+powerPrevBel = zeros(supernetNum * numberOfGenerators)
+powerNextFlowBel = zeros(supernetLineNumNext)
+powerSelfFlowBel = zeros(supernetLineNumNext)
+# ... (Previous variable definitions) ...
+
+
+# Initialize Lagrange multipliers and power differences 
+lambdaAPP .= 0.0   # Broadcasted assignment to initialize all elements to 0.0
+powDiff .= 0.0
+lambdaAPPLine .= 0.0
+powDiffLine .= 0.0
+
+# Initializing self, next, and previous power beliefs (warm start)
+for i in 1:supernetNum # In Julia, arrays start at index 1
+    for j in 1:numberOfGenerators
+        # Warm start using previous dispatch results (or 0.0)
+        prev_power = futureNetVector[1].getPowPrev()[j]  # Assuming getPowPrev returns an array
+        powerSelfGen[(i - 1) * numberOfGenerators + j] = prev_power  # Indexing adjustment
+        
+        # Special case for the first interval
+        if i == 1
+            powerPrevBel[(i - 1) * numberOfGenerators + j] = prev_power
+        else
+            # You might want to change this based on your warm-start strategy
+            powerPrevBel[(i - 1) * numberOfGenerators + j] = 0.0  # Or another value
+        end
+    end
+end
+
+for i in 1:supernetNumNext
+    for j in 1:numberOfGenerators
+        # You might want to change this based on your warm-start strategy
+        powerNextBel[(i - 1) * numberOfGenerators + j] = futureNetVector[1].getPowPrev()[j]  # Or another value
+    end
+end
+
+
+# Initialize power flow beliefs (difficult to warm start, so set to 0.0)
+for i in 1:(numberOfCont + 1)
+    for k in 1:(RNDIntervals - 1)
+        for j in 1:numberOfLines
+            index_next_flow = (i - 1) * (RNDIntervals - 1) * numberOfLines + (k - 1) * numberOfLines + j
+            index_self_flow = (i - 1) * (RNDIntervals - 1) * numberOfLines + (k - 1) * numberOfLines + j
+            powerNextFlowBel[index_next_flow] = 0.0
+            powerSelfFlowBel[index_self_flow] = 0.0 
+        end
+    end
+end
+# ... (Previous variable initialization code) ...
+
+# Initialize tolerance variables
+finTol = 1000.0
+finTolDelayed = 1000.0
+
+# Determine output file name based on solver choice
+outputAPPFileName = "" # Initialize the string variable
+if solverChoice == 1
+    outputAPPFileName = "ADMM_PMP_GUROBI/resultOuterAPP-SCOPF.txt"  # Relative path for better portability
+elseif solverChoice == 2
+    outputAPPFileName = "ADMM_PMP_CVXGEN/resultOuterAPP-SCOPF.txt"
+elseif solverChoice == 3
+    outputAPPFileName = "APP_Quasi_Decent_GUROBI/resultOuterAPP-SCOPF.txt"
+elseif solverChoice == 4
+    outputAPPFileName = "APP_GUROBI_Centralized_SCOPF/resultOuterAPP-SCOPF.txt"
+end
+
+# Open the file for writing
+try
+    open(outputAPPFileName, "w") do matrixResultAPPOut
+        # Write initial messages to the file
+        println(matrixResultAPPOut, "\n*** APMP ALGORITHM BASED LASCOPF FOR POST CONTINGENCY RESTORATION CONTROLLING LINE TEMPERATURE SIMULATION (SERIAL IMPLEMENTATION) SUPERNETWORK LAYER BEGINS ***\n")
+        println(matrixResultAPPOut, "\n*** SIMULATION IN PROGRESS; PLEASE DON'T CLOSE ANY WINDOW OR OPEN ANY OUTPUT FILE YET ... ***\n")
+        println(matrixResultAPPOut, "\nInitial Value of the Tolerance to kick-start the APP outer iterations= $finTol\n")
+        println(matrixResultAPPOut, "APP Iteration Count\tAPP Tolerance")
+
+        # --- (The rest of your APP algorithm will go here) ---
+    end  # Close the file automatically when the block ends
+catch e
+    println(stderr, "File could not be opened: ", e) # Output the error to stderr
+    exit(1) # Exit program with error
+end
+
+# Print messages to the console as well
+println("\n*** APMP ALGORITHM BASED LASCOPF FOR POST CONTINGENCY RESTORATION CONTROLLING LINE TEMPERATURE SIMULATION (SERIAL IMPLEMENTATION) SUPERNETWORK LAYER BEGINS ***\n")
+println("\n*** SIMULATION IN PROGRESS; PLEASE DON'T CLOSE ANY WINDOW OR OPEN ANY OUTPUT FILE YET ... ***\n")
+# ... (Your previous code)
+
+# Vectors to store timing information
+largestSuperNetTimeVec = Float64[]  # Vector to store the largest supernetwork time per iteration
+singleSuperNetTimeVec = Float64[]  # Vector to store individual supernetwork times
+
+# Clear vectors for the upcoming iteration
+empty!(largestSuperNetTimeVec)
+empty!(singleSuperNetTimeVec)
+
+# Initialize actual supernetwork time
+actualSuperNetTime = 0.0
+
+# Start timing
+start_time = time()  # Use Julia's `time()` function to get the current time in seconds
+# ... (Previous code for initialization and variable definitions) ...
+
+
+# APP Iteration Loop
+while finTol >= 0.005  # Termination criterion
+	empty!(singleSuperNetTimeVec)  # Clear the vector to store this iteration's times
+    
+	if dummyIntervalChoice == 1
+	    netSimRange = 0:(numberOfCont + 1) * (RNDIntervals + RSDIntervals) + 1
+	else
+	    netSimRange = 0:(numberOfCont + 1) * (RNDIntervals + RSDIntervals)
+	end
+    
+	for netSimCount in netSimRange
+	    # Display iteration information
+	    if netSimCount == 0
+		println("\nStart of $iterCountAPP-th Outermost APP iteration for dummy zero dispatch interval")
+	    elseif netSimCount == 1
+		println("\nStart of $iterCountAPP-th Outermost APP iteration for $netSimCount-th dispatch interval")
+	    else
+		println("\nStart of $iterCountAPP-th Outermost APP iteration for second dispatch interval for $(netSimCount - 2)-th post-contingency scenario")
+	    end
+	    
+	    # Run simulation for the current SuperNetwork
+	    # Adjust the index if dummyIntervalChoice is 0
+	    supernet_index = netSimCount + (dummyIntervalChoice == 0 ? 1 : 0)
+	    futureNetVector[supernet_index].runSimulation(iterCountAPP, lambdaAPP, powDiff, powerSelfGen, powerNextBel, powerPrevBel, lambdaAPPLine, powDiffLine, powerSelfFlowBel, powerNextFlowBel, env) 
+	    
+	    # Store timing information
+	    single_net_time = futureNetVector[supernet_index].getvirtualNetExecTime()
+	    actualSuperNetTime += single_net_time
+	    push!(singleSuperNetTimeVec, single_net_time)
+	end
+    
+	# Find and store the largest supernetwork time from this iteration
+	largestSuperNetTime = maximum(singleSuperNetTimeVec)
+	push!(largestSuperNetTimeVec, largestSuperNetTime)
+    
+	# Update beliefs and disagreements (This is complex and depends on your SuperNetwork structure; you'll need to fill this in)
+	# ... your code for updating powerSelfGen, powerNextBel, powerPrevBel, powDiff, powerNextFlowBel, powerSelfFlowBel, powDiffLine...
+    
+	# Tune alphaAPP (adaptive step size)
+	if 5 < iterCountAPP <= 10
+	    alphaAPP = 75.0
+	elseif 10 < iterCountAPP <= 15
+	    alphaAPP = 50.0
+	elseif 15 < iterCountAPP <= 20
+	    alphaAPP = 25.0
+	elseif iterCountAPP > 20
+	    alphaAPP = 10.0
+	end
+    
+	# Update Lagrange multipliers
+	lambdaAPP .+= alphaAPP .* powDiff  # Element-wise update
+	lambdaAPPLine .+= alphaAPP .* powDiffLine
+    
+    
+	# Calculate and Output tolerances (This requires output handling, not shown here)
+	#... your code for calculating and outputting tolAPP, finTol, tolAPPDelayed, finTolDelayed
+       
+	iterCountAPP += 1
+    end
+ ### Gemini generated code translation   
+
+
 
 
 

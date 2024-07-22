@@ -50,26 +50,30 @@ function main()
     supernet1 = SuperNetwork(netID, solverChoice, setRhoTuning, 0, 1, dummyIntervalChoice, contSolverAccuracy, [])
     push!(futureNetVector, supernet1)
     
-    for i in 0:length(futureNetVector[1].futureNetVector)
-        for j in 1:RNDIntervals
-            lineOutaged = 0
-            if i > 0
-                lineOutaged = futureNetVector[1].futureNetVector[i].indexOfLineOut(i)
-            end
-            supernet = SuperNetwork(netID, solverChoice, setRhoTuning, i, j, dummyIntervalChoice, contSolverAccuracy, [])
-            push!(futureNetVector, supernet)
-        end
-        
-        for j in 0:RSDIntervals
-            lineOutaged = 0
-            if i > 0
-                lineOutaged = futureNetVector[1].futureNetVector[i].indexOfLineOut(i)
-            end
-            last = j == RSDIntervals ? 1 : 0
-            supernet = SuperNetwork(netID, solverChoice, setRhoTuning, i, j+RNDIntervals, dummyIntervalChoice, contSolverAccuracy, [])
-            push!(futureNetVector, supernet)
-        end
-    end
+function generate_supernetwork(numberOfCont::Int, RNDIntervals::Int, RSDIntervals::Int, futureNetVector::Vector{SuperNetwork}, netID::Int, solverChoice::Int, setRhoTuning::Int, dummyIntervalChoice::Int, contSolverAccuracy::Int, nextChoice::Int)
+
+    	for i in 0:numberOfCont
+		for j in 1:RNDIntervals
+	    		lineOutaged = 0 # the serial number of transmission line outaged in any scenario: default value is zero
+	    		if i > 0 # for the post-contingency scenarios
+				lineOutaged = futureNetVector[1].indexOfLineOut(i) # gets the serial number of transmission line outaged in this scenario 
+	    		end
+	    		supernet = superNetwork(netID, solverChoice, setRhoTuning, i, j, 2, last, nextChoice, dummyIntervalChoice, contSolverAccuracy, lineOutaged, RNDIntervals, RSDIntervals) # create the network instances for the future next-to-upcoming-dispatch intervals for pos-contingency cases
+	    		push!(futureNetVector, supernet) # push to the vector of future network instances
+		end
+		for j in 0:RSDIntervals
+	    		lineOutaged = 0 # the serial number of transmission line outaged in any scenario: default value is zero
+	    		if i > 0 # for the post-contingency scenarios
+				lineOutaged = futureNetVector[1].indexOfLineOut(i) # gets the serial number of transmission line outaged in this scenario 
+	    		end
+	    		if j == RSDIntervals # set the flag to 1 to indicate the last interval
+				last = 1 # set the flag to 1 to indicate the last interval
+	    		end
+	    		supernet = superNetwork(netID, solverChoice, setRhoTuning, i, (j + RNDIntervals), 2, last, nextChoice, dummyIntervalChoice, contSolverAccuracy, lineOutaged, RNDIntervals, RSDIntervals) # create the network instances for the future next-to-upcoming-dispatch intervals for pos-contingency cases
+	    		push!(futureNetVector, supernet) # push to the vector of future network instances
+		end
+    	end
+end
     
     println("\n*** SUPERNETWORK INITIALIZATION STAGE ENDS ***\n")
 
