@@ -19,31 +19,6 @@ function main()
     println("Enter the number of nodes to initialize the network. (Allowed choices are 2, 3, 5, 14, 30, 48, 57, 118, and 300 Bus IEEE Test Bus Systems as of now. So, please restrict yourself to one of these)")
     netID = parse(Int, readline())
     
-    println("Enter the switch value to select between whether an extensive/exhaustive (and presumably more accurate) solver for contingency scenarios is desired, or just a simpler one is desired; 1 for former, 0 for latter")
-    contSolverAccuracy = parse(Int, readline())
-    
-    println("Enter the choice of the solver for SCOPF of each dispatch interval, 1 for GUROBI-APMP(ADMM/PMP+APP), 2 for CVXGEN-APMP(ADMM/PMP+APP), 3 for GUROBI APP Coarse Grained, 4 for centralized GUROBI SCOPF")
-    solverChoice = parse(Int, readline())
-    
-    println("Enter the choice pertaining to whether you want to consider the ramping constraint to the next interval, for the last interval: 0 for not considering and 1 for considering")
-    nextChoice = parse(Int, readline())
-    
-    if solverChoice == 1 || solverChoice == 2
-        println("Enter the tuning mode; Enter 1 for maintaining Rho * primTol = dualTol; 2 for primTol = dualTol; anything else for Adaptive Rho (with mode-1 being implemented for the first 3000 iterations and then Rho is held constant).")
-        setRhoTuning = parse(Int, readline())
-    else
-        setRhoTuning = 0
-    end
-    
-    println("Enter the choice pertaining to whether to include a dummy interval at the start or not (Inclusion of a dummy interval may speed up convergence and/or improve accuracy of solution). Enter 1 to include and 0 to not include")
-    dummyIntervalChoice = parse(Int, readline())
-    
-    println("Enter the number of look-ahead dispatch intervals for restoring line flows to within normal long-term ratings.")
-    RNDIntervals = parse(Int, readline())
-    
-    println("Enter the number of furthermore look-ahead dispatch intervals for making the system secure w.r.t. next set of contingencies.")
-    RSDIntervals = parse(Int, readline())
-    
     println("\n*** SUPERNETWORK INITIALIZATION STAGE BEGINS ***\n")
     
     environmentGUROBI = Gurobi.Env("GUROBILogFile.log")
@@ -103,15 +78,18 @@ else
     0  # Dummy value when not using ADMM-PMP
 end
 
-println("Enter the choice pertaining to whether to include a dummy interval at the start or not (Inclusion of a dummy interval may speed up convergence and/or improve accuracy of solution). Enter 1 to include and 0 to not include")
-dummyIntervalChoice = parse(Int, readline())  # Read and parse the input as an integer
-
-println("Enter the number of look-ahead dispatch intervals for restoring line flows to within normal long-term ratings.")
-RNDIntervals = parse(Int, readline())  # Read and parse the input as an integer
-
-println("Enter the number of furthermore look-ahead dispatch intervals for making the system secure w.r.t. next set of contingencies.")
-RSDIntervals = parse(Int, readline())  # Read and parse the input as an integer
-
+function read_settings(case_path::String)
+	settings = Dict{String, Any}()
+	settings_path = joinpath(case_path, "LASCOPF_settings.yml")
+	println("Configuring Settings")
+    
+	settings = YAML.load(open(settings_path))
+    
+	return settings
+end
+    
+    println("Enter the number of nodes to initialize the network. (Allowed choices are 2, 3, 5, 14, 30, 48, 57, 118, and 300 Bus IEEE Test Bus Systems as of now. So, please restrict yourself to one of these)")
+    settings["netID"] = parse(Int, readline())
 
 # Create SuperNetwork instances (push! adds to the end of the vector)
 futureNetVector = SuperNetwork[]  
@@ -121,10 +99,6 @@ futureNetVector = SuperNetwork[]
 
 println("\n*** SUPERNETWORK INITIALIZATION STAGE BEGINS ***\n")
 
-# Set up the Gurobi environment (if using JuMP with Gurobi)
-# You'll need to install and load the Gurobi.jl package first
-env = Gurobi.Env() # Create Gurobi environment
-
 # Create initial SuperNetworks
 supernet = SuperNetwork(net_id, solver_choice, set_rho_tuning, 0, 0, 0, 0, next_choice, dummy_interval_choice, cont_solver_accuracy, 0, RND_intervals, RSD_intervals)
 number_of_cont = ret_cont_count(supernet)  # Assuming retContCount is defined in your SuperNetwork type
@@ -133,35 +107,34 @@ push!(future_net_vector, supernet)
 supernet1 = SuperNetwork(net_id, solver_choice, set_rho_tuning, 0, 0, 1, 0, next_choice, dummy_interval_choice, cont_solver_accuracy, 0, RND_intervals, RSD_intervals)
 push!(future_net_vector, supernet1)
 
-spawn_networks!(future_net_vector, number_of_cont, RND_intervals, RSD_intervals, next_choice, dummy_interval_choice, cont_solver_accuracy)
+spawn_networks!(future_net_vector, number_of_cont, settings)
 
 # Main loop to create SuperNetworks for contingencies and intervals
-function spawn_networks!(future_net_vector::Vector{SuperNetwork}, number_of_cont::Int64, RND_intervals::Int64, RSD_intervals::Int64, next_choice::Bool, dummy_interval_choice::Bool, cont_solver_accuracy::Bool)
+function spawn_networks!(future_net_vector::Vector{SuperNetwork}, number_of_cont::Int64, settings::Dict)
     	last = 0  # Flag to indicate the last interval
 	for i in 0:number_of_cont
     		for j in 1:(RND_intervals - 1)
         		line_outaged = if i > 0
-            			future_net_vector[1].index_of_line_out(i)  # Assuming indexOfLineOut is defined
+            			index_of_line_out(future_net_vector[1],i)  # Assuming indexOfLineOut is defined
         		else
             			0
         		end
 		end
-        	supernet = SuperNetwork(netID, solverChoice, setRhoTuning, i, j, 2, last, nextChoice, dummyIntervalChoice, contSolverAccuracy, lineOutaged, RNDIntervals, RSDIntervals)
+        	supernet = SuperNetwork(netID, i, j, 2, last, lineOutaged, settings)
         	push!(futureNetVector, supernet)
-    	end
-
-    	for j in 0:RSDIntervals
-        	lineOutaged = if i > 0
-            			futureNetVector[1].indexOfLineOut(i) 
-        		else
-            			0
-        		end
-        
-        	# Update last flag
-        	last = (j == RSDIntervals) ? 1 : 0 # Ternary operator for conditional assignment
-        
-        	supernet = SuperNetwork(netID, solverChoice, setRhoTuning, i, (j + RNDIntervals), 2, last, nextChoice, dummyIntervalChoice, contSolverAccuracy, lineOutaged, RNDIntervals, RSDIntervals)
-        	push!(futureNetVector, supernet)
+		for j in 0:RSDIntervals
+			lineOutaged = if i > 0
+				index_of_line_out(futureNetVector[1],i) 
+			else
+				0
+			end
+		
+		# Update last flag
+			last = (j == RSDIntervals) ? 1 : 0 # Ternary operator for conditional assignment
+		
+			supernet = SuperNetwork(netID, i, (j + RNDIntervals), 2, last, lineOutaged, settings)
+			push!(futureNetVector, supernet)
+		end
     	end
 end
 
@@ -176,13 +149,15 @@ numberOfLines = futureNetVector[1].getTransNumber()
 iterCountAPP = 1
 alphaAPP = 100.0
 
-# Calculate dimensions for Lagrange multipliers and consensus arrays
-consLagDim = if dummyIntervalChoice == 1
-    2 * ((numberOfCont + 1) * (RNDIntervals + RSDIntervals) + 1) * numberOfGenerators
-else
-    2 * ((numberOfCont + 1) * (RNDIntervals + RSDIntervals)) * numberOfGenerators
+function calculate_dimensions_lagrange_multipliers( and consensus arrays)
+	cons_lag_dim = if dummy_interval_choice == 1
+		2 * ((number_of_cont + 1) * (RND_intervals + RSD_intervals) + 1) * number_of_generators
+	else
+		2 * ((number_of_cont + 1) * (RND_intervals + RSD_intervals)) * number_of_generators
+	end
+	cons_line_lag_dim = (RND_intervals - 1) * number_of_lines * (number_of_cont + 1)
+	return cons_lag_dim, cons_line_lag_dim
 end
-consLineLagDim = (RNDIntervals - 1) * numberOfLines * (numberOfCont + 1)
 
 # Initialize Lagrange multipliers and consensus arrays
 lambdaAPP = zeros(consLagDim)

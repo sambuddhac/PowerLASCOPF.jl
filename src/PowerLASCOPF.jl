@@ -1,11 +1,23 @@
 module PowerLASCOPF
+-PACKAGE
+
+using DocStringExtensions
+
+@template (FUNCTIONS, METHODS) = """
+                                 $(TYPEDSIGNATURES)
+                                 $(DOCSTRING)
+                                 """
+
 using PowerModels
 using PowerSystems
 using PowerSimulations
 using InfrastructureSystems
+using PowerSystemCaseBuilder
 using GenX
 import GenX
-import PowerData
+import PowerDatate
+import LazyArtifacts
+import PowerSystemCaseBuilder: SystemCategory
 import PowerSystems
 import PowerSimulations
 import PowerModels
@@ -27,7 +39,14 @@ const MOIU = MathOptInterface.Utilities
 const MOPFM = MOI.FileFormats.Model
 const PNM = PowerNetworkMatrices
 const TS = TimeSeries
+const _PSYCB = PowerSystemCaseBuilder
 
+
+struct ERCOTSystem <: _PSYCB.SystemCategory end
+
+struct IEEESystem <: _PSYCB.SystemCategory end
+
+#=
 include("models/solver_models/gensolver_cont.jl")
 include("models/solver_models/gensolver_first_base.jl")
 include("models/solver_models/gensolver_first_cont.jl")
@@ -44,5 +63,5 @@ include("models/subsystems/transmission_line.jl")
 include("models/subsystems/node.jl")
 include("models/subsystems/network.jl")
 include("models/subsystems/supernetwork.jl")
-include("models/run_sim_lascopf_temp_app.jl")
+include("models/run_sim_lascopf_temp_app.jl")=#
 end
