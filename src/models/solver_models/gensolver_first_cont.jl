@@ -1,25 +1,3 @@
-#=
-    #gelsolverFirst() for first interval OPF solver for generator with dummy sero interval
-
-    #Author: Sambuddha Chakrabarti
-    #This is the first interval Generator Optimization Model for the contingency case when there is no dummy zero interval preceding it 
-=#
-
-import Pkg
-Pkg.add("Gurobi")
-Pkg.add("GLPK")
-Pkg.add("MathOptInterfaceMosek")
-Pkg.add("MathOptInterface")
-Pkg.add("Cbc")
-Pkg.add("Cbc")
-using JuMP
-using Gurobi
-using GLPK
-using MathOptInterfaceMosek
-using Cbc
-using Ipopt
-using MathOptInterface
-
 function gensolverFirstCont(
     dim=200,
     rho, # ADMM tuning parameter

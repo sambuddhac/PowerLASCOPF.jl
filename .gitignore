@@ -5,3 +5,5 @@
 /docs/build/
 src/.DS_Store
 .DS_Store
+
+.codegpt

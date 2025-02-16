@@ -1,75 +1,43 @@
-#=
-    #gelsolverFirstBase() for Dummy zero interval OPF solver for generator
+@kwdef mutable struct LineSolverBase <: AbstractModel
+    lambda_txr::Array{Float64} # APP Lagrange Multiplier corresponding to the complementary slackness
+    E_coeff::Array{Float64} #Line temperature evolution coefficients
+    Pg_next_nu::Array{Float64} # Previous iterates of the corresponding decision variable values
+    BSC::Array{Float64} # Cumulative disagreement between the generator output values for the previous and next intervals by the present, next, and the previous intervals, at the previous iteration
+    E_temp_coeff::Array{Float64}
+    alpha_factor::Float64 = 0.05 #Fraction of line MW flow, which is the Ohmic loss
+    beta_factor::Float64 = 0.1
+    beta::Float64 = 0.1 # APP tuning parameter for across the dispatch intervals
+    gamma::Float64 = 0.2 # APP tuning parameter for across the dispatch intervals
+    Pt_max::Float64 = 100000 # Line flow MW Limits
+    temp_init::Float64 = 340 #Initial line temperature in Kelvin
+    temp_amb::Float64 = 300 #Ambient temperature in Kelvin
+    max_temp::Float64 = 473 #Maximum allowed line temerature in Kelvin
+    RND_int::Int64 = 6 #Number of intervals for restoration to nominal/normal flows
+    cont_count::Int64 = 1 #Number of contingency scenarios
+end
 
-    #Author: Sambuddha Chakrabarti
-    #This is the first interval Transmission line Optimization Model for the base case
-=#
-
-import Pkg
-Pkg.add("Gurobi")
-Pkg.add("GLPK")
-Pkg.add("MathOptInterfaceMosek")
-Pkg.add("MathOptInterface")
-Pkg.add("Cbc")
-Pkg.add("Ipopt")
-using JuMP
-using Gurobi
-using GLPK
-using MathOptInterfaceMosek
-using Cbc
-using Ipopt
-using MathOptInterface
-
-function linesolver_base(
-    lambda_TXR::Array, # APP Lagrange Multiplier corresponding to the complementary slackness
-    ECoeff::Array, #Line temperature evolution coefficients
-    PgNextNu::Array, # Previous iterates of the corresponding decision variable values
-    BSC::Array, # Cumulative disagreement between the generator output values for the previous and next intervals by the present, next, and the previous intervals, at the previous iteration
-    ETempCoeff::Array;
-    alphaFactor=0.05, #Fraction of line MW flow, which is the Ohmic loss
-    betaFactor=,
-    beta=, # APP tuning parameter for across the dispatch intervals
-    gamma=, # APP tuning parameter for across the dispatch intervals
-    PtMax=100000, # Line flow MW Limits
-    tempInit=340, #Initial line temperature in Kelvin
-    tempAmb=300, #Ambient temperature in Kelvin
-    maxTemp=473, #Maximum allowed line temerature in Kelvin
-    RNDInt=6, #Number of intervals for restoration to nominal/normal flows
-    ContCount=1, #Number of contingency scenarios
-    )
-    start_t = now()
-    if solChoice == 1
-        model = Model(with_optimizer(Gurobi.Optimizer))
-    elseif solChoice == 2
-        model = Model(with_optimizer(GLPK.Optimizer))
-    elseif solChoice == 3
-        model = Model(with_optimizer(MathOptInterfaceMosek.Optimizer))
-    elseif solChoice == 4
-        model = Model(with_optimizer(Cbc.Optimizer))
-    elseif solChoice == 5
-        model = Model(with_optimizer(Ipopt.Optimizer))
-    else
-        error("Invalid Solver Choice:", solChoice)
-    end
-    One = repeat([1], ContCount, (RNDInt-1))
+function linesolver_base(m::LineSolverBase)
+    One = repeat([1], m.cont_count, (m.RND_int-1))
 
     @variables model begin
         0 <= Pt # Generator real power output
-        0 <= PtNext[1:ContCount, 1:(RNDInt-1)] # Generator's belief about its output in the next interval
+        0 <= PtNext[1:m.cont_count, 1:(m.RND_int-1)] # Generator's belief about its output in the next interval
     end
 
     @constraints model begin
-        PtNext .<= One * PtMax
-        PtNext .>= One * -PtMax
-        for contInd in 1:ContCount 
-            for omega in 1:RNDInt
-                ECoeff[omega]*tempInit+(1-ECoeff[omega])*tempAmb+(alphaFactor/betaFactor)*(sum((ETempCoeff[i, omega]*(PtNext[contInd, j])^2) for j in 1:(RNDInt-omega))) <= maxTemp
+        PtNext .<= One * m.Pt_max
+        PtNext .>= One * -m.Pt_max
+        for contInd in 1:m.cont_count 
+            for omega in 1:m.RND_int
+                m.E_coeff[omega]*m.temp_init+(1-m.E_coeff[omega])*m.temp_amb
+                +(m.alpha_factor/m.beta_factor)*(sum((m.E_temp_coeff[i, omega]
+                *(PtNext[contInd, j])^2) for j in 1:(m.RND_int-omega))) <= m.max_temp
             end
         end
     end
 
-    @NLobjective(model, Min, (beta/2)*(sum(sum((PtNext[i, j]-PtNextNu[i, j])^2 for i in 1:ContCount) for j in 1:(RNDInt-1)))
-    +(gamma)*(sum(sum(PtNext[i, j]*BSC[i, j] for i in 1:ContCount) for j in 1:(RNDInt-1)))+sum(sum(PtNext[i, j]*lambda_TXR[i, j] for i in 1:ContCount) for j in 1:(RNDInt-1)))
+    @NLobjective(model, Min, (beta/2)*(sum(sum((PtNext[i, j]-PtNextNu[i, j])^2 for i in 1:cont_count) for j in 1:(RND_int-1)))
+    +(gamma)*(sum(sum(PtNext[i, j]*BSC[i, j] for i in 1:cont_count) for j in 1:(RND_int-1)))+sum(sum(PtNext[i, j]*lambda_txr[i, j] for i in 1:cont_count) for j in 1:(RND_int-1)))
 
     optimize!(model)
     elapsed = now() - start_t

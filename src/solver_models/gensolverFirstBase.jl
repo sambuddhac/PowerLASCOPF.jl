@@ -48,7 +48,9 @@ function gensolverFirstBase(
         Pg-PgPrev >= RgMin
     end
 
-    @NLobjective(model, Min, c2*(Pg^2)+c1*Pg+c0+(beta/2)*((Pg-PgNu)^2+(PgNext-PgNextNu)^2)+(betaInner/2)*((Pg-PgNuInner)^2)
+    gen_poly_cost = _PMod.expression_p_dc_cost(pm::AbstractPowerModel; kwargs...) = _PMod.expression_p_dc_cost(pm, kwargs...)
+
+    @NLobjective(model, Min, gen_poly_cost+(beta/2)*((Pg-PgNu)^2+(PgNext-PgNextNu)^2)+(betaInner/2)*((Pg-PgNuInner)^2)
     +(gammaSC)*(sum(Pg*BSC[i] for i in 1:dim))+sum(Pg*lambda_1SC[i] for i in 1:dim)+(gamma)*(Pg*B+PgNext*D)+lambda_1*Pg
     +lambda_2*PgNext+(rho/2)*((Pg-Pg_N_init+Pg_N_avg+ug_N)^2+(Thetag-Vg_N_avg-Thetag_N_avg+vg_N)^2))
 

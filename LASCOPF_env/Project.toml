@@ -1,0 +1,3 @@
+[deps]
+Gurobi = "2e9cd046-0924-5485-92f1-d5272153d98b"
+PowerModels = "c36e90e8-916a-50a6-bd94-075b64ef4655"

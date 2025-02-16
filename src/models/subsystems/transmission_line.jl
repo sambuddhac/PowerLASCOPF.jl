@@ -1,57 +1,68 @@
 # Member functions for class transmissionLine
 
-mutable struct transmissionLine <: Device
-	translID::Int64
-	connNodet1Ptr::Node
-	connNodet2Ptr::Node
-	ptMax::Float64
-	reacT::Float64
-	resT::Float64
-	contScenTracker::Float64
+@kwdef mutable struct transmissionLine{T<:ACBranch} <: Device
+	transl_type::T
+	solver_line_base::LineSolverBase
+	transl_id::Int64 = 0
+	conn_nodet1_ptr::Node
+	conn_nodet2_ptr::Node
+	pt_max::Float64=0.0
+	react::Float64 = 0.0
+	rest::Float64 = 0.0
+	cont_scen_tracker::Float64 = 0.0
+	thetat1::Float64 = 0.0
+	thetat2::Float64 = 0.0 
+	pt1::Float64 = 0.0
+	pt2::Float64 = 0.0
+	v1::Float64 = 0.0
+	v2::Float64 = 0.0
 end
 
-function assign_conn_nodes()
-	fromNode = transline.connNodet1Ptr.getNodeID()
-	toNode = transline.connNodet2Ptr.getNodeID()
-	transline.connNodet1Ptr.settConn(transline.translID, 1, transline.reacT, toNode, transline.contScenTracker) #increments the txr line connection variable to node 1
-	transline.connNodet2Ptr.settConn(transline.translID, -1, transline.reacT, fromNode, transline.contScenTracker) #increments the txr line connection variable to node 2
-	transline.setTranData() #calls setTranData member function to set the parameter values
+transmissionLine(transl_type, solver_line_base, conn_nodet1_ptr, conn_nodet2_ptr) = transmissionLine(;transl_type, solver_line_base=solver_line_base, conn_nodet1_ptr=conn_nodet1_ptr, conn_nodet2_ptr=conn_nodet2_ptr)
+
+
+function assign_conn_nodes(transline::transmissionLine)
+	from_node = get_node_id(transline.conn_nodet1_ptr)
+	to_node = get_node_id(transline.conn_nodet2_ptr)
+	sett_conn(transline.conn_nodet1_ptr, transline.transl_id, 1, transline.reacT, toNode, transline.cont_scen_tracker) #increments the txr line connection variable to node 1
+	sett_conn(transline.conn_nodet2_ptr, transline.transl_id, -1, transline.reacT, fromNode, transline.cont_scen_tracker) #increments the txr line connection variable to node 2
+	set_tran_data(transline) #calls setTranData member function to set the parameter values
 end
 
-function getOutageScenario(transline::transmissionLine)
-	return transline.contScenTracker #returns scenario in which the line is outaged
+function get_outage_scenario(transline::transmissionLine)
+	return transline.cont_scen_tracker #returns scenario in which the line is outaged
 end
 
-function getTranslID(transline::transmissionLine) #function gettranslID begins
-	return transline.translID #returns the ID of the generator object
+function get_transl_id(transline::transmissionLine) #function gettranslID begins
+	return transline.transl_id #returns the ID of the generator object
 end
 
-function getTranslNodeID1(transline::transmissionLine) #function getGenNodeID begins
-	return transline.connNodet1Ptr.getNodeID() #returns the ID number of the node to which the generator object is connected
+function get_transl_node_id1(transline::transmissionLine) #function getGenNodeID begins
+	return get_node_id(transline.conn_nodet1_ptr) #returns the ID number of the node to which the generator object is connected
 	# end of getGenNodeID function
 end
 
-function getFlowLimit(transline::transmissionLine) #function getFlowLimit begins
-	return transline.ptMax #returns the Maximum power flow limit
+function get_flow_limit(transline::transmissionLine) #function getFlowLimit begins
+	return transline.pt_max #returns the Maximum power flow limit
 	#end of getFlowLimit function
 end
 
-function getTranslNodeID2(transline::transmissionLine) #function getGenNodeID begins
-	return transline.connNodet2Ptr.getNodeID() #returns the ID number of the node to which the generator object is connected
+function get_transl_node_id2(transline::transmissionLine) #function getGenNodeID begins
+	return get_node_id(transline.conn_nodet2_ptr) #returns the ID number of the node to which the generator object is connected
 	#end of getGenNodeID function
 end
 
-function setTranData(transline::transmissionLine) #member function to set parameter values of transmission lines
-	transline.Thetat1 = 0.0 #Initialize the angle iterate at end-1
-	transline.Thetat2 = 0.0 #Initialize the angle iterate at end-2
-	transline.Pt1 = 0.0 #Initialize the power iterate at end-1
-	transline.Pt2 = 0.0 #Initialize the power iterate at end-2
+function set_tran_data(transline::transmissionLine) #member function to set parameter values of transmission lines
+	transline.thetat1 = 0.0 #Initialize the angle iterate at end-1
+	transline.thetat2 = 0.0 #Initialize the angle iterate at end-2
+	transline.pt1 = 0.0 #Initialize the power iterate at end-1
+	transline.pt2 = 0.0 #Initialize the power iterate at end-2
 	transline.v1 = 0.0 #Initialize the Lagrange multiplier corresponding to end-1 voltage angle constraint to zero
 	transline.v2 = 0.0 #Initialize the Lagrange multiplier corresponding to end-2 voltage angle constraint to zero
 	#end function for setting parameter values
 end
 
-function tpowerangleMessage(transline::transmissionLine, tRho, Pprevit1, Pnetavg1, uprev1, vprevavg1, Aprevavg1, vprev1,  Pprevit2, Pnetavg2, uprev2, vprevavg2, Aprevavg2, vprev2) #function tpowerangleMessage begins
+function tpowerangle_message(transline::transmissionLine, tRho, Pprevit1, Pnetavg1, uprev1, vprevavg1, Aprevavg1, vprev1,  Pprevit2, Pnetavg2, uprev2, vprevavg2, Aprevavg2, vprev2) #function tpowerangleMessage begins
 	#tranSolver.mainsolve( tRho, Pprevit1, Pnetavg1, uprev1, vprevavg1, Aprevavg1, vprev1, Pprevit2, Pnetavg2, uprev2, vprevavg2, Aprevavg2, vprev2 ); // calls the transmission line optimization solver
 	end1A = transline.reacT * (Pprevit1 - Pnetavg1 - uprev1) #end-1 power parameter (refer to the derivation)
 	end1B = (vprevavg1 + Aprevavg1 - vprev1) #end-1 voltage angle parameter (refer to the derivation)
