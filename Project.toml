@@ -33,6 +33,7 @@ TimeSeries = "9e3dc215-6440-5c97-bce1-76c03772f85e"
 YAML = "ddb6d928-2868-570f-bddf-ab3f9cf99eb6"
 
 [compat]
+<<<<<<< HEAD
 JuMP = "1"
 PowerSimulations = "0.30"
 PowerSystems = "4"
@@ -66,3 +67,6 @@ Cbc = "1"
 PowerGraphics = "0.20"
 QUBO = "0.3"
 QuantumAnnealing = "0.2"
+=======
+YAML = "0.4"
+>>>>>>> 6da7d23 (CompatHelper: add new compat entry for YAML at version 0.4, (keep existing compat))
