@@ -5,7 +5,7 @@ abstract type LineIntervals <: IntervalType end
 abstract type LoadIntervals <: IntervalType end
 
 @kwdef mutable struct ExtendedThermalGenerationCost 
-    a::Float64 # Coefficient of the quadratic term
+    a::ThermalGenerationCost # Coefficient of the quadratic term
     b::Float64 # Coefficient of the linear term
     c::Float64 # Constant term
     d::Float64 # Coefficient of the cubic term
@@ -13,7 +13,7 @@ abstract type LoadIntervals <: IntervalType end
 end
 
 @kwdef mutable struct ExtendedRenewableGenerationCost 
-    a::Float64 # Coefficient of the quadratic term
+    a::RenewableGenerationCost # Coefficient of the quadratic term
     b::Float64 # Coefficient of the linear term
     c::Float64 # Constant term
     d::Float64 # Coefficient of the cubic term
@@ -21,7 +21,7 @@ end
 end
 
 @kwdef mutable struct ExtendedHydroGenerationCost 
-    a::Float64 # Coefficient of the quadratic term
+    a::HydroGenerationCost # Coefficient of the quadratic term
     b::Float64 # Coefficient of the linear term
     c::Float64 # Constant term
     d::Float64 # Coefficient of the cubic term
@@ -29,7 +29,7 @@ end
 end
 
 @kwdef mutable struct ExtendedStorageGenerationCost 
-    a::Float64 # Coefficient of the quadratic term
+    a::StorageGenerationCost # Coefficient of the quadratic term
     b::Float64 # Coefficient of the linear term
     c::Float64 # Constant term
     d::Float64 # Coefficient of the cubic term
