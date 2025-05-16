@@ -4,6 +4,38 @@ abstract type GenIntervals <: IntervalType end
 abstract type LineIntervals <: IntervalType end
 abstract type LoadIntervals <: IntervalType end
 
+@kwdef mutable struct ExtendedThermalGenerationCost 
+    a::Float64 # Coefficient of the quadratic term
+    b::Float64 # Coefficient of the linear term
+    c::Float64 # Constant term
+    d::Float64 # Coefficient of the cubic term
+    e::Float64 # Coefficient of the quartic term
+end
+
+@kwdef mutable struct ExtendedRenewableGenerationCost 
+    a::Float64 # Coefficient of the quadratic term
+    b::Float64 # Coefficient of the linear term
+    c::Float64 # Constant term
+    d::Float64 # Coefficient of the cubic term
+    e::Float64 # Coefficient of the quartic term
+end
+
+@kwdef mutable struct ExtendedHydroGenerationCost 
+    a::Float64 # Coefficient of the quadratic term
+    b::Float64 # Coefficient of the linear term
+    c::Float64 # Constant term
+    d::Float64 # Coefficient of the cubic term
+    e::Float64 # Coefficient of the quartic term
+end
+
+@kwdef mutable struct ExtendedStorageGenerationCost 
+    a::Float64 # Coefficient of the quadratic term
+    b::Float64 # Coefficient of the linear term
+    c::Float64 # Constant term
+    d::Float64 # Coefficient of the cubic term
+    e::Float64 # Coefficient of the quartic term
+end
+
 @kwdef mutable struct GenFirstBaseInterval <: GenIntervals
     lambda_1::Float64 # APP Lagrange Multiplier corresponding to the complementary slackness for across the dispatch intervals
     lambda_2::Float64 # APP Lagrange Multiplier corresponding to the complementary slackness for across the dispatch intervals
