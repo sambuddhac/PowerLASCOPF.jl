@@ -35,3 +35,4 @@ YAML = "ddb6d928-2868-570f-bddf-ab3f9cf99eb6"
 [compat]
 Cbc = "1"
 QUBO = "0.3"
+QuantumAnnealing = "0.2"
