@@ -4,47 +4,83 @@ abstract type GenIntervals <: IntervalType end
 abstract type LineIntervals <: IntervalType end
 abstract type LoadIntervals <: IntervalType end
 
-@kwdef mutable struct ExtendedThermalGenerationCost 
-    a::ThermalGenerationCost # Coefficient of the quadratic term
-    b::Float64 # Coefficient of the linear term
-    c::Float64 # Constant term
-    d::Float64 # Coefficient of the cubic term
-    e::Float64 # Coefficient of the quartic term
+@kwdef mutable struct ExtendedGenerationCost{T<:Union{ThermalGen,RenewableGen,HydroGen}}<:AbstractModel
+    generator_type::T # Generator type
+    interval_type::U # Interval type
+    cost_curve::ExtendedThermalGenerationCost
 end
 
-@kwdef mutable struct ExtendedRenewableGenerationCost 
-    a::RenewableGenerationCost # Coefficient of the quadratic term
-    b::Float64 # Coefficient of the linear term
-    c::Float64 # Constant term
-    d::Float64 # Coefficient of the cubic term
-    e::Float64 # Coefficient of the quartic term
+@kwdef mutable struct ExtendedThermalGenerationCost{T<:GenIntervals}<:AbstractModel
+    thermal_cost_core::ThermalGenerationCost # Coefficient of the quadratic term
+    regularization_term::T # Regularization Term
 end
 
-@kwdef mutable struct ExtendedHydroGenerationCost 
-    a::HydroGenerationCost # Coefficient of the quadratic term
-    b::Float64 # Coefficient of the linear term
-    c::Float64 # Constant term
-    d::Float64 # Coefficient of the cubic term
-    e::Float64 # Coefficient of the quartic term
+@kwdef mutable struct ExtendedRenewableGenerationCost{T<:GenIntervals}<:AbstractModel 
+    renewable_cost_core::RenewableGenerationCost # Coefficient of the quadratic term
+    regularization_term::T # Regularization Term
 end
 
-@kwdef mutable struct ExtendedStorageGenerationCost 
-    a::StorageGenerationCost # Coefficient of the quadratic term
-    b::Float64 # Coefficient of the linear term
-    c::Float64 # Constant term
-    d::Float64 # Coefficient of the cubic term
-    e::Float64 # Coefficient of the quartic term
+@kwdef mutable struct ExtendedHydroGenerationCost{T<:GenIntervals}<:AbstractModel 
+    hydro_cost_core::HydroGenerationCost # Coefficient of the quadratic term
+    regularization_term::T # Regularization Term
+end
+
+@kwdef mutable struct ExtendedStorageGenerationCost{T<:GenIntervals}<:AbstractModel 
+    storage_cost_core::StorageGenerationCost # Coefficient of the quadratic term
+    regularization_term::T # Regularization Term
 end
 
 @kwdef mutable struct GenFirstBaseInterval <: GenIntervals
-    lambda_1::Float64 # APP Lagrange Multiplier corresponding to the complementary slackness for across the dispatch intervals
-    lambda_2::Float64 # APP Lagrange Multiplier corresponding to the complementary slackness for across the dispatch intervals
-    B::Float64 # Cumulative disagreement between the generator output values for the previous and next intervals by the present, next, and the previous intervals, at the previous iteration
-    D::Float64 # Disagreement between the generator output values for the next interval by the present and the next interval, at the previous iteration
+    lambda_1::Array{Float64} # APP Lagrange Multiplier corresponding to the complementary slackness for across the dispatch intervals
+    lambda_2::Array{Float64} # APP Lagrange Multiplier corresponding to the complementary slackness for across the dispatch intervals
+    B::Array{Float64} # Cumulative disagreement between the generator output values for the previous and next intervals by the present, next, and the previous intervals, at the previous iteration
+    D::Array{Float64} # Disagreement between the generator output values for the next interval by the present and the next interval, at the previous iteration
     BSC::Array{Float64} # Cumulative disagreement between the generator output values for the previous and next intervals by the present, next, and the previous intervals, at the previous iteration
-    Pg::Float64 # Generator real power output
-    PgNext::Float64 # Generator's belief about its output in the next interval
-    thetag::Float64 # Generator bus angle for base case
+    cont_count::Int64 #Number of contingency scenarios
+    rho::Float64 = 1 # ADMM tuning parameter
+    beta::Float64 = 1 # APP tuning parameter for across the dispatch intervals
+    beta_inner::Float64 = 1 # APP tuning parameter for across the dispatch intervals
+    gamma::Float64 = 1 # APP tuning parameter for across the dispatch intervals
+    gamma_sc::Float64 = 1 # APP tuning parameter
+    lambda_1_sc::Array{Float64} # APP Lagrange Multiplier corresponding to the complementary slackness
+    Pg_N_init::Float64 = 0 # Generator injection from last iteration for base case and contingencies
+    Pg_N_avg::Float64 = 0 # Net average power from last iteration for base case and contingencies
+    thetag_N_avg::Float64 = 0 # Net average bus voltage angle from last iteration for base case and contingencies
+    ug_N::Float64 = 0 # Dual variable for net power balance for base case and contingencies
+    vg_N::Float64 = 0 #  Dual variable for net angle balance for base case and contingencies
+    Vg_N_avg::Float64 = 0 # Average of dual variable for net angle balance from last to last iteration for base case and contingencies
+    Pg_nu::Float64 = 0 # Previous iterates of the corresponding decision variable values
+    Pg_nu_inner::Float64 = 0 # Previous iterates of the corresponding decision variable values
+    Pg_next_nu::Array{Float64} = 0 # Previous iterates of the corresponding decision variable values
+    Pg_prev::Float64 = 0 # Generator's output in the previous interval
+end
+
+@kwdef mutable struct GenFirstBaseIntervalDZ <: GenIntervals
+    rho::Float64 = 1 # ADMM tuning parameter
+    beta::Float64 = 1 # APP tuning parameter for across the dispatch intervals
+    beta_inner::Float64 = 1 # APP tuning parameter
+    gamma::Float64 = 1 # APP tuning parameter for across the dispatch intervals
+    gamma_sc::Float64 = 1 # APP tuning parameter
+    lambda_1::Array{Float64} # APP Lagrange Multiplier corresponding to the complementary slackness
+    lambda_2::Array{Float64} # APP Lagrange Multiplier corresponding to the complementary slackness 
+    lambda_3::Float64
+    lambda_4::Float64 # APP Lagrange Multiplier corresponding to the complementary slackness
+    lambda_1_sc::Array{Float64} # APP Lagrange Multiplier corresponding to the complementary slackness
+    Pg_N_init::Float64 = 0 # Generator injection from last iteration for base case and contingencies
+    Pg_N_avg::Float64 = 0 # Net average power from last iteration for base case and contingencies
+    thetag_N_avg::Float64 = 0 # Net average bus voltage angle from last iteration for base case and contingencies
+    ug_N::Float64 = 0 # Dual variable for net power balance for base case and contingencies
+    vg_N::Float64 = 0 #  Dual variable for net angle balance for base case and contingencies
+    Vg_N_avg::Float64 = 0 # Average of dual variable for net angle balance from last to last iteration for base case and contingencies
+    Pg_nu::Float64 = 0 # Previous iterates of the corresponding decision variable values
+    Pg_nu_inner::Float64 = 0 # Previous iterates of the corresponding decision variable values
+    Pg_next_nu::Array{Float64} = 0 # Previous iterates of the corresponding decision variable values
+    Pg_prev_nu::Float64 = 0 # Generator's output in the previous interval
+    A::Float64 # Disagreement between the generator output values for the previous interval by the present and the previous interval, at the previous iteration
+    B::Array{Float64} # Cumulative disagreement between the generator output values for the previous and next intervals by the present, next, and the previous intervals, at the previous iteration
+    D::Array{Float64} # Disagreement between the generator output values for the next interval by the present and the next interval, at the previous iteration
+    BSC::Array{Float64} # Cumulative disagreement between the generator output values for the previous and next intervals by the present, next, and the previous intervals, at the previous iteration
+    cont_count::Int64 #Number of contingency scenarios
 end
 
 @kwdef mutable struct GenFirstContInterval <: GenIntervals
@@ -53,12 +89,6 @@ end
     B::Array{Float64},# Disagreement between the generator output values for the previous interval by the present and the previous interval, at the previous iteration
     D::Array{Float64},# Cumulative disagreement between the generator output values for the previous and next intervals by the present, next, and the previous intervals, at the previous iteration
     BSC::Float64, # Cumulative disagreement between the generator output values for the previous and next intervals by the present, next, and the previous intervals, at the previous iteration
-    Pg::Float64 # Generator real power output
-    PgNext::Float64 # Generator's belief about its output in the next interval
-    thetag::Float64 # Generator bus angle for base case
-end
-
-@kwdef mutable struct GenFirstBaseIntervalDZ <: GenIntervals
     Pg::Float64 # Generator real power output
     PgNext::Float64 # Generator's belief about its output in the next interval
     thetag::Float64 # Generator bus angle for base case
