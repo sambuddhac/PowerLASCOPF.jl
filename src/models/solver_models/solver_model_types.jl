@@ -9,12 +9,6 @@ abstract type LoadIntervals <: IntervalType end
     interval_type::U # Interval type
     cost_curve::ExtendedThermalGenerationCost
 end
-
-@kwdef mutable struct ExtendedThermalGenerationCost{T<:GenIntervals}<:AbstractModel
-    thermal_cost_core::ThermalGenerationCost # Coefficient of the quadratic term
-    regularization_term::T # Regularization Term
-end
-
 @kwdef mutable struct ExtendedRenewableGenerationCost{T<:GenIntervals}<:AbstractModel 
     renewable_cost_core::RenewableGenerationCost # Coefficient of the quadratic term
     regularization_term::T # Regularization Term
