@@ -1,5 +1,3 @@
-using Printf ### ChatGPT 4.0 Generated code translation from C++ to Julia
-
 struct SuperNetwork 
     net_id::Int
     solver_choice::Int
@@ -11,34 +9,7 @@ struct SuperNetwork
     future_net_vector::Vector{SuperNetwork}
 end
 
-function main()
-    println("Enter the number of nodes to initialize the network. (Allowed choices are 2, 3, 5, 14, 30, 48, 57, 118, and 300 Bus IEEE Test Bus Systems as of now. So, please restrict yourself to one of these)")
-    netID = parse(Int, readline())
-    
-    println("Enter the switch value to select between whether an extensive/exhaustive (and presumably more accurate) solver for contingency scenarios is desired, or just a simpler one is desired; 1 for former, 0 for latter")
-    contSolverAccuracy = parse(Int, readline())
-    
-    println("Enter the choice of the solver for SCOPF of each dispatch interval, 1 for GUROBI-APMP(ADMM/PMP+APP), 2 for CVXGEN-APMP(ADMM/PMP+APP), 3 for GUROBI APP Coarse Grained, 4 for centralized GUROBI SCOPF")
-    solverChoice = parse(Int, readline())
-    
-    println("Enter the choice pertaining to whether you want to consider the ramping constraint to the next interval, for the last interval: 0 for not considering and 1 for considering")
-    nextChoice = parse(Int, readline())
-    
-    if (solverChoice == 1) || (solverChoice == 2)
-        println("Enter the tuning mode; Enter 1 for maintaining Rho * primTol = dualTol; 2 for primTol = dualTol; anything else for Adaptive Rho (with mode-1 being implemented for the first 3000 iterations and then Rho is held constant).")
-        setRhoTuning = parse(Int, readline())
-    else
-        setRhoTuning = 0
-    end
-    
-    println("Enter the choice pertaining to whether to include a dummy interval at the start or not (Inclusion of a dummy interval may speed up convergence and/or improve accuracy of solution). Enter 1 to include and 0 to not include")
-    dummyIntervalChoice = parse(Int, readline())
-    
-    println("Enter the number of look-ahead dispatch intervals for restoring line flows to within normal long-term ratings.")
-    RNDIntervals = parse(Int, readline())
-    
-    println("Enter the number of furthermore look-ahead dispatch intervals for making the system secure w.r.t. next set of contingencies.")
-    RSDIntervals = parse(Int, readline())
+function run_simulation_lascopf()
     
     println("\n*** SUPERNETWORK INITIALIZATION STAGE BEGINS ***\n")
     
