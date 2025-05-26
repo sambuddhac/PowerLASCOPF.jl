@@ -1,3 +1,14 @@
+"""
+	@kwdef mutable struct ExtendedThermalGenerationCost{T<:GenIntervals}<:AbstractModel
+    		thermal_cost_core::ThermalGenerationCost # Coefficient of the quadratic term
+    		regularization_term::T # Regularization Term
+	end
+	This is the struct for implmenting extended thermal generation cost model with additional regularization term. This is needed for solving (N-1-1)
+	contingency cases in the extended thermal generation cost model.
+        - thermal_cost_core::ThermalGenerationCost # Coefficient of the quadratic term
+        - regularization_term::T # Regularization Term
+"""
+
 @kwdef mutable struct ExtendedThermalGenerationCost{T<:GenIntervals}<:AbstractModel
     thermal_cost_core::ThermalGenerationCost # Coefficient of the quadratic term
     regularization_term::T # Regularization Term
