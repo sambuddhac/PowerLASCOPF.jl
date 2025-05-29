@@ -4,10 +4,11 @@ abstract type GenIntervals <: IntervalType end
 abstract type LineIntervals <: IntervalType end
 abstract type LoadIntervals <: IntervalType end
 
-@kwdef mutable struct ExtendedGenerationCost{T<:Union{ThermalGen,RenewableGen,HydroGen}}<:AbstractModel
-    generator_type::T # Generator type
-    interval_type::U # Interval type
-    cost_curve::ExtendedThermalGenerationCost
+@kwdef mutable struct ExtendedGenerationCost{T<:Union{ExtendedThermalGenerationCost,
+    ExtendedRenewableGenerationCost,
+    ExtendedHydroGenerationCost,
+    ExtendedStorageCost}}<:AbstractModel where U<:GenIntervals
+    cost_curve::T
 end
 @kwdef mutable struct ExtendedRenewableGenerationCost{T<:GenIntervals}<:AbstractModel 
     renewable_cost_core::RenewableGenerationCost # Coefficient of the quadratic term
@@ -20,7 +21,7 @@ end
 end
 
 @kwdef mutable struct ExtendedStorageGenerationCost{T<:GenIntervals}<:AbstractModel 
-    storage_cost_core::StorageGenerationCost # Coefficient of the quadratic term
+    storage_cost_core::StorageCost # Coefficient of the quadratic term
     regularization_term::T # Regularization Term
 end
 
@@ -49,6 +50,82 @@ end
     Pg_prev::Float64 = 0 # Generator's output in the previous interval
 end
 
+function GenFirstBaseInterval(lambda_1, lambda_2, B, D, BSC, cont_count, rho = 1.0,
+                              beta::Float64 = 1.0,
+                              beta_inner::Float64 = 1.0,
+                              gamma::Float64 = 1.0,
+                              gamma_sc::Float64 = 1.0,
+                              lambda_1_sc::Array{Float64} = zeros(Float64, length(lambda_1)),
+                              Pg_N_init::Float64 = 0.0,
+                              Pg_N_avg::Float64 = 0.0,
+                              thetag_N_avg::Float64 = 0.0,
+                              ug_N::Float64 = 0.0,
+                              vg_N::Float64 = 0.0,
+                              Vg_N_avg::Float64 = 0.0,
+                              Pg_nu::Float64 = 0.0,
+                              Pg_nu_inner::Float64 = 0.0,
+                              Pg_next_nu::Array{Float64} = zeros(Float64, length(lambda_1)),
+                              Pg_prev::Float64 = 0.0)
+    GenFirstBaseInterval(lambda_1, lambda_2, B, D, BSC, cont_count, rho, beta, beta_inner, gamma, gamma_sc, lambda_1_sc, Pg_N_init, Pg_N_avg, thetag_N_avg, ug_N, vg_N, Vg_N_avg, Pg_nu, Pg_nu_inner, Pg_next_nu, Pg_prev)
+end
+
+function GenFirstBaseInterval(; lambda_1 = Float64[], 
+                              lambda_2 = Float64[], 
+                              B = Float64[], 
+                              D = Float64[], 
+                              BSC = Float64[], 
+                              cont_count::Int64 = 0, 
+                              rho::Float64 = 1.0, 
+                              beta::Float64 = 1.0, 
+                              beta_inner::Float64 = 1.0, 
+                              gamma::Float64 = 1.0, 
+                              gamma_sc::Float64 = 1.0, 
+                              lambda_1_sc::Array{Float64} = Float64[], 
+                              Pg_N_init::Float64 = 0.0, 
+                              Pg_N_avg::Float64 = 0.0, 
+                              thetag_N_avg::Float64 = 0.0, 
+                              ug_N::Float64 = 0.0, 
+                              vg_N::Float64 = 0.0, 
+                              Vg_N_avg::Float64 = 0.0, 
+                              Pg_nu::Float64 = 0.0, 
+                              Pg_nu_inner::Float64 = 0.0, 
+                              Pg_next_nu::Array{Float64} = Float64[], 
+                              Pg_prev::Float64 = 0.0)
+    GenFirstBaseInterval(lambda_1, lambda_2, B, D, BSC, cont_count, rho, beta, beta_inner, gamma, gamma_sc, lambda_1_sc, Pg_N_init, Pg_N_avg, thetag_N_avg, ug_N, vg_N, Vg_N_avg, Pg_nu, Pg_nu_inner, Pg_next_nu, Pg_prev)
+end
+
+function GenFirstBaseInterval(; kwargs...)
+    GenFirstBaseInterval(kwargs...)
+end
+
+function GenFirstBaseInterval(lambda_1::Array{Float64}, lambda_2::Array{Float64}, B::Array{Float64}, D::Array{Float64}, BSC::Array{Float64}, cont_count::Int64, rho::Float64 = 1.0, beta::Float64 = 1.0, beta_inner::Float64 = 1.0, gamma::Float64 = 1.0, gamma_sc::Float64 = 1.0, lambda_1_sc::Array{Float64} = zeros(Float64, length(lambda_1)), Pg_N_init::Float64 = 0.0, Pg_N_avg::Float64 = 0.0, thetag_N_avg::Float64 = 0.0, ug_N::Float64 = 0.0, vg_N::Float64 = 0.0, Vg_N_avg::Float64 = 0.0, Pg_nu::Float64 = 0.0, Pg_nu_inner::Float64 = 0.0, Pg_next_nu::Array{Float64} = zeros(Float64, length(lambda_1)), Pg_prev::Float64 = 0.0)
+    GenFirstBaseInterval(lambda_1, lambda_2, B, D, BSC, cont_count, rho, beta, beta_inner, gamma, gamma_sc, lambda_1_sc, Pg_N_init, Pg_N_avg, thetag_N_avg, ug_N, vg_N, Vg_N_avg, Pg_nu, Pg_nu_inner, Pg_next_nu, Pg_prev)
+end
+
+function GenFirstBaseInterval(::Nothing)
+    GenFirstBaseInterval(; lambda_1 = Float64[], 
+                         lambda_2 = Float64[], 
+                         B = Float64[], 
+                         D = Float64[], 
+                         BSC = Float64[], 
+                         cont_count::Int64 = 0, 
+                         rho::Float64 = 1.0, 
+                         beta::Float64 = 1.0, 
+                         beta_inner::Float64 = 1.0, 
+                         gamma::Float64 = 1.0, 
+                         gamma_sc::Float64 = 1.0, 
+                         lambda_1_sc::Array{Float64} = Float64[], 
+                         Pg_N_init::Float64 = 0.0, 
+                         Pg_N_avg::Float64 = 0.0, 
+                         thetag_N_avg::Float64 = 0.0, 
+                         ug_N::Float64 = 0.0, 
+                         vg_N::Float64 = 0.0, 
+                         Vg_N_avg::Float64 = 0.0, 
+                         Pg_nu::Float64 = 0.0, 
+                         Pg_nu_inner::Float64 = 0.0, 
+                         Pg_next_nu::Array{Float64} = Float64[], 
+                         Pg_prev::Float64 = 0.0)
+end
 @kwdef mutable struct GenFirstBaseIntervalDZ <: GenIntervals
     rho::Float64 = 1 # ADMM tuning parameter
     beta::Float64 = 1 # APP tuning parameter for across the dispatch intervals
@@ -78,20 +155,54 @@ end
 end
 
 @kwdef mutable struct GenFirstContInterval <: GenIntervals
-    lambda_1::Array{Float64}, 
-    lambda_2::Array{Float64}, # APP Lagrange Multiplier corresponding to the complementary slackness
-    B::Array{Float64},# Disagreement between the generator output values for the previous interval by the present and the previous interval, at the previous iteration
-    D::Array{Float64},# Cumulative disagreement between the generator output values for the previous and next intervals by the present, next, and the previous intervals, at the previous iteration
-    BSC::Float64, # Cumulative disagreement between the generator output values for the previous and next intervals by the present, next, and the previous intervals, at the previous iteration
-    Pg::Float64 # Generator real power output
-    PgNext::Float64 # Generator's belief about its output in the next interval
-    thetag::Float64 # Generator bus angle for base case
+    rho::Float64 = 1 # ADMM tuning parameter
+    beta::Float64 = 1 # APP tuning parameter for across the dispatch intervals
+    beta_inner::Float64 = 1 # APP tuning parameter
+    gamma::Float64 = 1 # APP tuning parameter for across the dispatch intervals
+    gamma_sc::Float64 = 1 # APP tuning parameter
+    lambda_1_sc::Float64 # APP Lagrange Multiplier corresponding to the complementary slackness
+    lambda_1::Array{Float64}
+    lambda_2::Array{Float64} # APP Lagrange Multiplier corresponding to the complementary slackness
+    B::Array{Float64}# Disagreement between the generator output values for the previous interval by the present and the previous interval, at the previous iteration
+    D::Array{Float64}# Cumulative disagreement between the generator output values for the previous and next intervals by the present, next, and the previous intervals, at the previous iteration
+    BSC::Float64 # Cumulative disagreement between the generator output values for the previous and next intervals by the present, next, and the previous intervals, at the previous iteration
+    Pg_N_init::Float64 = 0 # Generator injection from last iteration for base case and contingencies
+    Pg_N_avg::Float64 = 0 # Net average power from last iteration for base case and contingencies
+    thetag_N_avg::Float64 = 0 # Net average bus voltage angle from last iteration for base case and contingencies
+    ug_N::Float64 = 0 # Dual variable for net power balance for base case and contingencies
+    vg_N::Float64 = 0 #  Dual variable for net angle balance for base case and contingencies
+    Vg_N_avg::Float64 = 0 # Average of dual variable for net angle balance from last to last iteration for base case and contingencies
+    Pg_nu::Float64 = 0 # Previous iterates of the corresponding decision variable values
+    Pg_nu_inner::Float64 = 0 # Previous iterates of the corresponding decision variable values
+    Pg_next_nu::Array{Float64} # Previous iterates of the corresponding decision variable values
+    Pg_prev::Float64 = 0 # Generator's output in the previous interval
 end
 
 @kwdef mutable struct GenFirstContIntervalDZ <: GenIntervals
-    Pg::Float64 # Generator real power output
-    PgNext::Float64 # Generator's belief about its output in the next interval
-    thetag::Float64 # Generator bus angle for base case
+    rho::Float64 = 1 # ADMM tuning parameter
+    beta::Float64 = 1 # APP tuning parameter for across the dispatch intervals
+    beta_inner::Float64 = 1 # APP tuning parameter
+    gamma::Float64 = 1 # APP tuning parameter for across the dispatch intervals
+    gamma_sc::Float64 = 1 # APP tuning parameter
+    lambda_1_sc::Float64 # APP Lagrange Multiplier corresponding to the complementary slackness
+    lambda_1::Array{Float64}
+    lambda_2::Array{Float64} # APP Lagrange Multiplier corresponding to the complementary slackness
+    lambda_3::Float64
+    lambda_4::Float64 # APP Lagrange Multiplier corresponding to the complementary slackness
+    B::Array{Float64}# Disagreement between the generator output values for the previous interval by the present and the previous interval, at the previous iteration
+    D::Array{Float64}# Cumulative disagreement between the generator output values for the previous and next intervals by the present, next, and the previous intervals, at the previous iteration
+    A::Float64 # Disagreement between the generator output values for the previous interval by the present and the previous interval, at the previous iteration
+    BSC::Float64 # Cumulative disagreement between the generator output values for the previous and next intervals by the present, next, and the previous intervals, at the previous iteration
+    Pg_N_init::Float64 = 0 # Generator injection from last iteration for base case and contingencies
+    Pg_N_avg::Float64 = 0 # Net average power from last iteration for base case and contingencies
+    thetag_N_avg::Float64 = 0 # Net average bus voltage angle from last iteration for base case and contingencies
+    ug_N::Float64 = 0 # Dual variable for net power balance for base case and contingencies
+    vg_N::Float64 = 0 #  Dual variable for net angle balance for base case and contingencies
+    Vg_N_avg::Float64 = 0 # Average of dual variable for net angle balance from last to last iteration for base case and contingencies
+    Pg_nu::Float64 = 0 # Previous iterates of the corresponding decision variable values
+    Pg_nu_inner::Float64 = 0 # Previous iterates of the corresponding decision variable values
+    Pg_next_nu::Array{Float64} # Previous iterates of the corresponding decision variable values
+    Pg_prev_nu::Float64 = 0 # Generator's output in the previous interval
 end
 
 @kwdef mutable struct GenLastBaseInterval <: GenIntervals

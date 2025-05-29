@@ -1,5 +1,7 @@
-@kwdef mutable struct GenSolver{T<:Union{ThermalGen,RenewableGen,HydroGen}, U<:GenIntervals}<:AbstractModel
-    generator_type::T # Generator type
+@kwdef mutable struct GenSolver{T<:Union{ExtendedThermalGenerationCost,
+    ExtendedRenewableGenarationCost,
+    ExtendedHydroGenerationCost,
+    ExtendedStorageCost}, U<:GenIntervals}<:AbstractModel
     interval_type::U # Interval type
     cost_curve::ExtendedGenerationCost{T}
 end
