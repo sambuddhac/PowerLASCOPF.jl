@@ -7,8 +7,9 @@
 end
 
 GenSolver(interval_type, cost_curve) = GenSolver(; interval_type, cost_curve)
-function GenSolver()
 
+function GenSolver(::Nothing)
+    GenSolver()
 end
 
     function gensolver_decision_variable()
