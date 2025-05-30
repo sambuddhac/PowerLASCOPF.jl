@@ -3,34 +3,13 @@
     ExtendedHydroGenerationCost,
     ExtendedStorageCost}, U<:GenIntervals}<:AbstractModel
     interval_type::U # Interval type
-    cost_curve::ExtendedGenerationCost{T}
+    cost_curve::T
 end
 
-    
-    
-    function GenSolver(
-    lambda_1, lambda_2, # APP Lagrange Multiplier corresponding to the complementary slackness for across the dispatch intervals
-    B, # Cumulative disagreement between the generator output values for the previous and next intervals by the present, next, and the previous intervals, at the previous iteration 
-    D;  # Disagreement between the generator output values for the next interval by the present and the next interval, at the previous iteration
-    cont_count=1,  #Number of contingency scenarios
-    rho=1, # ADMM tuning parameter
-    beta=1, # APP tuning parameter for across the dispatch intervals
-    beta_inner=1, # APP tuning parameter for across the dispatch intervals
-    gamma=1, # APP tuning parameter for across the dispatch intervals
-    gammaSC=1, # APP tuning parameter
-    lambda_1SC::Array, # APP Lagrange Multiplier corresponding to the complementary slackness
-    Pg_N_init=0, # Generator injection from last iteration for base case and contingencies
-    Pg_N_avg=0, # Net average power from last iteration for base case and contingencies
-    thetag_N_avg=0, # Net average bus voltage angle from last iteration for base case and contingencies
-    ug_N=0, # Dual variable for net power balance for base case and contingencies
-    vg_N=0, #  Dual variable for net angle balance for base case and contingencies
-    Vg_N_avg=0, # Average of dual variable for net angle balance from last to last iteration for base case and contingencies
-    Pg_nu=0, Pg_nuInner=0, Pg_next_nu=0, # Previous iterates of the corresponding decision variable values
-    Pg_prev=0, # Generator's output in the previous interval
-    BSC::Array, # Cumulative disagreement between the generator output values for the previous and next intervals by the present, next, and the previous intervals, at the previous iteration
-    )
-    start_t = now()
-    end
+GenSolver(interval_type, cost_curve) = GenSolver(; interval_type, cost_curve)
+function GenSolver()
+
+end
 
     function gensolver_decision_variable()
 

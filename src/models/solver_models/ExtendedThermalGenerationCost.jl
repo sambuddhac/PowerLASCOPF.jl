@@ -11,7 +11,13 @@
 
 @kwdef mutable struct ExtendedThermalGenerationCost{T<:GenIntervals}<:AbstractModel
     thermal_cost_core::ThermalGenerationCost # Coefficient of the quadratic term
-    regularization_term::T # Regularization Term
+    regularization_term::Union{T, Float64} # Regularization Term
+end
+
+ExtendedThermalGenerationCost(thermal_cost_core, regularization_term) = ExtendedThermalGenerationCost(; thermal_cost_core, regularization_term)
+
+function ExtendedThermalGenerationCost(::Nothing)
+    ExtendedThermalGenerationCost(ThermalGenerationCost(nothing), 0.0)
 end
 
 """Get [`ExtendedThermalGenerationCost`](@ref) `variable`."""
