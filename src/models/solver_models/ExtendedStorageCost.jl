@@ -50,3 +50,6 @@ set_energy_shortage_cost!(value::ExtendedStorageCost, val) =
 """Set [`ExtendedStorageCost`](@ref) `energy_surplus_cost`."""
 set_energy_surplus_cost!(value::ExtendedStorageCost, val) =
     value.storage_cost_core.energy_surplus_cost = val
+set_regularization!(value::ExtendedStorageCost, val) = value.regularization_term = val
+"""Set ExtendedStorageCost cost_core."""
+set_cost_core(value::ExtendedStorageCost, cost_core) = value.storage_cost_core = cost_core
