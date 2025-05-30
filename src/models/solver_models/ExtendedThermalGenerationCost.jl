@@ -15,13 +15,13 @@
 end
 
 """Get [`ExtendedThermalGenerationCost`](@ref) `variable`."""
-get_variable(value::ExtendedThermalGenerationCost) = get_variable(value.thermal_cost_core.variable)
+get_variable(value::ExtendedThermalGenerationCost) = get_variable(value.thermal_cost_core)
 """Get [`ExtendedThermalGenerationCost`](@ref) `fixed`."""
-get_fixed(value::ExtendedThermalGenerationCost) = get_fixed(value.thermal_cost_core.fixed)
+get_fixed(value::ExtendedThermalGenerationCost) = get_fixed(value.thermal_cost_core)
 """Get [`ExtendedThermalGenerationCost`](@ref) `start_up`."""
-get_start_up(value::ExtendedThermalGenerationCost) = get_start_up(value.thermal_cost_core.start_up)
+get_start_up(value::ExtendedThermalGenerationCost) = get_start_up(value.thermal_cost_core)
 """Get [`ExtendedThermalGenerationCost`](@ref) `shut_down`."""
-get_shut_down(value::ExtendedThermalGenerationCost) = get_shut_down(value.thermal_cost_core.shut_down)
+get_shut_down(value::ExtendedThermalGenerationCost) = get_shut_down(value.thermal_cost_core)
 """Get [`ExtendedThermalGenerationCost`](@ref) `regularization_term`."""
 get_regularization(value::ExtendedThermalGenerationCost) = value.regularization_term
 """Get [`ExtendedThermalGenerationCost`](@ref) `cost_core`."""
