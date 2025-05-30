@@ -5,37 +5,21 @@
 	end
 	This is the struct for implmenting extended renewable generation cost model with additional regularization term. This is needed for solving (N-1-1)
 	contingency cases in the extended renewable generation cost model.
-        - thermal_cost_core::RenewableGenerationCost # Coefficient of the quadratic term
+        - renewable_cost_core::RenewableGenerationCost # Coefficient of the quadratic term
         - regularization_term::T # Regularization Term
 """
 
 @kwdef mutable struct ExtendedThermalGenerationCost{T<:GenIntervals}<:AbstractModel
-    thermal_cost_core::ThermalGenerationCost # Coefficient of the quadratic term
+    renewable_cost_core::RenewableGenerationCost # Coefficient of the quadratic term
     regularization_term::T # Regularization Term
 end
 
-"""Get [`ExtendedRenewbleGenerationCost`](@ref) `variable`."""
+"""Get [`ExtendedRenewableGenerationCost`](@ref) `variable`."""
 get_variable(value::ExtendedRenewableGenerationCost) = get_variable(value.renewable_cost_core.variable)
-"""Get [`ExtendedRenewbleGenerationCost`](@ref) `fixed`."""
-get_fixed(value::ExtendedRenewbleGenerationCost) = get_fixed(value.renewable_cost_core.fixed)
-"""Get [`ExtendedThermalGenerationCost`](@ref) `start_up`."""
-get_start_up(value::ExtendedRenewableGenerationCost) = get_start_up(value.renewable_cost_core.start_up)
-"""Get [`ExtendedRenewableGenerationCost`](@ref) `shut_down`."""
-get_shut_down(value::ExtendedRenewableGenerationCost) = get_shut_down(value.renewable_cost_core.shut_down)
-"""Get [`ExtendedRenewableGenerationCost`](@ref) `regularization_term`."""
-get_regularization(value::ExtendedRenewableGenerationCost) = value.regularization_term
-"""Get [`ExtendedRenewableGenerationCost`](@ref) `cost_core`."""
-get_cost_core(value::ExtendedRenewableGenerationCost) = value.renewable_cost_core
+"""Get [`ExtendedRenewableGenerationCost`](@ref) `curtailment_cost`."""
+get_curtailment_cost(value::ExtendedRenewableGenerationCost) = get_curtailment_cost(value.renewable_cost_core.curtailment_cost)
 
 """Set [`ExtendedRenewableGenerationCost`](@ref) `variable`."""
 set_variable!(value::ExtendedRenewableGenerationCost, val) = value.renewable_cost_core.variable = val
-"""Set [`ExtendedRenewableGenerationCost`](@ref) `fixed`."""
-set_fixed!(value::ExtendedRenewableGenerationCost, val) = value.renewable_cost_core.fixed = val
-"""Set [`ExtendedRenewableGenerationCost`](@ref) `start_up`."""
-set_start_up!(value::ExtendedRenewableGenerationCost, val) = value.renewable_cost_core.start_up = val
-"""Set [`ExtendedRenewableGenerationCost`](@ref) `shut_down`."""
-set_shut_down!(value::ExtendedRenewableGenerationCost, val) = value.renewable_cost_core.shut_down = val
-"""Set [`ExtendedRenewableGenerationCost`](@ref) `shut_down`."""
-set_regularization!(value::ExtendedThermalGenerationCost, val) = value.regularization_term = val
-"""Set [`ExtendedRenewableGenerationCost`](@ref) `cost_core`."""
-set_cost_core(value::ExtendedRenewableGenerationCost, cost_core) = value.renewable_cost_core = cost_core
+"""Set [`ExtendedRenewableGenerationCost`](@ref) `curtailment_cost`."""
+set_curtailment_cost!(value::ExtendedRenewableGenerationCost, val) = value.renewable_core_cost.curtailment_cost = val
