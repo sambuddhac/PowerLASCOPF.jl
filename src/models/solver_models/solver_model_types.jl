@@ -94,8 +94,8 @@ function GenFirstBaseInterval(; lambda_1 = Float64[],
     GenFirstBaseInterval(lambda_1, lambda_2, B, D, BSC, cont_count, rho, beta, beta_inner, gamma, gamma_sc, lambda_1_sc, Pg_N_init, Pg_N_avg, thetag_N_avg, ug_N, vg_N, Vg_N_avg, Pg_nu, Pg_nu_inner, Pg_next_nu, Pg_prev)
 end
 
-function GenFirstBaseInterval(; kwargs...)
-    GenFirstBaseInterval(kwargs...)
+function GenFirstBaseInterval_kwarg_constructor(; kwargs...)
+    GenFirstBaseInterval(; kwargs...)
 end
 
 function GenFirstBaseInterval(lambda_1::Array{Float64}, lambda_2::Array{Float64}, B::Array{Float64}, D::Array{Float64}, BSC::Array{Float64}, cont_count::Int64, rho::Float64 = 1.0, beta::Float64 = 1.0, beta_inner::Float64 = 1.0, gamma::Float64 = 1.0, gamma_sc::Float64 = 1.0, lambda_1_sc::Array{Float64} = zeros(Float64, length(lambda_1)), Pg_N_init::Float64 = 0.0, Pg_N_avg::Float64 = 0.0, thetag_N_avg::Float64 = 0.0, ug_N::Float64 = 0.0, vg_N::Float64 = 0.0, Vg_N_avg::Float64 = 0.0, Pg_nu::Float64 = 0.0, Pg_nu_inner::Float64 = 0.0, Pg_next_nu::Array{Float64} = zeros(Float64, length(lambda_1)), Pg_prev::Float64 = 0.0)
@@ -154,6 +154,56 @@ end
     cont_count::Int64 #Number of contingency scenarios
 end
 
+function GenFirstBaseIntervalDZ(lambda_1, lambda_2, lambda_3, lambda_4, B, D, A, BSC, cont_count, rho = 1.0,
+                              beta::Float64 = 1.0,
+                              beta_inner::Float64 = 1.0,
+                              gamma::Float64 = 1.0,
+                              gamma_sc::Float64 = 1.0,
+                              lambda_1_sc::Array{Float64} = zeros(Float64, length(lambda_1)),
+                              Pg_N_init::Float64 = 0.0,
+                              Pg_N_avg::Float64 = 0.0,
+                              thetag_N_avg::Float64 = 0.0,
+                              ug_N::Float64 = 0.0,
+                              vg_N::Float64 = 0.0,
+                              Vg_N_avg::Float64 = 0.0,
+                              Pg_nu::Float64 = 0.0,
+                              Pg_nu_inner::Float64 = 0.0,
+                              Pg_next_nu::Array{Float64} = zeros(Float64, length(lambda_1)),
+                              Pg_prev_nu::Float64 = 0.0)
+    GenFirstBaseIntervalDZ(lambda_1, lambda_2, lambda_3, lambda_4, B, D, A, BSC, cont_count, rho, beta, beta_inner, gamma, gamma_sc, lambda_1_sc, Pg_N_init, Pg_N_avg, thetag_N_avg, ug_N, vg_N, Vg_N_avg, Pg_nu, Pg_nu_inner, Pg_next_nu, Pg_prev_nu)
+end
+
+function GenFirstBaseIntervalDZ(; lambda_1 = Float64[], 
+                              lambda_2 = Float64[], 
+                              lambda_3::Float64 = 0.0, 
+                              lambda_4::Float64 = 0.0, 
+                              B = Float64[], 
+                              D = Float64[], 
+                              A::Float64 = 0.0, 
+                              BSC = Float64[], 
+                              cont_count::Int64 = 0, 
+                              rho::Float64 = 1.0, 
+                              beta::Float64 = 1.0, 
+                              beta_inner::Float64 = 1.0, 
+                              gamma::Float64 = 1.0, 
+                              gamma_sc::Float64 = 1.0, 
+                              lambda_1_sc::Array{Float64} = Float64[], 
+                              Pg_N_init::Float64 = 0.0, 
+                              Pg_N_avg::Float64 = 0.0, 
+                              thetag_N_avg::Float64 = 0.0, 
+                              ug_N::Float64 = 0.0, 
+                              vg_N::Float64 = 0.0, 
+                              Vg_N_avg::Float64 = 0.0, 
+                              Pg_nu::Float64 = 0.0, 
+                              Pg_nu_inner::Float64 = 0.0, 
+                              Pg_next_nu::Array{Float64} = Float64[], 
+                              Pg_prev_nu::Float64 = 0.0)
+    GenFirstBaseIntervalDZ(lambda_1, lambda_2, lambda_3, lambda_4, B, D, A, BSC, cont_count, rho, beta, beta_inner, gamma, gamma_sc, lambda_1_sc, Pg_N_init, Pg_N_avg, thetag_N_avg, ug_N, vg_N, Vg_N_avg, Pg_nu, Pg_nu_inner, Pg_next_nu, Pg_prev_nu)
+end
+function GenFirstBaseIntervalDZ(; kwargs...)
+    GenFirstBaseIntervalDZ(; kwargs...)
+end
+
 @kwdef mutable struct GenFirstContInterval <: GenIntervals
     rho::Float64 = 1 # ADMM tuning parameter
     beta::Float64 = 1 # APP tuning parameter for across the dispatch intervals
@@ -176,6 +226,35 @@ end
     Pg_nu_inner::Float64 = 0 # Previous iterates of the corresponding decision variable values
     Pg_next_nu::Array{Float64} # Previous iterates of the corresponding decision variable values
     Pg_prev::Float64 = 0 # Generator's output in the previous interval
+end
+
+function GenFirstContInterval(lambda_1, lambda_2, B, D, BSC, Pg_N_init = 0.0, Pg_N_avg = 0.0, thetag_N_avg = 0.0, ug_N = 0.0, vg_N = 0.0, Vg_N_avg = 0.0, Pg_nu = 0.0, Pg_nu_inner = 0.0, Pg_next_nu::Array{Float64} = zeros(Float64, length(lambda_1)), Pg_prev::Float64 = 0.0; rho = 1.0, beta::Float64 = 1.0, beta_inner::Float64 = 1.0, gamma::Float64 = 1.0, gamma_sc::Float64 = 1.0)
+    GenFirstContInterval(rho, beta, beta_inner, gamma, gamma_sc, lambda_1, lambda_2, B, D, BSC, Pg_N_init, Pg_N_avg, thetag_N_avg, ug_N, vg_N, Vg_N_avg, Pg_nu, Pg_nu_inner, Pg_next_nu, Pg_prev)
+end
+function GenFirstContInterval(; lambda_1 = Float64[], 
+                              lambda_2 = Float64[], 
+                              B = Float64[], 
+                              D = Float64[], 
+                              BSC::Float64 = 0.0, 
+                              Pg_N_init::Float64 = 0.0, 
+                              Pg_N_avg::Float64 = 0.0, 
+                              thetag_N_avg::Float64 = 0.0, 
+                              ug_N::Float64 = 0.0, 
+                              vg_N::Float64 = 0.0, 
+                              Vg_N_avg::Float64 = 0.0, 
+                              Pg_nu::Float64 = 0.0, 
+                              Pg_nu_inner::Float64 = 0.0, 
+                              Pg_next_nu::Array{Float64} = Float64[], 
+                              Pg_prev::Float64 = 0.0,
+                              rho::Float64 = 1.0, 
+                              beta::Float64 = 1.0, 
+                              beta_inner::Float64 = 1.0, 
+                              gamma::Float64 = 1.0, 
+                              gamma_sc::Float64 = 1.0)
+    GenFirstContInterval(rho, beta, beta_inner, gamma, gamma_sc, lambda_1, lambda_2, B, D, BSC, Pg_N_init, Pg_N_avg, thetag_N_avg, ug_N, vg_N, Vg_N_avg, Pg_nu, Pg_nu_inner, Pg_next_nu, Pg_prev)
+end
+function GenFirstContInterval_kwarg_constructor(; kwargs...)
+    GenFirstContInterval(; kwargs...)
 end
 
 @kwdef mutable struct GenFirstContIntervalDZ <: GenIntervals
@@ -203,6 +282,38 @@ end
     Pg_nu_inner::Float64 = 0 # Previous iterates of the corresponding decision variable values
     Pg_next_nu::Array{Float64} # Previous iterates of the corresponding decision variable values
     Pg_prev_nu::Float64 = 0 # Generator's output in the previous interval
+end
+
+function GenFirstContIntervalDZ(lambda_1, lambda_2, lambda_3, lambda_4, B, D, A, BSC, Pg_N_init = 0.0, Pg_N_avg = 0.0, thetag_N_avg = 0.0, ug_N = 0.0, vg_N = 0.0, Vg_N_avg = 0.0, Pg_nu = 0.0, Pg_nu_inner = 0.0, Pg_next_nu::Array{Float64} = zeros(Float64, length(lambda_1)), Pg_prev_nu::Float64 = 0.0; rho = 1.0, beta::Float64 = 1.0, beta_inner::Float64 = 1.0, gamma::Float64 = 1.0, gamma_sc::Float64 = 1.0)
+    GenFirstContIntervalDZ(rho, beta, beta_inner, gamma, gamma_sc, lambda_1, lambda_2, lambda_3, lambda_4, B, D, A, BSC, Pg_N_init, Pg_N_avg, thetag_N_avg, ug_N, vg_N, Vg_N_avg, Pg_nu, Pg_nu_inner, Pg_next_nu, Pg_prev_nu)
+end
+function GenFirstContIntervalDZ(; lambda_1 = Float64[], 
+                              lambda_2 = Float64[], 
+                              lambda_3::Float64 = 0.0, 
+                              lambda_4::Float64 = 0.0, 
+                              B = Float64[], 
+                              D = Float64[], 
+                              A::Float64 = 0.0, 
+                              BSC::Float64 = 0.0, 
+                              Pg_N_init::Float64 = 0.0, 
+                              Pg_N_avg::Float64 = 0.0, 
+                              thetag_N_avg::Float64 = 0.0, 
+                              ug_N::Float64 = 0.0, 
+                              vg_N::Float64 = 0.0, 
+                              Vg_N_avg::Float64 = 0.0, 
+                              Pg_nu::Float64 = 0.0, 
+                              Pg_nu_inner::Float64 = 0.0, 
+                              Pg_next_nu::Array{Float64} = Float64[], 
+                              Pg_prev_nu::Float64 = 0.0,
+                              rho::Float64 = 1.0, 
+                              beta::Float64 = 1.0, 
+                              beta_inner::Float64 = 1.0, 
+                              gamma::Float64 = 1.0, 
+                              gamma_sc::Float64 = 1.0)
+    GenFirstContIntervalDZ(rho, beta, beta_inner, gamma, gamma_sc, lambda_1, lambda_2, lambda_3, lambda_4, B, D, A, BSC, Pg_N_init, Pg_N_avg, thetag_N_avg, ug_N, vg_N, Vg_N_avg, Pg_nu, Pg_nu_inner, Pg_next_nu, Pg_prev_nu)
+end
+function GenFirstContIntervalDZ(; kwargs...)
+    GenFirstContIntervalDZ(; kwargs...)
 end
 
 @kwdef mutable struct GenLastBaseInterval <: GenIntervals
