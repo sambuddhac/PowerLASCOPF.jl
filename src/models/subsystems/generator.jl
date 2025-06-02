@@ -1,15 +1,15 @@
-@kwdef mutable struct PowerGenerator{T<:Union{ThermalGen,RenewableGen,HydroGen}}<:Generator
+@kwdef mutable struct PowerGenerator{T<:Union{ThermalGen,RenewableGen,HydroGen},U<:GenIntervals}<:Generator
 	gen_id::Int64
 	number_of_generators::Int64
 	dispatch_interval::Int64
-	flag_last::Int64
+	flag_last::Bool
 	dummy_zero_int_flag::Int64
 	cont_solver_accuracy::Int64
 	scenario_cont_count::Int64
 	post_cont_scen_count::Int64
 	base_cont_scenario::Int64
 	conn_nodeg_ptr::Node
-	gen_solver::GenSolver{T}
+	gen_solver::GenSolver{T,U}
 	cont_count_gen::Int64
 	gen_total::Int64
 	P_gen_prev::Float64
@@ -19,35 +19,29 @@
 	v::Float64
 
 	# constructor begins
-	function PowerGenerator(idOfGen, interval, lastFlag, contScenarioCount, PCScenarioCount, baseCont, dummyZero, accuracy, nodeConng, 
-                 	**paramOfGenFirstBase, **paramOfGenDZBase, **paramOfGenFirst, 
-			**paramOfGenSecondBase, **paramOfGenFirstCont, **paramOfGenDZCont, 
-			**paramOfGenSecondCont, **paramOfGenCont, countOfContingency, gen_total)
-			self = new()
-		self.genID = idOfGen
-		self.numberOfGenerators = gen_total
-		self.dispatchInterval = interval
-		self.flag_last = lastFlag
+	function PowerGenerator(id_of_gen::Int64, interval::Int64, last_flag::Bool, cont_scenario_count::Int64, gensolver::GenSolver{T,U}, 
+		idOfGen::Int64, PC_scenario_count::Int64, baseCont::Int64, dummyZero::Int64, accuracy::Int64, nodeConng::Node, 
+		countOfContingency::Int64, gen_total::Int64,
+		PC_scenario_count::Int64, baseCont, dummyZero, accuracy, nodeConng, countOfContingency, gen_total) where T<:Union{ThermalGen,RenewableGen,HydroGen}, U<:GenIntervals
+		self = new()
+		self.gen_id = id_of_gen
+		self.number_of_generators = gen_total
+		self.dispatch_interval = interval
+		self.flag_last = last_flag
 		self.dummy_zero_int_flag = dummyZero
 		self.cont_solver_accuracy = accuracy
-		self.scenario_cont_count = contScenarioCount
-		self.post_cont_scen_count = PCScenarioCount
+		self.scenario_cont_count = cont_scenario_count
+		self.post_cont_scen_count = PC_scenario_count
 		self.base_cont_scenario = baseCont
 		self.conn_nodeg_ptr = nodeConng
-		self.genSolverFirstBase = paramOfGenFirstBase
-		self.genSolverDZBase = paramOfGenDZBase
-		self.genSolverFirst = paramOfGenFirst
-		self.genSolverSecondBase = paramOfGenSecondBase
-		self.genSolverDZCont = paramOfGenDZCont
-		self.genSolverFirstCont = paramOfGenFirstCont
-		self.genSolverSecondCont = paramOfGenSecondCont
-		self.genSolverCont = paramOfGenCont
 		self.cont_count_gen = countOfContingency
-		"""For testingprint("Initializing the parameters of the generator with ID: " << genID )
-		"""
+		self.gen_solver = gensolver
 		self.conn_nodeg_ptr.setgConn(idOfGen) # increments the generation connection variable to node
 		self.P_gen_prev = genSolverFirstBase.getPgPrev()
 		self.setGenData() # calls setGenData member function to set the parameter values
+		return self
+	end # constructor ends
+end # struct PowerGenerator ends
 
 function getGenID() # function getGenID begins
 	return genID # returns the ID of the generator object
