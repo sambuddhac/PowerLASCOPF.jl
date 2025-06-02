@@ -1,14 +1,5 @@
-module Network
-
-#Member functions for class Network
-using JSON
-# include definitions for classes generator, load, transmission line, network and node
-using Generator
-using transmissionLine
-using Load
-using Node
-
-mutable struct Network
+@kwdef mutable struct Network
+	net_sys::_PSys.System
 	networkID::Int
 	scenarioIndex::Int
 	postContScenario::Int
