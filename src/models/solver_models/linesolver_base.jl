@@ -1,5 +1,6 @@
-@kwdef mutable struct LineSolverBase <: AbstractModel
+@kwdef mutable struct LineSolverBase{T<:LineIntervals} <: AbstractModel
     lambda_txr::Array{Float64} # APP Lagrange Multiplier corresponding to the complementary slackness
+    interval_type::T # Interval type
     E_coeff::Array{Float64} #Line temperature evolution coefficients
     Pg_next_nu::Array{Float64} # Previous iterates of the corresponding decision variable values
     BSC::Array{Float64} # Cumulative disagreement between the generator output values for the previous and next intervals by the present, next, and the previous intervals, at the previous iteration

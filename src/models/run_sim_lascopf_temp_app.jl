@@ -1,27 +1,76 @@
-using Gurobi ### ChatGPT 4.0 Generated code translation from C++ to Julia
-
-mutable struct SuperNetwork
-    # Define the fields of the SuperNetwork struct here
+mutable struct LASCOPFSys
+	
+@kwdef mutable struct SuperNetwork
+	net_id::Int
+	solver_choice::Int
+	set_rho_tuning::Int
+	last::Int = 0
+	RND_intervals::Int
+    	RSD_intervals::Int
+	next_choice::Int
+	dummy_interval_choice::Int
+	cont_solver_accuracy::Int
+	future_net_vector::Vector{SuperNetwork}# Define the fields of the SuperNetwork struct here
 end
 
-function main()
-    netID::Int
-    solverChoice::Int
-    dummyIntervalChoice::Int
-    RNDIntervals::Int
-    RSDIntervals::Int
-    nextChoice::Int
-    contSolverAccuracy::Int
-    setRhoTuning::Int
-    last::Int = 0
-    futureNetVector = Vector{SuperNetwork}()
+function add_nodes()
+	println("Enter the number of nodes to initialize the network. (Allowed choices are 2, 3, 5, 14, 30, 48, 57, 118, and 300 Bus IEEE Test Bus Systems as of now. So, please restrict yourself to one of these)")
+	netID = parse(Int, readline())
+end
 
-    println("Enter the number of nodes to initialize the network. (Allowed choices are 2, 3, 5, 14, 30, 48, 57, 118, and 300 Bus IEEE Test Bus Systems as of now. So, please restrict yourself to one of these)")
-    netID = parse(Int, readline())
+function set_solver_accuracy()
+	println("Enter the switch value to select between whether an extensive/exhaustive (and presumably more accurate) solver for contingency scenarios is desired, or just a simpler one is desired; 1 for former, 0 for latter")
+	contSolverAccuracy = parse(Int, readline())
+end
+
+function set_solver_choice()
+	println("Enter the choice of the solver for SCOPF of each dispatch interval, 1 for GUROBI-APMP(ADMM/PMP+APP), 2 for CVXGEN-APMP(ADMM/PMP+APP), 3 for GUROBI APP Coarse Grained, 4 for centralized GUROBI SCOPF")
+	solverChoice = parse(Int, readline())
+end
+
+function set_ramping_choice()
+	println("Enter the choice pertaining to whether you want to consider the ramping constraint to the next interval, for the last interval: 0 for not considering and 1 for considering")
+	nextChoice = parse(Int, readline())
+end
+
+function set_rho_tuning(set_solver_choice::Int)
+	# Conditional rho tuning (same logic as C++, but simpler syntax)
+	setRhoTuning = 0
+	if (solver_choice == 1) || (solver_choice == 2)
+		println("Enter the tuning mode; Enter 1 for maintaining Rho * primTol = dualTol; 2 for primTol = dualTol; anything else for Adaptive Rho (with mode-1 being implemented for the first 3000 iterations and then Rho is held constant).")
+		setRhoTuning = parse(Int, readline())
+	else
+		setRhoTuning = 0  # Dummy value when not using ADMM-PMP
+	end
+end
+
+function set_rnd_intervals()
+	println("Enter the number of look-ahead dispatch intervals for restoring line flows to within normal long-term ratings.")
+	RND_intervals = parse(Int, readline())
+end
+
+function set_rsd_intervals()
+	println("Enter the number of furthermore look-ahead dispatch intervals for making the system secure w.r.t. next set of contingencies.")
+	RSD_intervals = parse(Int, readline())
+end
+
+function set_contingency_choice()
+	println("Enter the choice pertaining to whether to include a dummy interval at the start or not (Inclusion of a dummy interval may speed up convergence and/or improve accuracy of solution). Enter 1 to include and 0 to not include")
+	dummy_interval_choice = parse(Int, readline())
+end
+
+function run_simulation_lascopf(system::LASCOPFSys)
+	run_simulation_lascopf(system.net_id, system.solver_choice, system.set_rho_tuning, system.last, system.RND_intervals, system.RSD_intervals, system.next_choice, system.dummy_interval_choice, system.cont_solver_accuracy)
+end
+
+function run_simulation_lascopf(node_num::Int, set_rho_tuning::Int, last::Int, RND_intervals::Int, RSD_intervals::Int; kwarg...)
+	run_simulation_lascopf(system.net_id, system.solver_choice, system.set_rho_tuning, system.last, system.RND_intervals, system.RSD_intervals, system.next_choice, system.dummy_interval_choice, system.cont_solver_accuracy)
+end
+
+function run_simulation_lascopf(node_num::Int, solver_choice::Int, set_rho_tuning::Int, last::Int, RND_intervals::Int, RSD_intervals::Int, next_choice::Int, dummy_interval_choice::Int, cont_solver_accuracy::Int)
     
     println("\n*** SUPERNETWORK INITIALIZATION STAGE BEGINS ***\n")
     
-    environmentGUROBI = Gurobi.Env("GUROBILogFile.log")
     supernet = SuperNetwork(netID, solverChoice, setRhoTuning, 0, 0, 0, 0, nextChoice, dummyIntervalChoice, contSolverAccuracy, 0, RNDIntervals, RSDIntervals)
     numberOfCont = supernet.retContCount()
     push!(futureNetVector, supernet)
