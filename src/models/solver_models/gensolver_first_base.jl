@@ -1,28 +1,9 @@
-@kwdef mutable struct GenSolver{T<:Union{ThermalGen,RenewableGen,HydroGen}, U<:GenIntervals}<:AbstractModel
-    generator_type::T # Generator type
+@kwdef mutable struct GenSolver{T<:Union{ExtendedThermalGenerationCost,
+    ExtendedRenewableGenarationCost,
+    ExtendedHydroGenerationCost,
+    ExtendedStorageCost}, U<:GenIntervals}<:AbstractModel
     interval_type::U # Interval type
-    lambda_1::Float64 # APP Lagrange Multiplier corresponding to the complementary slackness for across the dispatch intervals
-    lambda_2::Float64 # APP Lagrange Multiplier corresponding to the complementary slackness for across the dispatch intervals
-    B::Float64 # Cumulative disagreement between the generator output values for the previous and next intervals by the present, next, and the previous intervals, at the previous iteration
-    D::Float64 # Disagreement between the generator output values for the next interval by the present and the next interval, at the previous iteration
-    cont_count::Int64 #Number of contingency scenarios
-    rho::Float64 = 1 # ADMM tuning parameter
-    beta::Float64 = 1 # APP tuning parameter for across the dispatch intervals
-    beta_inner::Float64 = 1 # APP tuning parameter for across the dispatch intervals
-    gamma::Float64 = 1 # APP tuning parameter for across the dispatch intervals
-    gamma_sc::Float64 = 1 # APP tuning parameter
-    lambda_1_sc::Array{Float64} # APP Lagrange Multiplier corresponding to the complementary slackness
-    Pg_N_init::Float64 = 0 # Generator injection from last iteration for base case and contingencies
-    Pg_N_avg::Float64 = 0 # Net average power from last iteration for base case and contingencies
-    thetag_N_avg::Float64 = 0 # Net average bus voltage angle from last iteration for base case and contingencies
-    ug_N::Float64 = 0 # Dual variable for net power balance for base case and contingencies
-    vg_N::Float64 = 0 #  Dual variable for net angle balance for base case and contingencies
-    Vg_N_avg::Float64 = 0 # Average of dual variable for net angle balance from last to last iteration for base case and contingencies
-    PgNu::Float64 = 0 # Previous iterates of the corresponding decision variable values
-    PgNuInner::Float64 = 0 # Previous iterates of the corresponding decision variable values
-    PgNextNu::Float64 = 0 # Previous iterates of the corresponding decision variable values
-    PgPrev::Float64 = 0 # Generator's output in the previous interval
-    BSC::Array{Float64} # Cumulative disagreement between the generator output values for the previous and next intervals by the present, next, and the previous intervals, at the previous iteration
+    cost_curve::ExtendedGenerationCost{T}
 end
 
     
@@ -44,8 +25,8 @@ end
     ug_N=0, # Dual variable for net power balance for base case and contingencies
     vg_N=0, #  Dual variable for net angle balance for base case and contingencies
     Vg_N_avg=0, # Average of dual variable for net angle balance from last to last iteration for base case and contingencies
-    PgNu=0, PgNuInner=0, PgNextNu=0, # Previous iterates of the corresponding decision variable values
-    PgPrev=0, # Generator's output in the previous interval
+    Pg_nu=0, Pg_nuInner=0, Pg_next_nu=0, # Previous iterates of the corresponding decision variable values
+    Pg_prev=0, # Generator's output in the previous interval
     BSC::Array, # Cumulative disagreement between the generator output values for the previous and next intervals by the present, next, and the previous intervals, at the previous iteration
     )
     start_t = now()
@@ -68,13 +49,13 @@ end
             PgNext >= PgMin
             PgNext-Pg <= RgMax
             PgNext-Pg >= RgMin
-            Pg-PgPrev <= RgMax
-            Pg-PgPrev >= RgMin
+            Pg-Pg_prev <= RgMax
+            Pg-Pg_prev >= RgMin
         end
     end
 
     function gensolver_objective()
-        @objective(model, Min, c2*(Pg^2)+c1*Pg+c0+(beta/2)*((Pg-PgNu)^2+(PgNext-PgNextNu)^2)+(beta_inner/2)*((Pg-PgNuInner)^2)
+        @objective(model, Min, c2*(Pg^2)+c1*Pg+c0+(beta/2)*((Pg-Pg_nu)^2+(PgNext-Pg_next_nu)^2)+(beta_inner/2)*((Pg-Pg_nuInner)^2)
         +(gammaSC)*(sum(Pg*BSC[i] for i in 1:cont_count))+sum(Pg*lambda_1SC[i] for i in 1:cont_count)+(gamma)*(Pg*B+PgNext*D)+lambda_1*Pg
         +lambda_2*PgNext+(rho/2)*((Pg-Pg_N_init+Pg_N_avg+ug_N)^2+(thetag-Vg_N_avg-thetag_N_avg+vg_N)^2))
     end
