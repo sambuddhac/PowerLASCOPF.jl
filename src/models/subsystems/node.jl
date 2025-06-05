@@ -1,204 +1,312 @@
-# Member functions for class Node
-import os
-import subprocess
-import pandas as pd
-import numpy as np
-import json
-import sys
-import traceback
+using PowerSystems
+using InfrastructureSystems
+const IS = InfrastructureSystems
 
-mutable struct Node(object)
-	def __init__(self, idOfNode, numberOfScenarios): #constructor begins
-		self.nodeID = idOfNode
-		self.contingencyScenarios = numberOfScenarios
-		#print("\nInitializing the parameters of the node with ID: {}".format(nodeID))
-		#initialize the connected devices to zero for node
-		self.gConnNumber = 0 #number of generators connected to a particular node
-		self.tConnNumber = 0 #number of transmission lines connected to a particular node
-		self.lConnNumber = 0 #number of loads connected to a particular node
-		self.nodeFlag = 0 #flag to indicate if a particular node has been accounted for by any one device connected to it for calculation of u 
-		self.fromReact = 0.0 #Initialize the from reactance
-		self.toReact = 0.0 #Initialize the to reactance
-		self.PDevCount = 0 #initialize number of devices connectedto a node to zero
-		self.P_avg = 0.0 #Initialize average power to zero
-		self.Theta_avg = 0.0 #initialize average angle to zero
-		self.u = 0.0 #initialize power balance price to zero
-		self.v_avg = 0.0 #initialize average value of voltage angle price to zero
-		self.Pinitavg = 0.0 #initialize initial average power to zero
-		self.genSerialNum = []
-		self.contScenList = []
-		self.tranFromSerial = []
-		self.tranToSerial = []
-		self.loadSerialNum = []
-		self.ReactCont = []
-		self.scenNodeList = []
-		self.connNodeList = []
-		self.connReactRec = []
-		#constructor ends
+# Define the Node struct extending PowerSystems.Bus for Sienna integration
+mutable struct Node{T<:Bus} <: Subsystem
+    # Core node properties
+    node_type::T
+    node_id::Int
+    
+    # Connection counts
+    g_conn_number::Int
+    t_conn_number::Int
+    l_conn_number::Int
+    
+    # Power and voltage properties
+    P_avg::Float64
+    theta_avg::Float64
+    conn_load_val::Float64
+    u::Float64
+    v_avg::Float64
+    P_dev_count::Int
+    P_init_avg::Float64
+    
+    # Scenario and contingency properties
+    contingency_scenarios::Int
+    node_flag::Int
+    
+    # Reactance properties
+    from_react::Float64
+    to_react::Float64
+    
+    # Vector properties for connections and scenarios
+    gen_serial_num::Vector{Int}
+    react_cont::Vector{Float64}
+    conn_node_list::Vector{Int}  # Changed from Vector{Node} to avoid circular references
+    conn_react_rec::Vector{Float64}
+    tran_from_serial::Vector{Int}
+    tran_to_serial::Vector{Int}
+    load_serial_num::Vector{Int}
+    cont_scen_list::Vector{Int}
+    scen_node_list::Vector{Int}
+    
+    # Inner constructor
+    function Node{T}(
+        node_type::T,
+        node_id::Int,
+        number_of_scenarios::Int
+    ) where T <: Bus
+        return new{T}(
+            node_type,
+            node_id,
+            0,  # g_conn_number
+            0,  # t_conn_number
+            0,  # l_conn_number
+            0.0,  # P_avg
+            0.0,  # theta_avg
+            0.0,  # conn_load_val
+            0.0,  # u
+            0.0,  # v_avg
+            0,  # P_dev_count
+            0.0,  # P_init_avg
+            number_of_scenarios,
+            0,  # node_flag
+            0.0,  # from_react
+            0.0,  # to_react
+            Int[],  # gen_serial_num
+            Float64[],  # react_cont
+            Int[],  # conn_node_list
+            Float64[],  # conn_react_rec
+            Int[],  # tran_from_serial
+            Int[],  # tran_to_serial
+            Int[],  # load_serial_num
+            Int[],  # cont_scen_list
+            Int[]   # scen_node_list
+        )
+    end
+end
 
-	#def __del__(self): #destructor
-		#print("\nThe node object having ID {} have been destroyed.\n".format(nodeID))
-		#end of destructor
+# Outer constructor for convenience
+function Node(node_type::T, node_id::Int, number_of_scenarios::Int) where T <: Bus
+    return Node{T}(node_type, node_id, number_of_scenarios)
+end
 
-	def getNodeID(self): #function getNodeID begins
-		return self.nodeID #returns node ID to the caller 
-		#end of function getNodeID
+# Extend PowerSystems.Bus interface
+PowerSystems.get_name(node::Node) = PowerSystems.get_name(node.node_type)
+PowerSystems.get_number(node::Node) = node.node_id
+PowerSystems.get_bustype(node::Node) = PowerSystems.get_bustype(node.node_type)
+PowerSystems.get_angle(node::Node) = node.theta_avg
+PowerSystems.get_magnitude(node::Node) = PowerSystems.get_magnitude(node.node_type)
+PowerSystems.get_voltage_limits(node::Node) = PowerSystems.get_voltage_limits(node.node_type)
+PowerSystems.get_base_voltage(node::Node) = PowerSystems.get_base_voltage(node.node_type)
+PowerSystems.get_area(node::Node) = PowerSystems.get_area(node.node_type)
+PowerSystems.get_load_zone(node::Node) = PowerSystems.get_load_zone(node.node_type)
 
-	def setgConn(self, serialOfGen):
-		self.gConnNumber += 1 #increment the number of generators connected by one whenever a generator is connected to the node
-		self.genSerialNum.append(serialOfGen) #records the serial number of the generator connected to the node 
+# Extend InfrastructureSystems.Component interface
+IS.get_uuid(node::Node) = IS.get_uuid(node.node_type)
+IS.get_ext(node::Node) = IS.get_ext(node.node_type)
+IS.get_time_series_container(node::Node) = IS.get_time_series_container(node.node_type)
 
-	def getGenLength(self):
-		return self.gConnNumber #returns the number of connected generators
+# Core getter functions
+get_node_id(node::Node) = node.node_id
+get_node_type(node::Node) = node.node_type
+get_contingency_scenarios(node::Node) = node.contingency_scenarios
 
-	def getGenSer(self, colCount):
-		return self.genSerialNum[colCount - 1]
+# Generator connection functions
+function set_g_conn!(node::Node, serial_of_gen::Int64)
+    node.g_conn_number += 1
+    push!(node.gen_serial_num, serial_of_gen)
+    return nothing
+end
 
-	def settConn(self, tranID, dir, react, rankOfOther, scenarioTracker):
-		tConnNumber += 1 #increment the number of txr lines connected by one whenever a txr line is connected to the node
-		if self.scenarioTracker != 0: #If the lines connected to this node are outaged in some contingency scenarios
-			self.contScenList.append(scenarioTracker) #Store those scenario numbers in the contScenList vector
-		if dir == 1:
-			self.tranFromSerial.append(tranID)
-			self.fromReact += (1/react)
-			if scenarioTracker != 0: #If the lines connected to this node are outaged in some contingency scenarios
-				self.ReactCont.append(-(1/react))
-				self.scenNodeList.append(rankOfOther)
-			elif rankOfOther in self.connNodeList: # If predecided Gen value is given for this particular Powergenerator
-				pos = self.connNodeList.index(rankOfOther) #find the position of the Powergenerator in the chart of predecided values
-				self.connReactRec[pos] -= 1/react
-			else:
-				self.connNodeList.append(rankOfOther)
-				self.connReactRec.append(-1/react)
-		else:
-			self.tranToSerial.append(tranID)
-			self.toReact -= (1/react)
-			if scenarioTracker != 0: #If the lines connected to this node are outaged in some contingency scenarios
-				self.ReactCont.append(1/react)
-				self.scenNodeList.append(rankOfOther)
-			elif rankOfOther in self.connNodeList: #If predecided Gen value is given for this particular Powergenerator
-				pos = self.connNodeList.index(rankOfOther) #find the position of the Powergenerator in the chart of predecided values
-				self.connReactRec[pos] += 1/react
-			else:
-				self.connNodeList.append(rankOfOther)
-				self.connReactRec.append(1/react)
+get_gen_length(node::Node) = node.g_conn_number
+get_gen_serial(node::Node, col_count::Int) = node.gen_serial_num[col_count]
 
-	def getToReact(self, scenarioTracker):
-		if scenarioTracker in self.contScenList:
-			pos = self.contScenList.index(scenarioTracker)
-			if self.ReactCont[pos] > 0:
-				return self.toReact + self.ReactCont[pos]
-			else:
-				return self.toReact
-		return self.toReact #return the total reciprocal of reactances for which this is the to node
+# Transmission line connection functions
+function set_t_conn!(
+    node::Node,
+    tran_id::Int,
+    dir::Int,
+    react::Float64,
+    rank_of_other::Int,
+    scenario_tracker::Int
+)
+    node.t_conn_number += 1
+    
+    if scenario_tracker != 0
+        push!(node.cont_scen_list, scenario_tracker)
+    end
+    
+    if dir == 1
+        push!(node.tran_from_serial, tran_id)
+        node.from_react += 1 / react
+        
+        if scenario_tracker != 0
+            push!(node.react_cont, -1 / react)
+            push!(node.scen_node_list, rank_of_other)
+        end
+        
+        pos = findfirst(x -> x == rank_of_other, node.conn_node_list)
+        if pos !== nothing
+            node.conn_react_rec[pos] -= 1 / react
+        else
+            push!(node.conn_node_list, rank_of_other)
+            push!(node.conn_react_rec, -1 / react)
+        end
+    else
+        push!(node.tran_to_serial, tran_id)
+        node.to_react -= 1 / react
+        
+        if scenario_tracker != 0
+            push!(node.react_cont, 1 / react)
+            push!(node.scen_node_list, rank_of_other)
+        end
+        
+        pos = findfirst(x -> x == rank_of_other, node.conn_node_list)
+        if pos !== nothing
+            node.conn_react_rec[pos] += 1 / react
+        else
+            push!(node.conn_node_list, rank_of_other)
+            push!(node.conn_react_rec, 1 / react)
+        end
+    end
+    
+    return nothing
+end
 
-	def getFromReact(self, scenarioTracker):
-		if scenarioTracker in self.contScenList:
-			pos = self.contScenList.index(scenarioTracker)
-			if self.ReactCont[pos] <= 0:
-				return self.fromReact + self.ReactCont[pos]
-			else:
-				return self.fromReact
-		return self.fromReact #return the total reciprocal of reactances for which this is the from node
+# Reactance getter functions with scenario support
+function get_to_react(node::Node, scenario_tracker::Int)
+    pos = findfirst(x -> x == scenario_tracker, node.cont_scen_list)
+    if pos !== nothing
+        if node.react_cont[pos] > 0
+            return node.to_react + node.react_cont[pos]
+        else
+            return node.to_react
+        end
+    end
+    return node.to_react
+end
 
-	def getConNodeLength(self):
-		return self.connNodeList.size() #returns the length of the vector containing the connected intra-zonal nodes
+function get_from_react(node::Node, scenario_tracker::Int)
+    pos = findfirst(x -> x == scenario_tracker, node.cont_scen_list)
+    if pos !== nothing
+        if node.react_cont[pos] <= 0
+            return node.from_react + node.react_cont[pos]
+        else
+            return node.from_react
+        end
+    end
+    return node.from_react
+end
 
-	def getConnSer(self, colCount):
-		return self.connNodeList[colCount-1] #returns the serial number of the connected internal node at this position
+# Connection information functions
+get_conn_node_length(node::Node) = length(node.conn_node_list)
+get_conn_serial(node::Node, col_count::Int) = node.conn_node_list[col_count]
+get_conn_react(node::Node, col_count::Int) = node.conn_react_rec[col_count]
 
-	def getConnSerScen(self, scenarioTracker):
-		if scenarioTracker in self.contScenList:
-			pos = self.contScenList.index(scenarioTracker)
-			return self.scenNodeList[pos]
-		else:
-			return 0 #returns the serial number of the connected internal node at this position
+function get_conn_serial_scenario(node::Node, scenario_tracker::Int)
+    pos = findfirst(x -> x == scenario_tracker, node.cont_scen_list)
+    return pos !== nothing ? node.scen_node_list[pos] : 0
+end
 
-	def getConnReact(self, colCount):
-	    return self.connReactRec[colCount-1] #returns the serial number of the connected internal node at this position
+function get_conn_react_compensate(node::Node, scenario_tracker::Int)
+    pos = findfirst(x -> x == scenario_tracker, node.cont_scen_list)
+    return pos !== nothing ? node.react_cont[pos] : 0.0
+end
 
-	def getConnReactCompensate(self, scenarioTracker):
-	    if scenarioTracker in self.contScenList:
-		    pos = self.contScenList.index(scenarioTracker)
-		    return self.ReactCont[pos]
-	    else:
-		    return 0 #returns the serial number of the connected internal node at this position
+# Load connection functions
+function set_l_conn!(node::Node, load_id::Int, load_val::Float64)
+    node.l_conn_number += 1
+    push!(node.load_serial_num, load_id)
+    node.conn_load_val = load_val
+    return nothing
+end
 
-	def setlConn(self, lID, loadVal):
-		self.lConnNumber += 1 #increment the number of loads connected by one whenever a load is connected to the node
-		self.loadSerialNum.append(lID)
-		self.connLoadVal = loadVal #total connected loads
+get_load_val(node::Node) = node.conn_load_val
+get_load_length(node::Node) = node.l_conn_number
+get_load_serial(node::Node, col_count::Int) = node.load_serial_num[col_count]
 
-	def getLoadVal(self):
-		return self.connLoadVal #Returns the value of the connected load
+# Power and angle messaging functions
+function np_init_message!(node::Node, p_load::Float64)
+    total_connections = node.g_conn_number + node.t_conn_number + node.l_conn_number
+    if total_connections > 0
+        node.P_init_avg += p_load / total_connections
+    end
+    return node.P_init_avg
+end
 
-	def npinitMessage(self, Pload): #function npinitMessage begins
-		self.Pinitavg += Pload / (self.gConnNumber + self.tConnNumber + self.lConnNumber) #calculate average power
-		return self.Pinitavg #return initial average power
-		#function npinitMessage ends
+dev_p_init_message(node::Node) = node.P_init_avg
 
-	def devpinitMessage(self): #function devpinitMessage begins
-		return self.Pinitavg #return the initial average node power imbalance to the devices
-		#function devpinitMessage ends
+function power_angle_message!(node::Node, power::Float64, ang_price::Float64, angle::Float64)
+    total_connections = node.g_conn_number + node.t_conn_number + node.l_conn_number
+    if total_connections > 0
+        node.P_avg += power / total_connections
+        node.theta_avg += angle / total_connections
+        # Uncomment if needed: node.v_avg += ang_price / total_connections
+    end
+    node.P_dev_count += 1
+    return nothing
+end
 
-	def powerangleMessage(self, Power, AngPrice, Angle): #function powerangleMessage begins
-		self.P_avg += Power / (self.gConnNumber + self.tConnNumber + self.lConnNumber) #calculate average power
-		#v_avg = v_avg + AngPrice / ( gConnNumber + tConnNumber + lConnNumber ) #calculate average voltage angle price
-		self.Theta_avg += Angle / (self.gConnNumber + self.tConnNumber + self.lConnNumber) #calculate average voltage angle
-		self.PDevCount += 1 #increment device count by one indicating that a particular device connected to the node has been taken into account
-		#function powerangleMessage ends
+# Message retrieval functions
+function p_avg_message(node::Node)
+    total_connections = node.g_conn_number + node.t_conn_number + node.l_conn_number
+    return node.P_dev_count == total_connections ? node.P_avg : nothing
+end
 
-	def PavMessage(self): #function PavMessage begins
-		if self.PDevCount == self.gConnNumber + self.tConnNumber + self.lConnNumber: #if all the devices are taken care of return the average power
-			return self.P_avg
-		#function PavMessage ends
+function u_message!(node::Node)
+    if node.node_flag != 0
+        return node.u
+    end
+    
+    total_connections = node.g_conn_number + node.t_conn_number + node.l_conn_number
+    if node.P_dev_count == total_connections
+        node.u += node.P_avg
+        node.node_flag += 1
+        return node.u
+    end
+    
+    return nothing
+end
 
-	def uMessage(self): #function uMessage begins
-		if self.nodeFlag != 0:
-			#cout << nodeFlag << endl;
-			return self.u
-		else:
-			if self.PDevCount == self.gConnNumber + self.tConnNumber + self.lConnNumber:
-				self.u = self.u + self.P_avg
-				#cout << nodeFlag << endl;
-				nodeFlag += 1 #this node has already been accounted for
-				return self.u # if all the devices are taken care of calculate and return the power price
-		#function uMessage ends
+function theta_avg_message(node::Node)
+    total_connections = node.g_conn_number + node.t_conn_number + node.l_conn_number
+    return node.P_dev_count == total_connections ? node.theta_avg : nothing
+end
 
-	def ThetaavMessage(self): #function ThetaavMessage begins
-		if self.PDevCount == self.gConnNumber + self.tConnNumber + self.lConnNumber:
-			return self.Theta_avg #if all the devices are taken care of return the average angle
-		# function ThetaavMessage ends
+function v_avg_message(node::Node)
+    total_connections = node.g_conn_number + node.t_conn_number + node.l_conn_number
+    return node.P_dev_count == total_connections ? node.v_avg : nothing
+end
 
-	def vavMessage(self): #function vavMessage begins
-		if self.PDevCount == self.gConnNumber + self.tConnNumber + self.lConnNumber:
-			return self.v_avg #if all the devices are taken care of return the average angle price
-		#function vavMessage ends
+# Reset function
+function reset!(node::Node)
+    node.P_dev_count = 0
+    node.P_avg = 0.0
+    node.v_avg = 0.0
+    node.theta_avg = 0.0
+    node.node_flag = 0
+    return nothing
+end
 
-	def reset(self): #function reset begins
-		self.PDevCount = 0
-		self.P_avg = 0.0
-		self.v_avg = 0.0
-		self.Theta_avg = 0.0
-		self.nodeFlag = 0
-        #function reset ends
-"""
-    def getGenSer(self, colCount):
-	    return self.genSerialNum.at(colCount-1)
+# Utility functions for PowerSystems integration
+function get_total_connections(node::Node)
+    return node.g_conn_number + node.t_conn_number + node.l_conn_number
+end
 
-    def getToReact(self, contingency):
-	    return self.toReact.at(contingency) #return the total reciprocal of reactances for which this is the to node
+function is_complete(node::Node)
+    return node.P_dev_count == get_total_connections(node)
+end
 
-    def getFromReact(self, contingency):
-	    return self.fromReact.at(contingency) #return the total reciprocal of reactances for which this is the from node
+# Display function for debugging
+function Base.show(io::IO, node::Node)
+    print(io, "Node(")
+    print(io, "id=$(node.node_id), ")
+    print(io, "type=$(typeof(node.node_type)), ")
+    print(io, "generators=$(node.g_conn_number), ")
+    print(io, "transmissions=$(node.t_conn_number), ")
+    print(io, "loads=$(node.l_conn_number)")
+    print(io, ")")
+end
 
-    def getConNodeLength(self, contingency):
-	    return self.connNodeList.size() #returns the length of the vector containing the connected intra-zonal nodes
-
-    def getConnSer(self, colCount):
-	    return self.connNodeList[colCount-1] #returns the serial number of the connected internal node at this position
-
-    def getConnReact(self, colCount):
-        return self.connReactRec[colCount-1] #returns the serial number of the connected internal node at this position
-"""
-
+# Export all public functions
+export Node, get_node_id, get_node_type, get_contingency_scenarios
+export set_g_conn!, get_gen_length, get_gen_serial
+export set_t_conn!, get_to_react, get_from_react
+export get_conn_node_length, get_conn_serial, get_conn_react
+export get_conn_serial_scenario, get_conn_react_compensate
+export set_l_conn!, get_load_val, get_load_length, get_load_serial
+export np_init_message!, dev_p_init_message, power_angle_message!
+export p_avg_message, u_message!, theta_avg_message, v_avg_message
+export reset!, get_total_connections, is_complete
