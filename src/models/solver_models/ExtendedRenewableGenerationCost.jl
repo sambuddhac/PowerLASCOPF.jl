@@ -14,7 +14,6 @@
     regularization_term::T # Regularization Term
 end
 
-
 """Get [`ExtendedRenewbleGenerationCost`](@ref) `variable`."""
 get_variable(value::ExtendedRenewableGenerationCost) = PSY.get_variable(value.renewable_cost_core)
 """Get [`ExtendedRenewbleGenerationCost`](@ref) `fixed`."""
