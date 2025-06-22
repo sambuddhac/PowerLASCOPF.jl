@@ -1,11 +1,11 @@
 """
 	@kwdef mutable struct ExtendedRenewableGenerationCost{T<:GenIntervals}<:AbstractModel
-    		renewable_cost_core::RenewableGenerationCost # Coefficient of the quadratic term
+    		renewable_cost_core::PSY.RenewableGenerationCost # Coefficient of the quadratic term
     		regularization_term::T # Regularization Term
 	end
 	This is the struct for implmenting extended renewable generation cost model with additional regularization term. This is needed for solving (N-1-1)
 	contingency cases in the extended renewable generation cost model.
-        - renewable_cost_core::RenewableGenerationCost # Coefficient of the quadratic term
+        - renewable_cost_core::PSY.RenewableGenerationCost # Coefficient of the quadratic term
         - regularization_term::T # Regularization Term
 """
 
