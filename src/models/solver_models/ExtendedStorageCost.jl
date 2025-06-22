@@ -10,24 +10,24 @@
 """
 
 @kwdef mutable struct ExtendedStorageCost{T<:GenIntervals}<:AbstractModel
-    storage_cost_core::ThermalGenerationCost # Coefficient of the quadratic term
+    storage_cost_core::StorageCost # Coefficient of the quadratic term
     regularization_term::T # Regularization Term
 end
 
 """Get [`ExtendedStorageCost`](@ref) `charge_variable_cost`."""
-get_charge_variable_cost(value::ExtendedStorageCost) = get_charge_variable_cost(value.storage_cost_core.charge_variable_cost)
+get_charge_variable_cost(value::ExtendedStorageCost) = get_charge_variable_cost(value.storage_cost_core)
 """Get [`ExtendedStorageCost`](@ref) `discharge_variable_cost`."""
-get_discharge_variable_cost(value::ExtendedStorageCost) = get_discharge_variable_cost(value.storage_cost_core.discharge_variable_cost)
+get_discharge_variable_cost(value::ExtendedStorageCost) = get_discharge_variable_cost(value.storage_cost_core)
 """Get [`ExtendedStorageCost`](@ref) `fixed`."""
-get_fixed(value::ExtendedStorageCost) = get_fixed(value.storage_cost_core.fixed)
+get_fixed(value::ExtendedStorageCost) = get_fixed(value.storage_cost_core)
 """Get [`ExtendedStorageCost`](@ref) `start_up`."""
-get_start_up(value::ExtendedStorageCost) = get_start_up(value.storage_cost_core.start_up)
+get_start_up(value::ExtendedStorageCost) = get_start_up(value.storage_cost_core)
 """Get [`ExtendedStorageCost`](@ref) `shut_down`."""
-get_shut_down(value::ExtendedStorageCost) = get_shut_down(value.storage_cost_core.shut_down)
+get_shut_down(value::ExtendedStorageCost) = get_shut_down(value.storage_cost_core)
 """Get [`ExtendedStorageCost`](@ref) `energy_shortage_cost`."""
-get_energy_shortage_cost(value::ExtendedStorageCost) = get_energy_shortage_cost(value.storage_cost_core.energy_shortage_cost)
+get_energy_shortage_cost(value::ExtendedStorageCost) = get_energy_shortage_cost(value.storage_cost_core)
 """Get [`ExtendedStorageCost`](@ref) `energy_surplus_cost`."""
-get_energy_surplus_cost(value::ExtendedStorageCost) = get_energy_surplus_cost(value.storage_cost_core.energy_surplus_cost)
+get_energy_surplus_cost(value::ExtendedStorageCost) = get_energy_surplus_cost(value.storage_cost_core)
 get_regularization(value::ExtendedStorageCost) = value.regularization_term
 """Get [`ExtendedStorageCost`](@ref) `cost_core`."""
 get_cost_core(value::ExtendedStorageCost) = value.storage_cost_core
