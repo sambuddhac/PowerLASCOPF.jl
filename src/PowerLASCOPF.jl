@@ -39,7 +39,7 @@ import InfrastructureModels: optimize_model!, @im_fields, nw_id_default
 # Type Alias From other Packages
 const _GX = GenX
 const _PMod = PowerModels
-const _PSys = PowerSystems
+const PSY = PowerSystems
 const _PSim = PowerSimulations
 const _PG = PowerGraphics
 const _PA = PowerAnalytics
