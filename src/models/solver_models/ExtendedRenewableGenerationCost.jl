@@ -15,9 +15,9 @@
 end
 
 """Get [`ExtendedRenewableGenerationCost`](@ref) `variable`."""
-get_variable(value::ExtendedRenewableGenerationCost) = get_variable(value.renewable_cost_core)
+PSY.get_variable(value::ExtendedRenewableGenerationCost) = get_variable(value.renewable_cost_core)
 """Get [`ExtendedRenewableGenerationCost`](@ref) `curtailment_cost`."""
-get_curtailment_cost(value::ExtendedRenewableGenerationCost) = get_curtailment_cost(value.renewable_cost_core)
+PSY.get_curtailment_cost(value::ExtendedRenewableGenerationCost) = get_curtailment_cost(value.renewable_cost_core)
 
 """Set [`ExtendedRenewableGenerationCost`](@ref) `variable`."""
 set_variable!(value::ExtendedRenewableGenerationCost, val) = value.renewable_cost_core.variable = val
