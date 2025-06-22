@@ -9,15 +9,15 @@
         - regularization_term::T # Regularization Term
 """
 
-@kwdef mutable struct ExtendedThermalGenerationCost{T<:GenIntervals}<:AbstractModel
-    renewable_cost_core::RenewableGenerationCost # Coefficient of the quadratic term
+@kwdef mutable struct ExtendedRenewableGenerationCost{T<:GenIntervals}<:AbstractModel
+    renewable_cost_core::PSY.RenewableGenerationCost # Coefficient of the quadratic term
     regularization_term::T # Regularization Term
 end
 
 """Get [`ExtendedRenewableGenerationCost`](@ref) `variable`."""
-PSY.get_variable(value::ExtendedRenewableGenerationCost) = get_variable(value.renewable_cost_core)
+get_variable(value::ExtendedRenewableGenerationCost) = PSY.get_variable(value.renewable_cost_core)
 """Get [`ExtendedRenewableGenerationCost`](@ref) `curtailment_cost`."""
-PSY.get_curtailment_cost(value::ExtendedRenewableGenerationCost) = get_curtailment_cost(value.renewable_cost_core)
+get_curtailment_cost(value::ExtendedRenewableGenerationCost) = PSY.get_curtailment_cost(value.renewable_cost_core)
 
 """Set [`ExtendedRenewableGenerationCost`](@ref) `variable`."""
 set_variable!(value::ExtendedRenewableGenerationCost, val) = value.renewable_cost_core.variable = val
