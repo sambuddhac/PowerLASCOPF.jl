@@ -1,31 +1,31 @@
 """
 	@kwdef mutable struct ExtendedRenewableGenerationCost{T<:GenIntervals}<:AbstractModel
-    		renewable_cost_core::RenewableGenerationCost # Coefficient of the quadratic term
+    		renewable_cost_core::PSY.RenewableGenerationCost # Coefficient of the quadratic term
     		regularization_term::T # Regularization Term
 	end
 	This is the struct for implmenting extended renewable generation cost model with additional regularization term. This is needed for solving (N-1-1)
 	contingency cases in the extended renewable generation cost model.
-        - thermal_cost_core::RenewableGenerationCost # Coefficient of the quadratic term
+        - renewable_cost_core::PSY.RenewableGenerationCost # Coefficient of the quadratic term
         - regularization_term::T # Regularization Term
 """
 
-@kwdef mutable struct ExtendedThermalGenerationCost{T<:GenIntervals}<:AbstractModel
-    thermal_cost_core::ThermalGenerationCost # Coefficient of the quadratic term
+@kwdef mutable struct ExtendedRenewableGenerationCost{T<:GenIntervals}<:AbstractModel
+    renewable_cost_core::PSY.RenewableGenerationCost # Coefficient of the quadratic term
     regularization_term::T # Regularization Term
 end
 
 """Get [`ExtendedRenewbleGenerationCost`](@ref) `variable`."""
-PSY.get_variable(value::ExtendedRenewableGenerationCost) = get_variable(value.renewable_cost_core)
+get_variable(value::ExtendedRenewableGenerationCost) = PSY.get_variable(value.renewable_cost_core)
 """Get [`ExtendedRenewbleGenerationCost`](@ref) `fixed`."""
-PSY.get_fixed(value::ExtendedRenewbleGenerationCost) = get_fixed(value.renewable_cost_core)
+get_fixed(value::ExtendedRenewbleGenerationCost) = PSY.get_fixed(value.renewable_cost_core)
 """Get [`ExtendedThermalGenerationCost`](@ref) `start_up`."""
-PSY.get_start_up(value::ExtendedRenewableGenerationCost) = get_start_up(value.renewable_cost_core)
+get_start_up(value::ExtendedRenewableGenerationCost) = PSY.get_start_up(value.renewable_cost_core)
 """Get [`ExtendedRenewableGenerationCost`](@ref) `shut_down`."""
-PSY.get_shut_down(value::ExtendedRenewableGenerationCost) = get_shut_down(value.renewable_cost_core)
+get_shut_down(value::ExtendedRenewableGenerationCost) = PSY.get_shut_down(value.renewable_cost_core)
 """Get [`ExtendedRenewableGenerationCost`](@ref) `regularization_term`."""
-PSY.get_regularization(value::ExtendedRenewableGenerationCost) = value.regularization_term
+get_regularization(value::ExtendedRenewableGenerationCost) = value.regularization_term
 """Get [`ExtendedRenewableGenerationCost`](@ref) `cost_core`."""
-PSY.get_cost_core(value::ExtendedRenewableGenerationCost) = value.renewable_cost_core
+get_cost_core(value::ExtendedRenewableGenerationCost) = value.renewable_cost_core
 
 """Set [`ExtendedRenewableGenerationCost`](@ref) `variable`."""
 set_variable!(value::ExtendedRenewableGenerationCost, val) = value.renewable_cost_core.variable = val
