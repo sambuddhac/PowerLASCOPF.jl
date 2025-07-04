@@ -369,6 +369,43 @@ function handle_contingency_scenarios!(
 )
     # Contingency scenario logic would be implemented here
     # Similar structure to base case but using contingency solvers
+    if gen.dispatch_interval != 0 && gen.flag_last == false # First interval
+        # Populate arrays
+        for counterCont in 1:gen.cont_count_gen
+            BAPPNew[counterCont] = BAPP[counterCont * gen.number_of_generators + gen.gen_id]
+            LambdaAPPNew[counterCont] = LambAPP1[counterCont * gen.number_of_generators + gen.gen_id]
+        end
+        
+        for counterCont in 1:(gen.cont_count_gen + 1)
+            BAPPExtNew[counterCont] = BAPPExternal[counterCont * gen.number_of_generators + gen.gen_id]
+            LambdaAPP1ExtNew[counterCont] = LambAPP1External[counterCont * gen.number_of_generators + gen.gen_id]
+            DAPPExtNew[counterCont] = DAPPExternal[counterCont * gen.number_of_generators + gen.gen_id]
+            LambdaAPP2ExtNew[counterCont] = LambAPP2External[counterCont * gen.number_of_generators + gen.gen_id]
+        end
+        
+        # Solve using first solver
+        try
+            solve_result = main_solve_first!(
+                gen.gen_solver, outerAPPIt, APPItCount, gsRho, gen.P_gen_prev,
+                Pgenavg, Powerprice, Angpriceavg, Angavg, Angprice, PgenAPP,
+                PgenAPPInner, PgNextAPPNew, BAPPExtNew, DAPPExtNew,
+                LambdaAPP1ExtNew, LambdaAPP2ExtNew, BAPPNew, LambdaAPPNew
+            )
+            
+            # Extract solution
+            gen.Pg = get_p_sol(gen.gen_solver)
+            gen.P_gen_next = get_p_next_sol(gen.gen_solver)
+            gen.P_gen_prev = get_pg_prev(gen.gen_solver)
+            gen.theta_g = get_theta_sol(gen.gen_solver)
+            
+        catch e
+            @warn "First solver failed for gen $(gen.gen_id), interval $(gen.dispatch_interval): $e"
+        end
+        
+    elseif gen.dispatch_interval != 0 && gen.flag_last == true # Last interval
+        # Similar implementation for last interval...
+        # [Implementation continues with second solver logic]
+    end
     @warn "Contingency scenarios not fully implemented yet"
 end
 
