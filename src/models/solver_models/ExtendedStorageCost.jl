@@ -14,6 +14,12 @@
     regularization_term::T # Regularization Term
 end
 
+ExtendedStorageCost(storage_cost_core, regularization_term) = ExtendedStorageCost(; storage_cost_core, regularization_term)
+
+function ExtendedStorageCost(::Nothing)
+    ExtendedStorageCost(StorageCost(nothing), 0.0)
+end
+
 """Get [`ExtendedStorageCost`](@ref) `charge_variable_cost`."""
 get_charge_variable_cost(value::ExtendedStorageCost) = PSY.get_charge_variable_cost(value.storage_cost_core)
 """Get [`ExtendedStorageCost`](@ref) `discharge_variable_cost`."""
@@ -30,7 +36,7 @@ get_energy_shortage_cost(value::ExtendedStorageCost) = PSY.get_energy_shortage_c
 get_energy_surplus_cost(value::ExtendedStorageCost) = PSY.get_energy_surplus_cost(value.storage_cost_core)
 get_regularization(value::ExtendedStorageCost) = value.regularization_term
 """Get [`ExtendedStorageCost`](@ref) `cost_core`."""
-get_cost_core(value::ExtendedStorageCost) = value.storage_cost_core
+get_cost_core(value::ExtendedStorageCost) = PSY.value.storage_cost_core
 
 
 
