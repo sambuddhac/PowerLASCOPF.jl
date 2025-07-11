@@ -14,12 +14,21 @@
     regularization_term::T # Regularization Term
 end
 
+ExtendedThermalGenerationCost(hydro_cost_core, regularization_term) = ExtendedHydroGenerationCost(; hydro_cost_core, regularization_term)
+
+function ExtendedHydroGenerationCost(::Nothing)
+    ExtendedHydroGenerationCost(HydroGenerationCost(nothing), 0.0)
+
+end
+
 """Get [`ExtendedHydroGenerationCost`](@ref) `variable`."""
 get_variable(value::ExtendedHydroGenerationCost) = PSY.get_variable(value.hydro_cost_core)
 """Get [`ExtendedHydroGenerationCost`](@ref) `fixed`."""
 get_fixed(value::ExtendedHydroGenerationCost) = PSY.get_fixed(value.hydro_cost_core)
 """Get [`ExtendedHydroGenerationCost`](@ref) `regularization_term`."""
 get_regularization_term(value::ExtendedHydroGenerationCost) = value.regularization_term
+"""Get [`ExtendedHydroGenerationCost`](@ref) `cost_core`."""
+get_cost_core(value::ExtendedHydroGenerationCost) = PSY.value.hydro_cost_core
 
 """Set [`ExtendedHydroGenerationCost`](@ref) `variable`."""
 set_variable!(value::ExtendedHydroGenerationCost, val) = value.hydro_cost_core.variable = val
@@ -27,3 +36,5 @@ set_variable!(value::ExtendedHydroGenerationCost, val) = value.hydro_cost_core.v
 set_fixed!(value::ExtendedHydroGenerationCost, val) = value.hydro_cost_core.fixed = val
 """Set [`ExtendedHydroGenerationCost`](@ref) `regularization_term`."""
 set_regularization_term!(value::ExtendedHydroGenerationCost, val) = value.regularization_term = val
+"""Set [`ExtendedHydroGenerationCost`](@ref) `cost_core`."""
+set_cost_core(value::ExtendedHydroGenerationCost, cost_core) = value.hydro_cost_core = cost_core
