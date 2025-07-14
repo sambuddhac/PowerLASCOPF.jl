@@ -1,23 +1,23 @@
 """
 	@kwdef mutable struct ExtendedRenewableGenerationCost{T<:GenIntervals}<:AbstractModel
     		renewable_cost_core::PSY.RenewableGenerationCost # Coefficient of the quadratic term
-    		regularization_term::T # Regularization Term
+    		regularization_term::Union{T, Float64} # Regularization Term
 	end
 	This is the struct for implmenting extended renewable generation cost model with additional regularization term. This is needed for solving (N-1-1)
 	contingency cases in the extended renewable generation cost model.
         - renewable_cost_core::PSY.RenewableGenerationCost # Coefficient of the quadratic term
-        - regularization_term::T # Regularization Term
+        - regularization_term::Union{T, Float64} # Regularization Term
 """
 
 @kwdef mutable struct ExtendedRenewableGenerationCost{T<:GenIntervals}<:AbstractModel
     renewable_cost_core::PSY.RenewableGenerationCost # Coefficient of the quadratic term
-    regularization_term::T # Regularization Term
+    regularization_term::Union{T, Float64} # Regularization Term
 end
 
 ExtendedRenewableGenerationCost(renewable_cost_core, regularization_term) = ExtendedRenewableGenerationCost(; renewable_cost_core, regularization_term)
 
 function ExtendedRenewableGenerationCost(::Nothing)
-    ExtendedRenewableGenerationCost(RenewableGenerationCost(nothing), 0.0)
+    ExtendedRenewableGenerationCost(PSY.RenewableGenerationCost(nothing), 0.0)
 end
 
 """Get [`ExtendedRenewbleGenerationCost`](@ref) `variable`."""
@@ -31,7 +31,7 @@ get_shut_down(value::ExtendedRenewableGenerationCost) = PSY.get_shut_down(value.
 """Get [`ExtendedRenewableGenerationCost`](@ref) `regularization_term`."""
 get_regularization(value::ExtendedRenewableGenerationCost) = value.regularization_term
 """Get [`ExtendedRenewableGenerationCost`](@ref) `cost_core`."""
-get_cost_core(value::ExtendedRenewableGenerationCost) = PSY.value.renewable_cost_core
+get_cost_core(value::ExtendedRenewableGenerationCost) = value.renewable_cost_core
 """Get [`ExtendedRenewableGenerationCost`](@ref) `curtailment_cost`."""
 
 
