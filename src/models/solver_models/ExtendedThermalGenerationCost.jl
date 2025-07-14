@@ -1,23 +1,23 @@
 """
 	@kwdef mutable struct ExtendedThermalGenerationCost{T<:GenIntervals}<:AbstractModel
-    		thermal_cost_core::ThermalGenerationCost # Coefficient of the quadratic term
-    		regularization_term::T # Regularization Term
+    		thermal_cost_core::PSY.ThermalGenerationCost # Coefficient of the quadratic term
+    		regularization_term::Union{T, Float64} # Regularization Term
 	end
 	This is the struct for implmenting extended thermal generation cost model with additional regularization term. This is needed for solving (N-1-1)
 	contingency cases in the extended thermal generation cost model.
-        - thermal_cost_core::ThermalGenerationCost # Coefficient of the quadratic term
-        - regularization_term::T # Regularization Term
+        - thermal_cost_core::PSY.ThermalGenerationCost # Coefficient of the quadratic term
+        - regularization_term::Union{T, Float64} # Regularization Term
 """
 
 @kwdef mutable struct ExtendedThermalGenerationCost{T<:GenIntervals}<:AbstractModel
-    thermal_cost_core::ThermalGenerationCost # Coefficient of the quadratic term
+    thermal_cost_core::PSY.ThermalGenerationCost # Coefficient of the quadratic term
     regularization_term::Union{T, Float64} # Regularization Term
 end
 
 ExtendedThermalGenerationCost(thermal_cost_core, regularization_term) = ExtendedThermalGenerationCost(; thermal_cost_core, regularization_term)
 
 function ExtendedThermalGenerationCost(::Nothing)
-    ExtendedThermalGenerationCost(ThermalGenerationCost(nothing), 0.0)
+    ExtendedThermalGenerationCost(PSY.ThermalGenerationCost(nothing), 0.0)
 end
 
 """Get [`ExtendedThermalGenerationCost`](@ref) `variable`."""
@@ -31,7 +31,7 @@ get_shut_down(value::ExtendedThermalGenerationCost) = PSY.get_shut_down(value.th
 """Get [`ExtendedThermalGenerationCost`](@ref) `regularization_term`."""
 get_regularization(value::ExtendedThermalGenerationCost) = PSY.value.regularization_term
 """Get [`ExtendedThermalGenerationCost`](@ref) `cost_core`."""
-get_cost_core(value::ExtendedThermalGenerationCost) = PSY.value.thermal_cost_core
+get_cost_core(value::ExtendedThermalGenerationCost) = value.thermal_cost_core
 
 """Set [`ExtendedThermalGenerationCost`](@ref) `variable`."""
 set_variable!(value::ExtendedThermalGenerationCost, val) = value.thermal_cost_core.variable = val
