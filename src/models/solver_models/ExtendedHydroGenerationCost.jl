@@ -1,23 +1,23 @@
 """
 	@kwdef mutable struct ExtendedHydroGenerationCost{T<:GenIntervals}<:AbstractModel
     		hydro_cost_core::PSY.HydroGenerationCost # Coefficient of the quadratic term
-    		regularization_term::T # Regularization Term
+    		regularization_term::Union{T, Float64} # Regularization Term
 	end
 	This is the struct for implmenting extended hydro generation cost model with additional regularization term. This is needed for solving (N-1-1)
 	contingency cases in the extended hydro generation cost model.
         - hydro_cost_core::PSY.HydroGenerationCost # Coefficient of the quadratic term
-        - regularization_term::T # Regularization Term
+        - regularization_term::Union{T, Float64} # Regularization Term
 """
 
 @kwdef mutable struct ExtendedHydroGenerationCost{T<:GenIntervals}<:AbstractModel
     hydro_cost_core::PSY.HydroGenerationCost # Coefficient of the quadratic term
-    regularization_term::T # Regularization Term
+    regularization_term::Union{T, Float64} # Regularization Term
 end
 
 ExtendedThermalGenerationCost(hydro_cost_core, regularization_term) = ExtendedHydroGenerationCost(; hydro_cost_core, regularization_term)
 
 function ExtendedHydroGenerationCost(::Nothing)
-    ExtendedHydroGenerationCost(HydroGenerationCost(nothing), 0.0)
+    ExtendedHydroGenerationCost(PSY.HydroGenerationCost(nothing), 0.0)
 
 end
 
@@ -28,7 +28,7 @@ get_fixed(value::ExtendedHydroGenerationCost) = PSY.get_fixed(value.hydro_cost_c
 """Get [`ExtendedHydroGenerationCost`](@ref) `regularization_term`."""
 get_regularization_term(value::ExtendedHydroGenerationCost) = value.regularization_term
 """Get [`ExtendedHydroGenerationCost`](@ref) `cost_core`."""
-get_cost_core(value::ExtendedHydroGenerationCost) = PSY.value.hydro_cost_core
+get_cost_core(value::ExtendedHydroGenerationCost) = value.hydro_cost_core
 
 """Set [`ExtendedHydroGenerationCost`](@ref) `variable`."""
 set_variable!(value::ExtendedHydroGenerationCost, val) = value.hydro_cost_core.variable = val
