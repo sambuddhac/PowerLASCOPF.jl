@@ -14,10 +14,24 @@
     regularization_term::Union{T, Float64} # Regularization Term
 end
 
-ExtendedStorageCost(storage_cost_core, regularization_term) = ExtendedStorageCost(; storage_cost_core, regularization_term)
+# @kwdef mutable struct ExtendedStorageCost{T<:GenIntervals}<:AbstractModel
+#     storage_cost_core::PSY.StorageCost # Coefficient of the quadratic term
+#     regularization_term::Union{T, Float64} # Regularization Term
+# end
 
-function ExtendedStorageCost(::Nothing)
-    ExtendedStorageCost(PSY.StorageCost(nothing), 0.0)
+# This outer constructor is fine for cases where regularization_term is a GenIntervals subtype
+# but will cause a TypeError if regularization_term is a Float64, as it will try to infer T as Float64.
+# We'll discuss a more robust version for this below.
+
+ExtendedStorageCost(storage_cost_core, regularization_term) = ExtendedStorageCost(; storage_cost_core, regularization_term)
+# FIX IS HERE: Make this constructor parametric.
+# It now explicitly states that it's a constructor for ExtendedStorageCost{T}
+# where T is any subtype of GenIntervals.
+function ExtendedStorageCost{T}(::Nothing) where {T<:GenIntervals}
+    # When this constructor is called, `T` is already known.
+    # We then call the keyword argument constructor for `ExtendedStorageCost{T}`.
+    # The `0.0` is a `Float64`, which is allowed for `regularization_term` because of `Union{T, Float64}`.
+    ExtendedStorageCost{T}(; storage_cost_core=PSY.StorageCost(nothing), regularization_term=0.0)
 end
 
 """Get [`ExtendedStorageCost`](@ref) `charge_variable_cost`."""
