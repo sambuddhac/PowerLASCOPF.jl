@@ -29,7 +29,7 @@ ExtendedHydroGenerationCost(hydro_cost_core, regularization_term) = ExtendedHydr
 # It now explicitly states that it's a constructor for ExtendedHydroGenerationCost{T}
 # where T is any subtype of GenIntervals.
 
-function ExtendedHydroGenerationCost(::Nothing)
+function ExtendedHydroGenerationCost{T}(::Nothing) where {T<:GenIntervals}
     # When this constructor is called, `T` is already known.
     # We then call the keyword argument constructor for `ExtendedHydroGenerationCost{T}`.
     # The `0.0` is a `Float64`, which is allowed for `regularization_term` because of `Union{T, Float64}`.
