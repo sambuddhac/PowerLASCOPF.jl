@@ -14,10 +14,24 @@
     regularization_term::Union{T, Float64} # Regularization Term
 end
 
-ExtendedThermalGenerationCost(thermal_cost_core, regularization_term) = ExtendedThermalGenerationCost(; thermal_cost_core, regularization_term)
+# @kwdef mutable struct ExtendedThermalGenerationCost{T<:GenIntervals}<:AbstractModel
+#     thermal_cost_core::PSY.ThermalGenerationCost # Coefficient of the quadratic term
+#     regularization_term::Union{T, Float64} # Regularization Term
+# end
 
-function ExtendedThermalGenerationCost(::Nothing)
-    ExtendedThermalGenerationCost(PSY.ThermalGenerationCost(nothing), 0.0)
+# This outer constructor is fine for cases where regularization_term is a GenIntervals subtype
+# but will cause a TypeError if regularization_term is a Float64, as it will try to infer T as Float64.
+# We'll discuss a more robust version for this below.
+
+ExtendedThermalGenerationCost(thermal_cost_core, regularization_term) = ExtendedThermalGenerationCost(; thermal_cost_core, regularization_term)
+# FIX IS HERE: Make this constructor parametric.
+# It now explicitly states that it's a constructor for ExtendedThermalGenerationCost{T}
+# where T is any subtype of GenIntervals.
+function ExtendedThermalGenerationCost{T}(::Nothing) where {T<:GenIntervals}
+    # When this constructor is called, `T` is already known.
+    # We then call the keyword argument constructor for `ExtendedThermalGenerationCost{T}`.
+    # The `0.0` is a `Float64`, which is allowed for `regularization_term` because of `Union{T, Float64}`.
+    ExtendedThermalGenerationCost{T}(; thermal_cost_core=PSY.ThermalGenerationCost(nothing), regularization_term=0.0)
 end
 
 """Get [`ExtendedThermalGenerationCost`](@ref) `variable`."""
