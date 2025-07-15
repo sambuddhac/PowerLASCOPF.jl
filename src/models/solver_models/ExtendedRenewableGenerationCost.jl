@@ -14,10 +14,26 @@
     regularization_term::Union{T, Float64} # Regularization Term
 end
 
+# @kwdef mutable struct ExtendedRenewableGenerationCost{T<:GenIntervals}<:AbstractModel
+#     renewable_cost_core::PSY.RenewableGenerationCost # Coefficient of the quadratic term
+#     regularization_term::Union{T, Float64} # Regularization Term
+# end
+
+# This outer constructor is fine for cases where regularization_term is a GenIntervals subtype
+# but will cause a TypeError if regularization_term is a Float64, as it will try to infer T as Float64.
+# We'll discuss a more robust version for this below.
+
 ExtendedRenewableGenerationCost(renewable_cost_core, regularization_term) = ExtendedRenewableGenerationCost(; renewable_cost_core, regularization_term)
 
-function ExtendedRenewableGenerationCost(::Nothing)
-    ExtendedRenewableGenerationCost(PSY.RenewableGenerationCost(nothing), 0.0)
+# FIX IS HERE: Make this constructor parametric.
+# It now explicitly states that it's a constructor for ExtendedRenewableGenerationCost{T}
+# where T is any subtype of GenIntervals.
+
+function ExtendedRenewableGenerationCost{T}(::Nothing) where {T<:GenIntervals}
+    # When this constructor is called, `T` is already known.
+    # We then call the keyword argument constructor for `ExtendedRenewableGenerationCost{T}`.
+    # The `0.0` is a `Float64`, which is allowed for `regularization_term` because of `Union{T, Float64}`.
+    ExtendedRenewableGenerationCost{T}(; renewable_cost_core=PSY.RenewableGenerationCost(nothing), regularization_term=0.0)
 end
 
 """Get [`ExtendedRenewbleGenerationCost`](@ref) `variable`."""
@@ -33,13 +49,13 @@ get_regularization(value::ExtendedRenewableGenerationCost) = value.regularizatio
 """Get [`ExtendedRenewableGenerationCost`](@ref) `cost_core`."""
 get_cost_core(value::ExtendedRenewableGenerationCost) = value.renewable_cost_core
 """Get [`ExtendedRenewableGenerationCost`](@ref) `curtailment_cost`."""
-
-
 get_curtailment_cost(value::ExtendedRenewableGenerationCost) = PSY.get_curtailment_cost(value.renewable_cost_core)
+
 """Set [`ExtendedRenewableGenerationCost`](@ref) `variable`."""
 set_variable!(value::ExtendedRenewableGenerationCost, val) = value.renewable_cost_core.variable = val
 """Set [`ExtendedRenewableGenerationCost`](@ref) `curtailment_cost`."""
 set_curtailment_cost!(value::ExtendedRenewableGenerationCost, val) = value.renewable_core_cost.curtailment_cost = val
+"""Set [`ExtendedRenewableGenerationCost`](@ref) `regularization`."""
 set_regularization!(value::ExtendedRenewaableGenerationCost, val) = value.regularization_term = val
 """Set [`ExtendedRenewableGenerationCost`](@ref) `cost_core`."""
 set_cost_core(value::ExtendedRenewableGenerationCost, cost_core) = value.renewable_cost_core = cost_core
