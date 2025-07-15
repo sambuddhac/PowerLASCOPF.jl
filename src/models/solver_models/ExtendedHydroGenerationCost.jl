@@ -14,7 +14,7 @@
     regularization_term::Union{T, Float64} # Regularization Term
 end
 
-ExtendedThermalGenerationCost(hydro_cost_core, regularization_term) = ExtendedHydroGenerationCost(; hydro_cost_core, regularization_term)
+ExtendedHydroGenerationCost(hydro_cost_core, regularization_term) = ExtendedHydroGenerationCost(; hydro_cost_core, regularization_term)
 
 function ExtendedHydroGenerationCost(::Nothing)
     ExtendedHydroGenerationCost(PSY.HydroGenerationCost(nothing), 0.0)
