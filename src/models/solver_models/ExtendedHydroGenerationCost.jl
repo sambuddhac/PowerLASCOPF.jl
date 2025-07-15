@@ -14,11 +14,26 @@
     regularization_term::Union{T, Float64} # Regularization Term
 end
 
+# @kwdef mutable struct ExtendedHydroGenerationCost{T<:GenIntervals}<:AbstractModel
+#     hydro_cost_core::PSY.HydroGenerationCost # Coefficient of the quadratic term
+#     regularization_term::Union{T, Float64} # Regularization Term
+# end
+
+# This outer constructor is fine for cases where regularization_term is a GenIntervals subtype
+# but will cause a TypeError if regularization_term is a Float64, as it will try to infer T as Float64.
+# We'll discuss a more robust version for this below.
+
 ExtendedHydroGenerationCost(hydro_cost_core, regularization_term) = ExtendedHydroGenerationCost(; hydro_cost_core, regularization_term)
 
-function ExtendedHydroGenerationCost(::Nothing)
-    ExtendedHydroGenerationCost(PSY.HydroGenerationCost(nothing), 0.0)
+# FIX IS HERE: Make this constructor parametric.
+# It now explicitly states that it's a constructor for ExtendedHydroGenerationCost{T}
+# where T is any subtype of GenIntervals.
 
+function ExtendedHydroGenerationCost(::Nothing)
+    # When this constructor is called, `T` is already known.
+    # We then call the keyword argument constructor for `ExtendedHydroGenerationCost{T}`.
+    # The `0.0` is a `Float64`, which is allowed for `regularization_term` because of `Union{T, Float64}`.
+    ExtendedHydroGenerationCost{T}(; hydro_cost_core=PSY.HydroGenerationCost(nothing), regularization_term=0.0)
 end
 
 """Get [`ExtendedHydroGenerationCost`](@ref) `variable`."""
