@@ -25,7 +25,7 @@ ExtendedLoadCost(load_cost_core, regularization_term) = ExtendedLoadCost(; load_
 function ExtendedLoadCost{T}(::Nothing) where {T<:LoadIntervals}
     # Both LoadCost and MarketBidCost have demo/empty constructors with nothing
     ExtendedLoadCost{T}(;
-        load_cost_core=LoadCost(nothing),
+        load_cost_core=PSY.LoadCost(nothing),
         regularization_term=0.0
     )
 end
