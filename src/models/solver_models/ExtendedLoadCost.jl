@@ -13,18 +13,18 @@ using Parameters  # for @kwdef
     scenario weights, or auxiliary variables.
     """
 
-@kwdef mutable struct ExtendedLoadCost{T<:LoadIntervals}<:AbstractModel
+@kwdef mutable struct ExtendedLoadCost{T<:LoadIntervals, V<:Union{PSY.LoadCost, PSY.MarketBidCost}}<:AbstractModel
     
-    load_cost_core::Union{PSY.LoadCost, PSY.MarketBidCost}
+    load_cost_core::V
     regularization_term::Union{T, Float64}
 end
 
 # Default outer constructors, following your template
 ExtendedLoadCost(load_cost_core, regularization_term) = ExtendedLoadCost(; load_cost_core, regularization_term)
 
-function ExtendedLoadCost{T}(::Nothing) where {T<:LoadIntervals}
+function ExtendedLoadCost{T,V}(::Nothing) where {T<:LoadIntervals, V<:Union{PSY.LoadCost, PSY.MarketBidCost}}
     # Both LoadCost and MarketBidCost have demo/empty constructors with nothing
-    ExtendedLoadCost{T}(;
+    ExtendedLoadCost{T,V}(;
         load_cost_core=PSY.LoadCost(nothing),
         regularization_term=0.0
     )
