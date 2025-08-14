@@ -2,10 +2,8 @@
 # PowerLASCOPF/src/models/solver_models/formulations.jl
 # ============================================================================
 
-"""
-Formulation for (N-1-1) Look-Ahead Security Constrained Optimal Power Flow
-using APP and ADMM-Proximal Message Passing algorithms
-"""
+# Formulation for (N-1-1) Look-Ahead Security Constrained Optimal Power Flow
+# using APP and ADMM-Proximal Message Passing algorithms
 struct LASCOPFGeneratorFormulation <: PSI.AbstractDeviceFormulation end
 
 # ============================================================================
@@ -16,9 +14,7 @@ struct LASCOPFGeneratorFormulation <: PSI.AbstractDeviceFormulation end
 struct PgNextVariable <: PSI.VariableType end
 struct ThetagVariable <: PSI.VariableType end
 
-"""
-Add ActivePowerVariable for LASCOPF Generator Formulation
-"""
+# Add ActivePowerVariable for LASCOPF Generator Formulation
 function PSI.add_variable!(
     container::PSI.OptimizationContainer,
     ::Type{PSI.ActivePowerVariable},
@@ -57,9 +53,7 @@ function PSI.add_variable!(
     return
 end
 
-"""
-Add PgNext variable for next interval power output
-"""
+# Add PgNext variable for next interval power output
 function PSI.add_variable!(
     container::PSI.OptimizationContainer,
     ::Type{PgNextVariable},
@@ -96,9 +90,7 @@ function PSI.add_variable!(
     return
 end
 
-"""
-Add generator bus angle variable
-"""
+# Add generator bus angle variable
 function PSI.add_variable!(
     container::PSI.OptimizationContainer,
     ::Type{ThetagVariable},
@@ -155,9 +147,7 @@ struct BSCParameter <: PSI.ParameterType end
 struct Lambda1SCParameter <: PSI.ParameterType end
 struct PgNextNuParameter <: PSI.ParameterType end
 
-"""
-Add ADMM/APP parameters for LASCOPF formulation
-"""
+# Add ADMM/APP parameters for LASCOPF formulation
 function PSI.add_parameters!(
     container::PSI.OptimizationContainer,
     ::Type{T},
@@ -192,9 +182,9 @@ function PSI.add_parameters!(
     return
 end
 
-"""
-Add contingency-indexed parameters (BSC, Lambda1SC)
-"""
+# 
+# Add contingency-indexed parameters (BSC, Lambda1SC)
+# 
 function PSI.add_parameters!(
     container::PSI.OptimizationContainer,
     ::Type{T},
@@ -237,9 +227,9 @@ end
 # PowerLASCOPF/src/models/solver_models/constraints.jl
 # ============================================================================
 
-"""
-Add ramping constraints for LASCOPF Generator Formulation
-"""
+# 
+# Add ramping constraints for LASCOPF Generator Formulation
+# 
 function PSI.add_constraints!(
     container::PSI.OptimizationContainer,
     ::Type{PSI.RampConstraint},
@@ -294,9 +284,9 @@ end
 # PowerLASCOPF/src/models/solver_models/objective_functions.jl
 # ============================================================================
 
-"""
-Add objective function for LASCOPF Generator Formulation
-"""
+# 
+# Add objective function for LASCOPF Generator Formulation
+# 
 function PSI.add_objective_function!(
     container::PSI.OptimizationContainer,
     ::LASCOPFGeneratorFormulation,

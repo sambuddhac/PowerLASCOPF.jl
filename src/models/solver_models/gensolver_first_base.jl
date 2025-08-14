@@ -4,16 +4,23 @@
 
 using PowerSystems
 using PowerSimulations 
+using InfrastructureSystems
 using JuMP
 using Dates
+try
+    using DocStringExtensions
+catch
+    # DocStringExtensions not available, ignore
+end
 const PSY = PowerSystems
 const PSI = PowerSimulations
+const IS = InfrastructureSystems
 
 # Import required types and functions
 include(joinpath(@__DIR__, "solver_model_types.jl"))     # Core types (GenFirstBaseInterval, etc.)
+include(joinpath(@__DIR__, "sienna_integration_improved.jl"))  # PSI formulations and variable implementations (defines LASCOPFGeneratorFormulation)
 include(joinpath(@__DIR__, "parameters.jl"))             # PSI parameter definitions  
 include(joinpath(@__DIR__, "variables.jl"))              # PSI variable definitions
-include(joinpath(@__DIR__, "sienna_integration_improved.jl"))  # PSI formulations and variable implementations
 include(joinpath(@__DIR__, "objective_functions.jl"))    # PSI objective function implementations
 include(joinpath(@__DIR__, "solver_interface.jl"))       # High-level PSI model building interface
 

@@ -1,390 +1,604 @@
-# Supernetwork source code for implementing APMP (Auxiliary Proximal Message Passing) Algorithm for the SCOPF in serial mode
-import julia
-import os
-import subprocess
-import math
-import pandas as pd
-import numpy as np
-import json
-import sys
-import traceback
-#from Python_src.log import log
-#from Python_src.profiler import Profiler
-# include definitions for classes generator, load, transmission line, network and node
-include("Julia_src/Network.jl")
+# SuperNetwork source code for implementing APMP (Auxiliary Proximal Message Passing) Algorithm for the SCOPF in serial mode
+using PowerSystems
+using InfrastructureSystems
+using Dates
+using Printf
 
-mutable struct superNetwork(object)
-	def __init__(self, networkID, choiceSolver, rhoTuning, postContScen, dispInterval, dispIntervalClass, lastFlag, nextChoice, dummyDispInt, continSolAccuracy, outagedLine, RNDIntervals, RSDIntervals): #function main begins program execution
-		self.netID = networkID #Network ID number to indicate the type of the system with specifying the number of buses/nodes
-		self.contNetVector = []
-		self.solverChoice = choiceSolver #Solver choice among CVXGEN-ADMM-PMP+APP fully distributed, GUROBI-ADMM-PMP+APP fully distributed, or GUROBI APP half distributed
-		self.setRhoTuning = rhoTuning #parameter to select adaptive rho, fixed rho, and type of adaptive rho}
-		self.postContingency = postContScen #future next-to-upcoming-dispatch intervals for pos-contingency cases, 0 for no contingency, assumed to have actually taken place
-		self.intervalCount = dispInterval #count of the dispatch interval to which the particular network instance for the coarse grain belongs
-		self.intervalClass = dispIntervalClass #class of the dispatch interval to which the particular network instance for the coarse grain belongs i.e. dummy (0)/forthcoming(1)/subsequent(2)
-		self.RNDintervals = RNDIntervals #Initialize restoration to normal duration
-		self.RSDintervals = RSDIntervals #Initialize restoration to secure duration
-		self.lastInterval = lastFlag #Flas to indicate if the network belongs to last interval: 0=not last interval; 1=last interval
-		log.info("\n*** NETWORK INITIALIZATION STAGE BEGINS ***\n")
-		networkInstance = Network(self.netID, self.postContingency, 0, 0, 0, self.solverChoice, dummyDispInt, continSolAccuracy, self.intervalCount, self.lastInterval, nextChoice, outagedLine) #create network object corresponding to the base case
-		self.numberOfCont = networkInstance.retContCount() #gets the number of contingency scenarios in the variable numberOfCont
-		self.contNetVector.append(networkInstance) #push to the vector of network instances
-		if (self.intervalCount<=0) || (self.intervalCount==(self.RNDintervals+self.RSDintervals))
-			for i in range(self.numberOfCont)
-				if (i + 1) != self.postContingency #As long as the index of scenarios is not the same as that of the post-contingency index of the base case in 2nd interval
-					self.lineOutaged = self.contNetVector[0].indexOfLineOut(i + 1) #gets the serial number of transmission line outaged in this scenario 
-					if self.lineOutaged != outagedLine
-						#create the network instances for the contingency scenarios, which includes as many networks as the number of contingency scenarios
-						self.contNetVector.append(Network(self.netID, self.postContingency, i + 1, self.lineOutaged, 1, self.solverChoice, dummyDispInt, continSolAccuracy, self.intervalCount, self.lastInterval, nextChoice, outagedLine)) #push to the vector of network instances
-					end
-				end
-			end
-		end
+# Include necessary PowerLASCOPF components
+include("../system_extensions/extended_system.jl")
+include("network.jl")
 
-		log.info("\n*** NETWORK INITIALIZATION STAGE ENDS ***\n")
-
-		self.numberOfGenerators = self.contNetVector[0].getGenNumber() #get the number of generators in the system
-		self.numberOfTransLines = self.contNetVector[0].getTranNumber() #get the number of transmission lines in the system
-		self.consLagDim = self.numberOfCont * self.numberOfGenerators #Dimension of the vectors of APP Lagrange Multipliers and Power Generation Consensus
-
-	def __del__(self): #Destructor
-		log.info("\nDispatch interval super-network object for dispatch interval {} destroyed".format(self.intervalCount))
-
-	def getvirtualNetExecTime(self):
-		return self.virtualNetExecTime
-
-	def indexOfLineOut(self, postScenar):
-		return self.contNetVector[0].indexOfLineOut(postScenar) #Retruns the serial number of the line that is outaged in a particular post-contingency scenario 
-
-	def retContCount(self):
-		return self.numberOfCont #gets the number of contingency scenarios in the variable numberOfCont
-
-	function run_simulation(supernetwork_instance::SuperNetwork, outerIter, LambdaOuter, powDiffOuter, powSelfBel, powNextBel, powPrevBel, lambdaLine, powerDiffLine, powSelfFlowBel, powNextFlowBel): #runs the distributed SCOPF simulations using ADMM-PMP with CVXGEN custom solver
-		lambdaAPP = np.zeros(self.consLagDim, float) #Array of APP Lagrange Multipliers for achieving consensus among the values of power generated, as guessed by scenarios
-		powDiff = np.zeros(self.consLagDim, float) #Array of lack of consensus between generation values, as guessed by scenarios
-		self.alphaAPP = 100.0 #APP Parameter/Path-length
-		self.iterCountAPP = 1 #Iteration counter for APP coarse grain decomposition algorithm
-		self.finTol = 1000.0 #Initial Guess of the Final tolerance of the APP iteration/Stopping criterion
-		if self.solverChoice == 1 or self.solverChoice == 2: #APMP Fully distributed, Bi-layer (N-1) SCOPF Simulation 
-			"""string outputAPPFileName;
-			if (solverChoice==1)
-				outputAPPFileName = "/home/samie/code/ADMM_Based_Proximal_Message_Passing_Distributed_OPF/LASCOPF_Post_Contingency_Restoration/output/ADMM_PMP_GUROBI/resultAPP-SCOPF_Interval:"+to_string(intervalCount)+"PCScen:"+to_string(postContingency)+".txt";
-			if (solverChoice==2)
-				outputAPPFileName = "/home/samie/code/ADMM_Based_Proximal_Message_Passing_Distributed_OPF/LASCOPF_Post_Contingency_Restoration/output/ADMM_PMP_CVXGEN/resultAPP-SCOPF_Interval:"+to_string(intervalCount)+"PCScen:"+to_string(postContingency)+".txt";
-			matrixResultAPPOut = dict() #create a new file result.txt to output the results
-
-			// exit program if unable to create file
-			if ( !matrixResultAPPOut ) {
-				cerr << "File could not be opened" << endl;
-				exit( 1 );
-			}   
-			matrixResultAPPOut[0]={'Initial Value of the Tolerance to kick-start the APP outer iterations':finTol}
-
-			matrixResultAPPOut << "APP Iteration Count" << "\t" << "APP Tolerance" << "\n";	
-			clock_t start_s = clock(); // begin keeping track of the time
-			log.info("\n*** APMP ALGORITHM BASED COARSE+FINE GRAINED BILAYER DECENTRALIZED/DISTRIBUTED SCOPF (SERIAL IMPLEMENTATION) BEGINS ***\n")
-			log.info("\n*** SIMULATION IN PROGRESS; PLEASE DON'T CLOSE ANY WINDOW OR OPEN ANY OUTPUT FILE YET ... ***\n")"""
-
-			#*********************************************AUXILIARY PROBLEM PRINCIPLE (APP) COARSE GRAINED DECOMPOSITION COMPONENT******************************************************//	
-			#do { // APP Coarse grain iterations start
-			self.largestNetTimeVec = []
-			actualNetTime = 0
-			if (self.intervalCount==0) or (self.intervalCount==(self.RNDintervals+self.RSDintervals)): #Solve full SCOPF only for the present/forthcoming, dummy, and last intervals
-				for self.iterCountAPP in range(1, 11, 1): #*&& (finTol>=0.7)*/); ++iterCountAPP ) { // Start the inner APP iterations among base-case and contngency scenarios for SCOPFs
-					self.singleNetTimeVec = []
-					for netSimCount in range(self.numberOfCont+1): #Iterate over the base-case and contingency scenarios
-						if (netSimCount == 0) or ((netSimCount > 0)and(netSimCount!=self.postContingency)): #Calculate for the base-case or contingency scenarios (or, remaining contingency scenarios, for post-contingency base-case)
-							if (self.postContingency > 0)and(netSimCount>self.postContingency): #If the base case is an outage case and the contingency scenario considered has index value greater than that of the outage case, then skip one index, and compensate for the skiped one in netSimCount
-								log.info("\nStart of {} -th Innermost APP iteration for {} -th base/contingency scenario".format(self.iterCountAPP, self.netSimCount+1))
-								self.contNetVector[netSimCount-1].runSimulation(outerIter, LambdaOuter, powDiffOuter, self.setRhoTuning, self.iterCountAPP, lambdaAPP, powDiff, powSelfBel, powNextBel, powPrevBel, lambdaLine, powerDiffLine, powSelfFlowBel, powNextFlowBel)#, environmentGUROBI) #start simulation
-								singleNetTime = self.contNetVector[netSimCount-1].returnVirtualExecTime()
-								actualNetTime += singleNetTime
-								self.singleNetTimeVec.append(singleNetTime)
-							else: #If either the base case (outaged or not outaged) or contingency scenario with index less than that of the outage case
-								log.info("\nStart of {} -th Innermost APP iteration for {} -th base/contingency scenario".format(self.iterCountAPP, self.netSimCount+1))
-								self.contNetVector[netSimCount].runSimulation(outerIter, LambdaOuter, powDiffOuter, self.setRhoTuning, self.iterCountAPP, lambdaAPP, powDiff, powSelfBel, powNextBel, powPrevBel, lambdaLine, powerDiffLine, powSelfFlowBel, powNextFlowBel)#, environmentGUROBI); // start simulation
-								singleNetTime = self.contNetVector[netSimCount].returnVirtualExecTime()
-								actualNetTime += singleNetTime
-								self.singleNetTimeVec.append(singleNetTime)
-					largestNetTime = max(self.singleNetTimeVec)
-					self.largestNetTimeVec.append(largestNetTime)
-					if self.postContingency > 0: #For outaged case
-						for i in range(self.numberOfCont):
-							if (i+1) < self.postContingency:
-								for j in range(self.numberOfGenerators):
-									powDiff[i*self.numberOfGenerators+j]=self.contNetVector[0].getPowSelf(j)-self.contNetVector[i+1].getPowSelf(j) #what base thinks about itself Vs. what contingency thinks about base
-							elif (i+1) > self.postContingency:
-								for j in range(self.numberOfGenerators):
-									powDiff[i*self.numberOfGenerators+j]=self.contNetVector[0].getPowSelf(j)-self.contNetVector[i].getPowSelf(j) #what base thinks about itself Vs. what contingency thinks about base
-					else: #For non-outaged case or base-case
-						for i in range(1, self.numberOfCont+1, 1):
-							for j in range(self.numberOfGenerators):
-								#full SCOPF disagreements only for the present/forthcoming, dummy, and last intervals
-								powDiff[(i-1)*self.numberOfGenerators+j]=self.contNetVector[0].getPowSelf(j)-self.contNetVector[i].getPowSelf(j) #what base thinks about itself Vs. what contingency thinks about base
-					#Tuning the alphaAPP
-					if (self.iterCountAPP > 5) and (self.iterCountAPP <= 10):
-						self.alphaAPP = 75.0
-					elif (self.iterCountAPP > 10) and (self.iterCountAPP <= 15):
-						self.alphaAPP = 2.5
-					elif (self.iterCountAPP > 15) and (self.iterCountAPP <= 20):
-						self.alphaAPP = 1.25
-					elif (self.iterCountAPP > 20):
-						self.alphaAPP = 0.5
-					for i in range(self.numberOfCont):
-						for j in range(self.numberOfGenerators):
-							lambdaAPP[i*self.numberOfGenerators+j] += self.alphaAPP * (powDiff[i*self.numberOfGenerators+j]) #what I think about myself Vs. what next door fellow thinks about me
-					tolAPP = 0.0
-					for i in range(self.consLagDim):
-						tolAPP += pow(powDiff[i], 2)
-						matrixResultAPPOut[(iterCountAPP-1)*(consLagDim+1)+i+1] = {'Lack of consensus among power in {}-th interval'.format(i):powDiff[i]}
-					finTol = math.sqrt(tolAPP)
-					matrixResultAPPOut[(iterCountAPP-1)*(consLagDim+1)+consLagDim+1] = {'APP Iteration Count':iterCountAPP,
-																						'APP Tolerance':finTol}
-				#++iterCountAPP; // increment the APP iteration counter
-			#} while (finTol>=0.5); //Check the termination criterion of the APP iterations
-			elif (self.intervalCount>=1) and (self.intervalCount<=(self.RNDintervals-1)):
-				log.info("\nStart of {} -th Innermost APP iteration for {} -th base/contingency scenario".format(iterCountAPP, netSimCount+1))
-				self.contNetVector[0].runSimulation(outerIter, LambdaOuter, powDiffOuter, setRhoTuning, iterCountAPP, lambdaAPP, powDiff, powSelfBel, powNextBel, powPrevBel)#start simulation
-				singleNetTime = self.contNetVector[0].returnVirtualExecTime()
-				actualNetTime += singleNetTime
-				self.singleNetTimeVec.append(singleNetTime)
-			elif (self.intervalCount>=self.RNDintervals) and (self.intervalCount<(self.RNDintervals+self.RSDintervals)):
-				log.info("\nStart of {} -th Innermost APP iteration for {} -th base/contingency scenario".format(iterCountAPP, netSimCount+1))
-				self.contNetVector[0].runSimulation(outerIter, LambdaOuter, powDiffOuter, setRhoTuning, iterCountAPP, lambdaAPP, powDiff, powSelfBel, powNextBel, powPrevBel)#start simulation
-				singleNetTime = self.contNetVector[0].returnVirtualExecTime()
-				actualNetTime += singleNetTime
-				self.singleNetTimeVec.append(singleNetTime)
-			#***************************************END OF AUXILIARY PROBLEM PRINCIPLE (APP) COARSE GRAINED DECOMPOSITION COMPONENT******************************************************//
-			log.info("\n*** SCOPF SIMULATION ENDS ***\n")
-			#cout << "\nExecution time (s): " << static_cast<double>( stop_s - start_s ) / CLOCKS_PER_SEC << endl;
-			log.info("\nFinal Value of APP Tolerance {}".format(finTol))
-			stop_s = profiler.get_interval()  #end
-			log.info("\n*** LASCOPF FOR POST-CONTINGENCY RESTORATION CONTROLLING LINE TEMPERATURE SIMULATION NETWORK LAYER ENDS ***\n")
-			log.info("\nExecution Supernetwork layer time (s): {:..2f} ".format(stop_s))
-			log.info("\nVirtual Supernetwork Execution time (s): {:..2f} ".format(stop_s  - actualNetTime + sum(largestNetTimeVec)))
-			matrixResultAPPOut[(iterCountAPP-1)*(consLagDim+1)+1] = {'Virtual Supernetwork layer Execution time (s)':stop_s - actualNetTime + sum(largestNetTimeVec),
-						  									 'Execution Supernetwork layer time (s)': stop_s}
-			"""
-		elif self.solverChoice==3: #Centralized (N-1) SCOPF Simulation
-		    string outputAPPFileName = "/home/samie/code/ADMM_Based_Proximal_Message_Passing_Distributed_OPF/LASCOPF_Post_Contingency_Restoration/output/APP_Quasi_Decent_GUROBI/resultAPP-SCOPF_Interval"+to_string(intervalCount)+"PCScen:"+to_string(postContingency)+".txt";
-		    matrixResultAPPOut = dict() #create a new file result.txt to output the results
-
-		    // exit program if unable to create file
-		    if ( !matrixResultAPPOut ) {
-			    cerr << "File could not be opened" << endl;
-			    exit( 1 );
-		    }   
-		    matrixResultAPPOut[0]={'Initial Value of the Tolerance to kick-start the APP outer iterations':finTol}
-
-		    matrixResultAPPOut << "APP Iteration Count" << "\t" << "APP Tolerance" << "\n";	
-		    clock_t start_s = clock(); // begin keeping track of the time
-		    log.info("\n*** APMP ALGORITHM BASED COARSE+FINE GRAINED BILAYER DECENTRALIZED/DISTRIBUTED SCOPF (SERIAL IMPLEMENTATION) BEGINS ***\n")
-		    log.info("\n*** SIMULATION IN PROGRESS; PLEASE DON'T CLOSE ANY WINDOW OR OPEN ANY OUTPUT FILE YET ... ***\n")
-		    #*********************************************AUXILIARY PROBLEM PRINCIPLE (APP) COARSE GRAINED DECOMPOSITION COMPONENT******************************************************/	
-		    #do { // APP Coarse grain iterations start
-		    self.largestNetTimeVec = []
-		    actualNetTime = 0
-		    #do {
-		    for self.iterCountAPP in range(1,10): #*&& (finTol>=0.7)*/); ++iterCountAPP ) { // Start the inner APP iterations among base-case and contngency scenarios for SCOPFs
-			    self.singleNetTimeVec = []
-			    self.contNetVector[0].runSimAPPGurobiBase(outerIter, LambdaOuter, powDiffOuter, iterCountAPP, lambdaAPP, powDiff, powSelfBel, powNextBel, powPrevBel, environmentGUROBI); // start simulation
-			    double singleNetTime = contNetVector[0]->returnVirtualExecTime();
-			    actualNetTime += singleNetTime;
-			    singleNetTimeVec.push_back(singleNetTime);
-			    for ( int netSimCount = 1; netSimCount < (numberOfCont+1); ++netSimCount ) {
-				    if (netSimCount>postContingency) {
-					    contNetVector[netSimCount-1]->runSimAPPGurobiCont(outerIter, LambdaOuter, powDiffOuter, iterCountAPP, lambdaAPP, powDiff, environmentGUROBI); // start simulation
-					    singleNetTime = contNetVector[netSimCount-1]->returnVirtualExecTime();
-					    actualNetTime += singleNetTime;
-					    singleNetTimeVec.push_back(singleNetTime);
-				    }
-				    else {
-					    contNetVector[netSimCount]->runSimAPPGurobiCont(outerIter, LambdaOuter, powDiffOuter, iterCountAPP, lambdaAPP, powDiff, environmentGUROBI); // start simulation
-					    singleNetTime = contNetVector[netSimCount]->returnVirtualExecTime();
-					    actualNetTime += singleNetTime;
-					    singleNetTimeVec.push_back(singleNetTime);
-				    }
-			    }
-			    double largestNetTime = *max_element(singleNetTimeVec.begin(), singleNetTimeVec.end());
-			    largestNetTimeVec.push_back(largestNetTime);
-			    for ( int i = 0; i < numberOfCont; ++i ) {
-				    if ((i+1) < postContingency) {
-					    for ( int j = 0; j < numberOfGenerators; ++j ) {
-						    powDiff[i*numberOfGenerators+j]=*(contNetVector[0]->getPowSelfGUROBI()+j)-*(contNetVector[i+1]->getPowSelfGUROBI()+j); // what base thinks about itself Vs. what contingency thinks about base
-					    }
-				    }
-				    if ((i+1) > postContingency) {
-					    for ( int j = 0; j < numberOfGenerators; ++j ) {
-						    powDiff[i*numberOfGenerators+j]=*(contNetVector[0]->getPowSelfGUROBI()+j)-*(contNetVector[i]->getPowSelfGUROBI()+j); // what base thinks about itself Vs. what contingency thinks about base
-					    }
-				    }
-			    }
-			    // Tuning the alphaAPP by a discrete-time PID Controller
-			    if ( ( iterCountAPP > 5 ) && ( iterCountAPP <= 10 ) )
-				    alphaAPP = 75.0;
-			    if ( ( iterCountAPP > 10 ) && ( iterCountAPP <= 15 ) )
-				    alphaAPP = 2.5;
-			    if ( ( iterCountAPP > 15 ) && ( iterCountAPP <= 20 ) )
-				    alphaAPP = 1.25;
-			    if ( ( iterCountAPP > 20 ) )
-				    alphaAPP = 0.5;
-			    for ( int i = 0; i < numberOfCont; ++i ) {
-				    for ( int j = 0; j < numberOfGenerators; ++j ) {
-					    lambdaAPP[i*numberOfGenerators+j] = lambdaAPP[i*numberOfGenerators+j] + alphaAPP * (powDiff[i*numberOfGenerators+j]); // what I think about myself Vs. what next door fellow thinks about me
-				    }
-			    }
-			    double tolAPP = 0.0;
-			    for ( int i = 0; i < consLagDim; ++i ) {
-				    tolAPP = tolAPP + pow(powDiff[i], 2);
-			    }
-			    finTol = sqrt(tolAPP);
-			    matrixResultAPPOut << iterCountAPP << "\t" << finTol << "\n";
-			    //++iterCountAPP; // increment the APP iteration counter
-		    //} while (finTol>=0.05); //Check the termination criterion of the APP iterations
-		    }
-		    //****************************************END OF AUXILIARY PROBLEM PRINCIPLE (APP) COARSE GRAINED DECOMPOSITION COMPONENT******************************************************/
-		    cout << "\n*** SCOPF SIMULATION ENDS ***\n" << endl;
-		    clock_t stop_s = clock();  // end
-		    matrixResultAPPOut << "\nExecution time (s): " << static_cast<double>( stop_s - start_s ) / CLOCKS_PER_SEC << endl;
-		    cout << "\nExecution time (s): " << static_cast<double>( stop_s - start_s ) / CLOCKS_PER_SEC << endl;
-		    cout << "\nFinal Value of APP Tolerance " << finTol << endl; 
-		    cout << "\n*** (N-1) SCOPF SIMULATION ENDS ***\n" << endl
-			"""
-		elif self.solverChoice==4: #Centralized (N-1) SCOPF Simulation
-			contNetVector[0].runSimulationCentral(outerIter, LambdaOuter, powDiffOuter, powSelfBel, powNextBel, powPrevBel, environmentGUROBI) #start simulation
-	    
-		else:
-			cout << "\nInvalid choice of solution method and algorithm." << endl
-
-		if solverChoice==1:
-			outputAPPFileName = "ADMM_PMP_GUROBI"
-		elif solverChoice==2:
-			outputAPPFileName = "ADMM_PMP_CVXGEN"
-		elif solverChoice==3:
-			outputAPPFileName = "APP_Quasi_Decent_GUROBI"
-		elif solverChoice==4:
-			outputAPPFileName = "APP_GUROBI_Centralized_SCOPF"
-		with open(os.path.join('results', '_{}_resultOuterAPP-SCOPF'.format(outputAPPFileName) + '.json'), 'w') as f:
-                	json.dump(matrixResultAPPOut, f, indent=4)	
-	end
-	def getPowSelf(self, generCount):
-		return self.contNetVector[0].getPowSelf(generCount)
-		#returns the difference in the values of what I think about myself Vs. what next door fellow thinks about me
-
-	def getPowPrev(self, generCount):
-		return self.contNetVector[0].getPowPrev(generCount)
-		#returns what I think about previous dispatch interval generators
-	def getPowNext(self, contingencyCounter, dispIntCount, generCount):
-		if dispIntCount == 1:
-			return self.contNetVector[0].getPowNext(contingencyCounter, dispIntCount, generCount)
-		else:
-			return self.contNetVector[0].getPowNext(contingencyCounter, dispIntCount, generCount) #returns what I think about next door fellow 
-	def getGenNumber(self): #Function getGenNumber begins
-		return self.numberOfGenerators
-		#end of getGenNumber function
-
-	def getPowFlowNext(self, continCounter, supernetCount, rndInterCount, lineCount):
-		if self.intervalClass == 1:
-			return self.contNetVector[0].getPowFlowNext(continCounter, supernetCount, rndInterCount, lineCount)
-		else:
-			return 0
-
-	def getPowFlowSelf(self, lineCount):
-		if self.intervalClass == 2:
-			return self.contNetVector[0].getPowFlowSelf(lineCount)
-		else:
-			return 0
-
-	def getTransNumber(self): #Function getTransNumber() begins
-		return self.numberOfTransLines
-
-end 
-
-
-##Generated by CodeGPT
-mutable struct NetworkInitialization
-	netID::Int
-	contNetVector::Array{Any,1}
-	solverChoice::String
-	setRhoTuning::String
-	postContingency::Int
-	intervalCount::Int
-	intervalClass::Int
-	RNDintervals::Int
-	RSDintervals::Int
-	lastInterval::Int
+@kwdef mutable struct SuperNetwork
+    # Core properties
+    net_id::Int
+    cont_net_vector::Vector{PowerLASCOPFSystem} = PowerLASCOPFSystem[]
+    solver_choice::Int = 1  # 1=ADMM-PMP-GUROBI, 2=ADMM-PMP-CVXGEN, 3=APP-Quasi-Decent-GUROBI, 4=APP-GUROBI-Centralized
+    set_rho_tuning::Float64 = 1.0
+    post_contingency::Int = 0
+    interval_count::Int = 0
+    interval_class::Int = 0  # 0=dummy, 1=forthcoming, 2=subsequent
+    rnd_intervals::Int = 6  # Restoration to normal duration
+    rsd_intervals::Int = 6  # Restoration to secure duration
+    last_interval::Bool = false
+    outaged_line::Int = 0
+    
+    # Algorithm parameters
+    number_of_cont::Int = 0
+    number_of_generators::Int = 0
+    number_of_trans_lines::Int = 0
+    cons_lag_dim::Int = 0  # Dimension of APP Lagrange Multipliers and Power Generation Consensus
+    
+    # APP algorithm properties
+    alpha_app::Float64 = 100.0
+    iter_count_app::Int = 1
+    fin_tol::Float64 = 1000.0
+    
+    # Performance tracking
+    largest_net_time_vec::Vector{Float64} = Float64[]
+    single_net_time_vec::Vector{Float64} = Float64[]
+    virtual_net_exec_time::Float64 = 0.0
+    
+    # Results storage
+    matrix_result_app_out::Dict{Any,Any} = Dict()
+    
+    function SuperNetwork(;
+        network_id::Int,
+        choice_solver::Int = 1,
+        rho_tuning::Float64 = 1.0,
+        post_cont_scen::Int = 0,
+        disp_interval::Int = 0,
+        disp_interval_class::Int = 0,
+        last_flag::Bool = false,
+        next_choice::Bool = false,
+        dummy_disp_int::Int = 0,
+        contin_sol_accuracy::Int = 1,
+        outaged_line_param::Int = 0,
+        rnd_intervals::Int = 6,
+        rsd_intervals::Int = 6
+    )
+        println("\n*** NETWORK INITIALIZATION STAGE BEGINS ***\n")
+        
+        # Create base network instance
+        base_system = PowerLASCOPFSystem(
+            network_id = network_id,
+            post_contingency_scenario = post_cont_scen,
+            scenario_index = 0,
+            interval_id = disp_interval,
+            last_flag = last_flag,
+            outaged_line = outaged_line_param,
+            solver_choice = choice_solver,
+            dummy_zero_flag = dummy_disp_int,
+            accuracy = contin_sol_accuracy,
+            rnd_intervals = rnd_intervals,
+            rsd_intervals = rsd_intervals
+        )
+        
+        # Initialize SuperNetwork
+        super_net = new()
+        super_net.net_id = network_id
+        super_net.solver_choice = choice_solver
+        super_net.set_rho_tuning = rho_tuning
+        super_net.post_contingency = post_cont_scen
+        super_net.interval_count = disp_interval
+        super_net.interval_class = disp_interval_class
+        super_net.rnd_intervals = rnd_intervals
+        super_net.rsd_intervals = rsd_intervals
+        super_net.last_interval = last_flag
+        super_net.outaged_line = outaged_line_param
+        
+        # Add base network to vector
+        push!(super_net.cont_net_vector, base_system)
+        
+        # Get contingency count from base network
+        super_net.number_of_cont = base_system.contingency_count
+        
+        # Create contingency network instances for specific intervals
+        if (super_net.interval_count <= 0) || (super_net.interval_count == (super_net.rnd_intervals + super_net.rsd_intervals))
+            for i in 1:super_net.number_of_cont
+                if (i != super_net.post_contingency)  # Skip if same as post-contingency index
+                    line_outaged = get_outaged_line_index(base_system, i)
+                    if line_outaged != outaged_line_param
+                        # Create contingency network instance
+                        cont_system = PowerLASCOPFSystem(
+                            network_id = network_id,
+                            post_contingency_scenario = post_cont_scen,
+                            scenario_index = i,
+                            interval_id = disp_interval,
+                            last_flag = last_flag,
+                            outaged_line = line_outaged,
+                            solver_choice = choice_solver,
+                            dummy_zero_flag = dummy_disp_int,
+                            accuracy = contin_sol_accuracy,
+                            rnd_intervals = rnd_intervals,
+                            rsd_intervals = rsd_intervals
+                        )
+                        push!(super_net.cont_net_vector, cont_system)
+                    end
+                end
+            end
+        end
+        
+        println("\n*** NETWORK INITIALIZATION STAGE ENDS ***\n")
+        
+        # Update dimensions based on network information
+        super_net.number_of_generators = get_extended_thermal_generator_count(base_system)
+        super_net.number_of_trans_lines = get_transmission_line_count(base_system)
+        super_net.cons_lag_dim = super_net.number_of_cont * super_net.number_of_generators
+        
+        return super_net
     end
-function spawn_networks!(networkID, choiceSolver, rhoTuning, postContScen, dispInterval, dispIntervalClass, lastFlag, nextChoice, dummyDispInt, continSolAccuracy, outagedLine, RNDIntervals, RSDIntervals)
-	net = NetworkInitialization(networkID, [], choiceSolver, rhoTuning, postContScen, dispInterval, dispIntervalClass, RNDIntervals, RSDIntervals, lastFlag)
-	println("\n*** NETWORK INITIALIZATION STAGE BEGINS ***\n")
-	networkInstance = Network(net.netID, net.postContingency, 0, 0, 0, net.solverChoice, dummyDispInt, continSolAccuracy, net.intervalCount, net.lastInterval, nextChoice, outagedLine)
-	net.numberOfCont = networkInstance.retContCount()
-	push!(net.contNetVector, networkInstance)
-	
-	if (net.intervalCount <= 0) || (net.intervalCount == (net.RNDintervals + net.RSDintervals))
-	    for i in 1:net.numberOfCont
-		if (i + 1) != net.postContingency
-		    net.lineOutaged = net.contNetVector[1].indexOfLineOut(i + 1)
-		    if net.lineOutaged != outagedLine
-			push!(net.contNetVector, Network(net.netID, net.postContingency, i + 1, net.lineOutaged, 1, net.solverChoice, dummyDispInt, continSolAccuracy, net.intervalCount, net.lastInterval, nextChoice, outagedLine))
-		    end
-		end
-	    end
-	end
-end
-	
-	println("\n*** NETWORK INITIALIZATION STAGE ENDS ***\n")
-	
-	net.numberOfGenerators = net.contNetVector[1].getGenNumber()
-	net.numberOfTransLines = net.contNetVector[1].getTranNumber()
-	net.consLagDim
-#Generated by CodeGPT
-
-
-#Generated by Gemini
-
-# ... (Previous part of SuperNetwork constructor)
-
-# Initialize fields directly
-self.netID = netID
-self.solverChoice = choiceSolver
-self.setRhoTuning = rhoTuning
-self.postContingency = postContScen
-self.intervalCount = restorationInt
-self.intervalClass = dispIntervalClass
-self.RNDintervals = RNDIntervals
-self.RSDintervals = RSDIntervals
-self.lastInterval = lastFlag
-
-function spawn_networks!(net_id::Int64, solver_choice::Bool, rho_tuning::Bool, post_contingency, interval_count::Int64, disp_interval_class, last_interval, next_choice::Bool, dummy_disp_int::Bool, contin_sol_accuracy::Bool, outaged_line, RND_intervals::Int64, RSD_intervals::Int64)
-    	contNetVector = []
-	println("\n*** NETWORK INITIALIZATION STAGE BEGINS ***\n")
-
-	# Create the base case Network instance
-	base_network = Network(netID, postContingency, 0, 0, 0, solverChoice, dummyDispInt, continSolAccuracy, intervalCount, lastInterval, nextChoice, outagedLine)
-	numberOfCont = base_network.retContCount()  
-	push!(contNetVector, base_network)
-
-	# Create contingency Network instances only for certain intervals
-	if (intervalCount <= 0) || (intervalCount == (RNDIntervals + RSDIntervals))
-    		for i in 1:numberOfCont
-        		if i != postContingency  # Exclude the post-contingency scenario if it's the same as the base case
-            			lineOutaged = contNetVector[1].indexOfLineOut(i)
-            			if lineOutaged != outagedLine
-                			network = Network(netID, postContingency, i, lineOutaged, 1, solverChoice, dummyDispInt, continSolAccuracy, intervalCount, lastInterval, nextChoice, outagedLine)
-                			push!(contNetVector, network)
-            			end
-        		end
-    		end
-	end
-
-	println("\n*** NETWORK INITIALIZATION STAGE ENDS ***\n")
-
-	# Update dimensions based on Network information
-	numberOfGenerators = contNetVector[1].getGenNumber()
-	numberOfTransLines = contNetVector[1].getTranNumber()
-	consLagDim = numberOfCont * numberOfGenerators
-
 end
 
-#Generated by Gemini
+# Helper function to get outaged line index (placeholder implementation)
+function get_outaged_line_index(system::PowerLASCOPFSystem, contingency_index::Int)
+    # This should return the index of the line that is outaged in scenario i
+    # For now, return a simple mapping - replace with actual logic
+    return contingency_index
+end
+
+# Destructor equivalent
+function finalize_super_network!(super_net::SuperNetwork)
+    println("Dispatch interval super-network object for dispatch interval $(super_net.interval_count) destroyed")
+end
+
+# Getter functions
+function get_virtual_net_exec_time(super_net::SuperNetwork)
+    return super_net.virtual_net_exec_time
+end
+
+function index_of_line_out(super_net::SuperNetwork, post_scenar::Int)
+    if !isempty(super_net.cont_net_vector)
+        return get_outaged_line_index(super_net.cont_net_vector[1], post_scenar)
+    end
+    return 0
+end
+
+function ret_cont_count(super_net::SuperNetwork)
+    return super_net.number_of_cont
+end
+
+function get_gen_number(super_net::SuperNetwork)
+    return super_net.number_of_generators
+end
+
+function get_trans_number(super_net::SuperNetwork)
+    return super_net.number_of_trans_lines
+end
+# Main simulation function for SuperNetwork
+function run_simulation!(
+    super_net::SuperNetwork,
+    outer_iter::Int,
+    lambda_outer::Vector{Float64},
+    pow_diff_outer::Vector{Float64},
+    pow_self_bel::Vector{Float64},
+    pow_next_bel::Vector{Float64},
+    pow_prev_bel::Vector{Float64},
+    lambda_line::Vector{Float64},
+    power_diff_line::Vector{Float64},
+    pow_self_flow_bel::Vector{Float64},
+    pow_next_flow_bel::Vector{Float64}
+)
+    # Initialize APP algorithm parameters
+    lambda_app = zeros(Float64, super_net.cons_lag_dim)
+    pow_diff = zeros(Float64, super_net.cons_lag_dim)
+    super_net.alpha_app = 100.0
+    super_net.iter_count_app = 1
+    super_net.fin_tol = 1000.0
+    
+    if super_net.solver_choice in [1, 2]  # APMP Fully distributed, Bi-layer (N-1) SCOPF Simulation
+        println("\n*** APMP ALGORITHM BASED COARSE+FINE GRAINED BILAYER DECENTRALIZED/DISTRIBUTED SCOPF (SERIAL IMPLEMENTATION) BEGINS ***\n")
+        println("\n*** SIMULATION IN PROGRESS; PLEASE DON'T CLOSE ANY WINDOW OR OPEN ANY OUTPUT FILE YET ... ***\n")
+        
+        # Initialize performance tracking
+        super_net.largest_net_time_vec = Float64[]
+        actual_net_time = 0.0
+        
+        # Full SCOPF only for present/forthcoming, dummy, and last intervals
+        if (super_net.interval_count == 0) || (super_net.interval_count == (super_net.rnd_intervals + super_net.rsd_intervals))
+            for iter_count in 1:10  # APP iterations
+                super_net.single_net_time_vec = Float64[]
+                
+                # Iterate over base-case and contingency scenarios
+                for net_sim_count in 1:(super_net.number_of_cont + 1)
+                    # Calculate for base-case or contingency scenarios
+                    if (net_sim_count == 1) || ((net_sim_count > 1) && (net_sim_count != super_net.post_contingency + 1))
+                        network_index = adjust_network_index(super_net, net_sim_count)
+                        
+                        if network_index <= length(super_net.cont_net_vector)
+                            println("Start of $iter_count-th Innermost APP iteration for $net_sim_count-th base/contingency scenario")
+                            
+                            # Run simulation on specific network
+                            start_time = time()
+                            run_network_simulation!(
+                                super_net.cont_net_vector[network_index],
+                                outer_iter,
+                                lambda_outer,
+                                pow_diff_outer,
+                                super_net.set_rho_tuning,
+                                iter_count,
+                                lambda_app,
+                                pow_diff,
+                                pow_self_bel,
+                                pow_next_bel,
+                                pow_prev_bel,
+                                lambda_line,
+                                power_diff_line,
+                                pow_self_flow_bel,
+                                pow_next_flow_bel
+                            )
+                            single_net_time = time() - start_time
+                            actual_net_time += single_net_time
+                            push!(super_net.single_net_time_vec, single_net_time)
+                        end
+                    end
+                end
+                
+                # Track largest network time
+                if !isempty(super_net.single_net_time_vec)
+                    largest_net_time = maximum(super_net.single_net_time_vec)
+                    push!(super_net.largest_net_time_vec, largest_net_time)
+                end
+                
+                # Calculate power differences for APP consensus
+                calculate_power_differences!(super_net, pow_diff)
+                
+                # Update APP parameters
+                update_app_parameters!(super_net, iter_count)
+                
+                # Update Lagrange multipliers
+                update_lagrange_multipliers!(super_net, lambda_app, pow_diff)
+                
+                # Calculate tolerance
+                tol_app = sqrt(sum(pow_diff[i]^2 for i in 1:super_net.cons_lag_dim))
+                super_net.fin_tol = tol_app
+                
+                # Store results
+                super_net.matrix_result_app_out[iter_count] = Dict(
+                    "APP_Iteration_Count" => iter_count,
+                    "APP_Tolerance" => super_net.fin_tol,
+                    "Power_Differences" => copy(pow_diff)
+                )
+                
+                # Check convergence
+                if super_net.fin_tol < 0.5
+                    println("APP algorithm converged at iteration $iter_count with tolerance $(super_net.fin_tol)")
+                    break
+                end
+            end
+            
+        elseif (super_net.interval_count >= 1) && (super_net.interval_count <= (super_net.rnd_intervals - 1))
+            # Base case only for restoration intervals
+            println("Start of restoration interval simulation")
+            start_time = time()
+            run_network_simulation!(
+                super_net.cont_net_vector[1],
+                outer_iter,
+                lambda_outer,
+                pow_diff_outer,
+                super_net.set_rho_tuning,
+                1,
+                lambda_app,
+                pow_diff,
+                pow_self_bel,
+                pow_next_bel,
+                pow_prev_bel,
+                lambda_line,
+                power_diff_line,
+                pow_self_flow_bel,
+                pow_next_flow_bel
+            )
+            single_net_time = time() - start_time
+            actual_net_time += single_net_time
+            push!(super_net.single_net_time_vec, single_net_time)
+            
+        elseif (super_net.interval_count >= super_net.rnd_intervals) && (super_net.interval_count < (super_net.rnd_intervals + super_net.rsd_intervals))
+            # Security restoration intervals
+            println("Start of security restoration interval simulation")
+            start_time = time()
+            run_network_simulation!(
+                super_net.cont_net_vector[1],
+                outer_iter,
+                lambda_outer,
+                pow_diff_outer,
+                super_net.set_rho_tuning,
+                1,
+                lambda_app,
+                pow_diff,
+                pow_self_bel,
+                pow_next_bel,
+                pow_prev_bel,
+                lambda_line,
+                power_diff_line,
+                pow_self_flow_bel,
+                pow_next_flow_bel
+            )
+            single_net_time = time() - start_time
+            actual_net_time += single_net_time
+            push!(super_net.single_net_time_vec, single_net_time)
+        end
+        
+        println("\n*** SCOPF SIMULATION ENDS ***\n")
+        println("Final Value of APP Tolerance: $(super_net.fin_tol)")
+        
+        # Calculate virtual execution time
+        if !isempty(super_net.largest_net_time_vec)
+            super_net.virtual_net_exec_time = actual_net_time + sum(super_net.largest_net_time_vec)
+        else
+            super_net.virtual_net_exec_time = actual_net_time
+        end
+        
+        println("Virtual Supernetwork Execution time (s): $(super_net.virtual_net_exec_time)")
+        
+    elseif super_net.solver_choice == 3  # Centralized (N-1) SCOPF Simulation
+        println("\n*** CENTRALIZED (N-1) SCOPF SIMULATION ***\n")
+        # TODO: Implement centralized solver
+        @warn "Centralized solver not yet implemented"
+        
+    elseif super_net.solver_choice == 4  # Centralized SCOPF Simulation
+        println("\n*** CENTRALIZED SCOPF SIMULATION ***\n")
+        # TODO: Implement centralized SCOPF solver
+        @warn "Centralized SCOPF solver not yet implemented"
+        
+    else
+        error("Invalid choice of solution method and algorithm: $(super_net.solver_choice)")
+    end
+    
+    # Save results
+    save_simulation_results!(super_net)
+    
+    return super_net
+end
+
+# Helper functions for run_simulation!
+
+function adjust_network_index(super_net::SuperNetwork, net_sim_count::Int)
+    """Adjust network index based on post-contingency scenario"""
+    if (super_net.post_contingency > 0) && (net_sim_count > super_net.post_contingency + 1)
+        return net_sim_count - 1  # Skip one index and compensate
+    else
+        return net_sim_count
+    end
+end
+
+function run_network_simulation!(
+    system::PowerLASCOPFSystem,
+    outer_iter::Int,
+    lambda_outer::Vector{Float64},
+    pow_diff_outer::Vector{Float64},
+    rho_tuning::Float64,
+    iter_count::Int,
+    lambda_app::Vector{Float64},
+    pow_diff::Vector{Float64},
+    pow_self_bel::Vector{Float64},
+    pow_next_bel::Vector{Float64},
+    pow_prev_bel::Vector{Float64},
+    lambda_line::Vector{Float64},
+    power_diff_line::Vector{Float64},
+    pow_self_flow_bel::Vector{Float64},
+    pow_next_flow_bel::Vector{Float64}
+)
+    """Run simulation on a specific network system"""
+    # TODO: Implement the actual network simulation logic
+    # This would involve:
+    # 1. Solving generator optimization problems
+    # 2. Solving transmission line optimization problems
+    # 3. Updating node variables
+    # 4. Performing message passing between components
+    
+    println("  Running network simulation for system $(system.network_id)")
+    
+    # Placeholder implementation - replace with actual solver calls
+    for gen in get_extended_thermal_generators(system)
+        # Update generator variables based on APP iteration
+        # This would call the generator solver methods
+        @debug "Processing generator $(get_gen_id(gen))"
+    end
+    
+    for line in get_transmission_lines(system)
+        # Update transmission line variables
+        # This would call the line solver methods
+        @debug "Processing transmission line $(get_transl_id(line))"
+    end
+    
+    for node in get_nodes(system)
+        # Update node variables and perform message passing
+        @debug "Processing node $(get_node_id(node))"
+    end
+end
+
+function calculate_power_differences!(super_net::SuperNetwork, pow_diff::Vector{Float64})
+    """Calculate power differences for APP consensus mechanism"""
+    fill!(pow_diff, 0.0)  # Reset array
+    
+    if super_net.post_contingency > 0  # For outaged case
+        for i in 1:super_net.number_of_cont
+            for j in 1:super_net.number_of_generators
+                idx = (i-1) * super_net.number_of_generators + j
+                if idx <= length(pow_diff)
+                    if (i < super_net.post_contingency)
+                        # pow_diff[idx] = base_power - contingency_power
+                        # This would access actual power values from the systems
+                        pow_diff[idx] = get_power_difference(super_net, 1, i+1, j)
+                    elseif (i > super_net.post_contingency)
+                        pow_diff[idx] = get_power_difference(super_net, 1, i, j)
+                    end
+                end
+            end
+        end
+    else  # For non-outaged case
+        for i in 1:super_net.number_of_cont
+            for j in 1:super_net.number_of_generators
+                idx = (i-1) * super_net.number_of_generators + j
+                if idx <= length(pow_diff)
+                    pow_diff[idx] = get_power_difference(super_net, 1, i+1, j)
+                end
+            end
+        end
+    end
+end
+
+function get_power_difference(super_net::SuperNetwork, base_idx::Int, cont_idx::Int, gen_idx::Int)
+    """Get power difference between base case and contingency scenario for a specific generator"""
+    # TODO: Implement actual power extraction from systems
+    # This would access the actual power values from the generator objects
+    
+    if base_idx <= length(super_net.cont_net_vector) && cont_idx <= length(super_net.cont_net_vector)
+        base_system = super_net.cont_net_vector[base_idx]
+        cont_system = super_net.cont_net_vector[cont_idx]
+        
+        # Get generators from both systems
+        base_generators = get_extended_thermal_generators(base_system)
+        cont_generators = get_extended_thermal_generators(cont_system)
+        
+        if gen_idx <= length(base_generators) && gen_idx <= length(cont_generators)
+            # Return difference in power generation
+            # base_power = gen_power(base_generators[gen_idx])
+            # cont_power = gen_power(cont_generators[gen_idx])
+            # return base_power - cont_power
+            return 0.0  # Placeholder
+        end
+    end
+    
+    return 0.0
+end
+
+function update_app_parameters!(super_net::SuperNetwork, iter_count::Int)
+    """Update APP algorithm parameters based on iteration count"""
+    if (iter_count > 5) && (iter_count <= 10)
+        super_net.alpha_app = 75.0
+    elseif (iter_count > 10) && (iter_count <= 15)
+        super_net.alpha_app = 2.5
+    elseif (iter_count > 15) && (iter_count <= 20)
+        super_net.alpha_app = 1.25
+    elseif (iter_count > 20)
+        super_net.alpha_app = 0.5
+    end
+end
+
+function update_lagrange_multipliers!(super_net::SuperNetwork, lambda_app::Vector{Float64}, pow_diff::Vector{Float64})
+    """Update APP Lagrange multipliers"""
+    for i in 1:min(length(lambda_app), length(pow_diff))
+        lambda_app[i] += super_net.alpha_app * pow_diff[i]
+    end
+end
+
+function save_simulation_results!(super_net::SuperNetwork)
+    """Save simulation results to file"""
+    output_filename = get_output_filename(super_net.solver_choice)
+    
+    # Create results directory if it doesn't exist
+    results_dir = "results"
+    if !isdir(results_dir)
+        mkdir(results_dir)
+    end
+    
+    # Save results as text file for now (avoid JSON dependency)
+    filepath = joinpath(results_dir, "$(output_filename)_resultOuterAPP-SCOPF.txt")
+    
+    try
+        open(filepath, "w") do file
+            println(file, "PowerLASCOPF Simulation Results")
+            println(file, "=" * "^" * 40)
+            println(file, "Solver Choice: $(super_net.solver_choice)")
+            println(file, "Network ID: $(super_net.net_id)")
+            println(file, "Final Tolerance: $(super_net.fin_tol)")
+            println(file, "Virtual Execution Time: $(super_net.virtual_net_exec_time)")
+            println(file, "Number of Contingencies: $(super_net.number_of_cont)")
+            println(file, "Number of Generators: $(super_net.number_of_generators)")
+            
+            for (key, value) in super_net.matrix_result_app_out
+                println(file, "Iteration $key: $value")
+            end
+        end
+        println("Results saved to: $filepath")
+    catch e
+        @warn "Failed to save results: $e"
+    end
+end
+
+function get_output_filename(solver_choice::Int)
+    """Get output filename based on solver choice"""
+    if solver_choice == 1
+        return "ADMM_PMP_GUROBI"
+    elseif solver_choice == 2
+        return "ADMM_PMP_CVXGEN"
+    elseif solver_choice == 3
+        return "APP_Quasi_Decent_GUROBI"
+    elseif solver_choice == 4
+        return "APP_GUROBI_Centralized_SCOPF"
+    else
+        return "Unknown_Solver"
+    end
+end
+
+# Power extraction functions
+function get_pow_self(super_net::SuperNetwork, gener_count::Int)
+    """Get self power belief for a generator"""
+    if !isempty(super_net.cont_net_vector)
+        system = super_net.cont_net_vector[1]
+        generators = get_extended_thermal_generators(system)
+        if gener_count <= length(generators)
+            # return gen_power(generators[gener_count])
+            return 0.0  # Placeholder
+        end
+    end
+    return 0.0
+end
+
+function get_pow_prev(super_net::SuperNetwork, gener_count::Int)
+    """Get previous power belief for a generator"""
+    if !isempty(super_net.cont_net_vector)
+        system = super_net.cont_net_vector[1]
+        generators = get_extended_thermal_generators(system)
+        if gener_count <= length(generators)
+            # return gen_power_prev(generators[gener_count])
+            return 0.0  # Placeholder
+        end
+    end
+    return 0.0
+end
+
+function get_pow_next(super_net::SuperNetwork, contingency_counter::Int, disp_int_count::Int, gener_count::Int)
+    """Get next power belief for a generator"""
+    if disp_int_count == 1
+        if !isempty(super_net.cont_net_vector)
+            system = super_net.cont_net_vector[1]
+            generators = get_extended_thermal_generators(system)
+            if gener_count <= length(generators)
+                # return gen_power_next(generators[gener_count], contingency_counter)
+                return 0.0  # Placeholder
+            end
+        end
+    else
+        # Return power for specific dispatch interval
+        return 0.0  # Placeholder
+    end
+    return 0.0
+end
+
+function get_pow_flow_next(super_net::SuperNetwork, contin_counter::Int, supernet_count::Int, rnd_inter_count::Int, line_count::Int)
+    """Get next power flow belief for a transmission line"""
+    if super_net.interval_class == 1
+        # Implementation for forthcoming intervals
+        return 0.0  # Placeholder
+    else
+        return 0.0
+    end
+end
+
+function get_pow_flow_self(super_net::SuperNetwork, line_count::Int)
+    """Get self power flow belief for a transmission line"""
+    if super_net.interval_class == 2
+        # Implementation for subsequent intervals
+        return 0.0  # Placeholder
+    else
+        return 0.0
+    end
+end
+
+# Export functions
+export SuperNetwork, run_simulation!
+export get_virtual_net_exec_time, index_of_line_out, ret_cont_count
+export get_gen_number, get_trans_number
+export get_pow_self, get_pow_prev, get_pow_next
+export get_pow_flow_next, get_pow_flow_self

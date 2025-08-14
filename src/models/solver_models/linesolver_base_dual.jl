@@ -55,7 +55,7 @@ function solve_linesolver_direct!(model::JuMP.Model,
     Args:
         model: JuMP model to be populated
         m: LineSolverBase struct with problem data
-        optimizer: Optimization solver (default: HiGHS)
+        optimizer: Optimization solver (default: Ipopt)
         silent: Whether to suppress solver output
         
     Returns:
@@ -141,7 +141,7 @@ end
 # PSI PREALLOCATED APPROACH - Using PowerSimulations infrastructure
 function solve_linesolver_preallocated!(container::PSI.OptimizationContainer,
                                       m::LineSolverBase;
-                                      optimizer=HiGHS.Optimizer)
+                                      optimizer=Ipopt.Optimizer)
     """
     PSI preallocated approach for line solver optimization.
     This uses PowerSimulations infrastructure for variable and constraint preallocation.
@@ -149,7 +149,7 @@ function solve_linesolver_preallocated!(container::PSI.OptimizationContainer,
     Args:
         container: PSI OptimizationContainer with preallocated structures
         m: LineSolverBase struct with problem data
-        optimizer: Optimization solver (default: HiGHS)
+        optimizer: Optimization solver (default: Ipopt)
         
     Returns:
         Dict with solution results and timing information
@@ -362,7 +362,7 @@ end
 function benchmark_linesolver_approaches(sys::PSY.System; 
                                        time_horizon=24,
                                        num_samples=5,
-                                       optimizer=HiGHS.Optimizer,
+                                       optimizer=Ipopt.Optimizer,
                                        verbose=true)
     """
     Benchmark both direct JuMP and PSI preallocated approaches for line solver.
@@ -763,7 +763,3 @@ end
 export LineSolverBase, solve_linesolver_direct!, solve_linesolver_preallocated!
 export benchmark_linesolver_approaches, benchmark_memory_usage
 export create_sample_linesolver_data, compare_linesolver_solutions, linesolver_base
-
-
-
-
