@@ -231,10 +231,7 @@ function create_transmission_line_from_branch!(
         solver_line_base = solver_line_base,
         conn_nodet1_ptr = from_node,
         conn_nodet2_ptr = to_node,
-        transl_id = length(sys.transmission_lines) + 1,
-        pt_max = PSY.get_rate(branch),
-        react = PSY.get_x(branch),
-        rest = PSY.get_r(branch)
+        transl_id = length(sys.transmission_lines) + 1
     )
     add_transmission_line!(sys, line)
     return line

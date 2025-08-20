@@ -3,6 +3,10 @@
 using PowerSystems
 const PSY = PowerSystems
 
+# Import necessary types from extended_system (for legacy compatibility)
+abstract type LineIntervals end
+abstract type MockLineInterval <: LineIntervals end
+
 @kwdef mutable struct transmissionLine{T<:PSY.ACBranch} <: Device
 	transl_type::T
 	solver_line_base::LineSolverBase
@@ -20,6 +24,60 @@ const PSY = PowerSystems
 end
 
 transmissionLine(transl_type, solver_line_base, conn_nodet1_ptr, conn_nodet2_ptr) = transmissionLine(;transl_type, solver_line_base=solver_line_base, conn_nodet1_ptr=conn_nodet1_ptr, conn_nodet2_ptr=conn_nodet2_ptr)
+
+# Legacy constructor for compatibility with old calling patterns
+function transmissionLine(transl_id::Int, conn_nodet1_ptr::Node, conn_nodet2_ptr::Node, pt_max::Float64, react::Float64, rest::Float64, cont_scen_tracker::Float64)
+    # Create a basic PSY.Line object from the provided parameters
+    # In production code, this should be replaced with actual PSY.ACBranch objects from the system
+    
+    # Create minimal bus objects for the Arc
+    bus1 = PSY.Bus(get_node_id(conn_nodet1_ptr), "Legacy_Bus_$(get_node_id(conn_nodet1_ptr))", "PQ", 0, 1.0, (min=0.9, max=1.1), 230, nothing, nothing)
+    bus2 = PSY.Bus(get_node_id(conn_nodet2_ptr), "Legacy_Bus_$(get_node_id(conn_nodet2_ptr))", "PQ", 0, 1.0, (min=0.9, max=1.1), 230, nothing, nothing)
+    
+    arc = PSY.Arc(from=bus1, to=bus2)
+    
+    # Create PSY.Line with the provided parameters
+    psy_line = PSY.Line(
+        "Legacy_Line_$transl_id",  # name
+        true,                       # available
+        0.0,                       # active_power_flow
+        0.0,                       # reactive_power_flow
+        arc,                       # arc
+        rest,                      # r (resistance)
+        react,                     # x (reactance)
+        (from=0.0, to=0.0),       # b (susceptance)
+        pt_max,                    # rate
+        (min=-pt_max, max=pt_max) # angle_limits
+    )
+    
+    # Create a default LineSolverBase
+    solver_base = LineSolverBase(
+        lambda_txr = [0.0],
+        interval_type = MockLineInterval(),
+        E_coeff = [1.0],
+        Pt_next_nu = [0.0],
+        BSC = [0.0],
+        E_temp_coeff = reshape([0.1], 1, 1),
+        RND_int = 1,
+        cont_count = 1
+    )
+    
+    # Create the transmissionLine object
+    return transmissionLine(
+        transl_type = psy_line,
+        solver_line_base = solver_base,
+        transl_id = transl_id,
+        conn_nodet1_ptr = conn_nodet1_ptr,
+        conn_nodet2_ptr = conn_nodet2_ptr,
+        cont_scen_tracker = cont_scen_tracker,
+        thetat1 = 0.0,
+        thetat2 = 0.0,
+        pt1 = 0.0,
+        pt2 = 0.0,
+        v1 = 0.0,
+        v2 = 0.0
+    )
+end
 
 # Accessor functions to get data from the PSY.ACBranch object (eliminates redundancy)
 get_reactance(transline::transmissionLine) = PSY.get_x(transline.transl_type)
