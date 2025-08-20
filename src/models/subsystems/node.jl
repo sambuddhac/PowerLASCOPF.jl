@@ -1,6 +1,7 @@
 using PowerSystems
 using InfrastructureSystems
 const IS = InfrastructureSystems
+const PSY = PowerSystems
 
 # Define abstract types for PowerLASCOPF hierarchy
 abstract type PowerLASCOPFComponent end
@@ -9,7 +10,7 @@ abstract type Device <: PowerLASCOPFComponent end
 abstract type PowerGenerator <: Device end
 
 # Define the Node struct extending PowerSystems.Bus for Sienna integration
-mutable struct Node{T<:Bus} <: Subsystem
+mutable struct Node{T<:PSY.Bus} <: Subsystem
     # Core node properties
     node_type::T
     node_id::Int
@@ -52,7 +53,7 @@ mutable struct Node{T<:Bus} <: Subsystem
         node_type::T,
         node_id::Int,
         number_of_scenarios::Int
-    ) where T <: Bus
+    ) where T <: PSY.Bus
         return new{T}(
             node_type,
             node_id,
@@ -84,7 +85,7 @@ mutable struct Node{T<:Bus} <: Subsystem
 end
 
 # Outer constructor for convenience
-function Node(node_type::T, node_id::Int, number_of_scenarios::Int) where T <: Bus
+function Node(node_type::T, node_id::Int, number_of_scenarios::Int) where T <: PSY.Bus
     return Node{T}(node_type, node_id, number_of_scenarios)
 end
 

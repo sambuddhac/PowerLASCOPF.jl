@@ -1,14 +1,15 @@
 # Member functions for class transmissionLine
 
-@kwdef mutable struct transmissionLine{T<:ACBranch} <: Device
+using PowerSystems
+const PSY = PowerSystems
+
+@kwdef mutable struct transmissionLine{T<:PSY.ACBranch} <: Device
 	transl_type::T
 	solver_line_base::LineSolverBase
 	transl_id::Int64 = 0
 	conn_nodet1_ptr::Node
 	conn_nodet2_ptr::Node
-	pt_max::Float64=0.0
-	react::Float64 = 0.0
-	rest::Float64 = 0.0
+	# ADMM+APP algorithm state variables (not redundant with PSY.ACBranch)
 	cont_scen_tracker::Float64 = 0.0
 	thetat1::Float64 = 0.0
 	thetat2::Float64 = 0.0 
@@ -20,12 +21,22 @@ end
 
 transmissionLine(transl_type, solver_line_base, conn_nodet1_ptr, conn_nodet2_ptr) = transmissionLine(;transl_type, solver_line_base=solver_line_base, conn_nodet1_ptr=conn_nodet1_ptr, conn_nodet2_ptr=conn_nodet2_ptr)
 
+# Accessor functions to get data from the PSY.ACBranch object (eliminates redundancy)
+get_reactance(transline::transmissionLine) = PSY.get_x(transline.transl_type)
+get_resistance(transline::transmissionLine) = PSY.get_r(transline.transl_type)
+get_flow_limit(transline::transmissionLine) = PSY.get_rate(transline.transl_type)
+get_available(transline::transmissionLine) = PSY.get_available(transline.transl_type)
+
+# Legacy accessor function (for compatibility)
+getReactance(transline::transmissionLine) = get_reactance(transline)
+
 
 function assign_conn_nodes(transline::transmissionLine)
 	from_node = get_node_id(transline.conn_nodet1_ptr)
 	to_node = get_node_id(transline.conn_nodet2_ptr)
-	sett_conn(transline.conn_nodet1_ptr, transline.transl_id, 1, transline.reacT, toNode, transline.cont_scen_tracker) #increments the txr line connection variable to node 1
-	sett_conn(transline.conn_nodet2_ptr, transline.transl_id, -1, transline.reacT, fromNode, transline.cont_scen_tracker) #increments the txr line connection variable to node 2
+	reactance = get_reactance(transline)
+	set_t_conn!(transline.conn_nodet1_ptr, transline.transl_id, 1, reactance, to_node, transline.cont_scen_tracker) #increments the txr line connection variable to node 1
+	set_t_conn!(transline.conn_nodet2_ptr, transline.transl_id, -1, reactance, from_node, transline.cont_scen_tracker) #increments the txr line connection variable to node 2
 	set_tran_data(transline) #calls setTranData member function to set the parameter values
 end
 
@@ -40,11 +51,6 @@ end
 function get_transl_node_id1(transline::transmissionLine) #function getGenNodeID begins
 	return get_node_id(transline.conn_nodet1_ptr) #returns the ID number of the node to which the generator object is connected
 	# end of getGenNodeID function
-end
-
-function get_flow_limit(transline::transmissionLine) #function getFlowLimit begins
-	return transline.pt_max #returns the Maximum power flow limit
-	#end of getFlowLimit function
 end
 
 function get_transl_node_id2(transline::transmissionLine) #function getGenNodeID begins
@@ -64,69 +70,81 @@ end
 
 function tpowerangle_message(transline::transmissionLine, tRho, Pprevit1, Pnetavg1, uprev1, vprevavg1, Aprevavg1, vprev1,  Pprevit2, Pnetavg2, uprev2, vprevavg2, Aprevavg2, vprev2) #function tpowerangleMessage begins
 	#tranSolver.mainsolve( tRho, Pprevit1, Pnetavg1, uprev1, vprevavg1, Aprevavg1, vprev1, Pprevit2, Pnetavg2, uprev2, vprevavg2, Aprevavg2, vprev2 ); // calls the transmission line optimization solver
-	end1A = transline.reacT * (Pprevit1 - Pnetavg1 - uprev1) #end-1 power parameter (refer to the derivation)
+	reactance = get_reactance(transline)
+	flow_limit = get_flow_limit(transline)
+	
+	end1A = reactance * (Pprevit1 - Pnetavg1 - uprev1) #end-1 power parameter (refer to the derivation)
 	end1B = (vprevavg1 + Aprevavg1 - vprev1) #end-1 voltage angle parameter (refer to the derivation)
-	end2C = transline.reacT * (Pprevit2 - Pnetavg2 - uprev2) #end-2 power parameter (refer to the derivation)
+	end2C = reactance * (Pprevit2 - Pnetavg2 - uprev2) #end-2 power parameter (refer to the derivation)
 	end2D = (vprevavg2 + Aprevavg2 - vprev2) #end-2 angle parameter (refer to the derivation)
 	#double Pt1 = tranSolver.getPSol1(); // get the transmission line end-1 Power iterate
 	#double Thetat1 = tranSolver.getThetaSol1(); // get the transmission line end-1 voltage angle iterate
 	#double Pt2 = tranSolver.getPSol2(); // get the transmission line end-2 Power iterate
 	#double Thetat2 = tranSolver.getThetaSol2(); // get the transmission line end-2 voltage angle iterate
-	if transline.getTranslNodeID1() == 1 #if end-1 is the bus-1, or, slack bus, fix the voltage angle of that end to 0
-		transline.Thetat1 = 0.0
-		Diff = ((transline.reacT ** 2) * end2D + end1A - end2C) / ( 2.0 + transline.reacT ** 2  ) #difference between the bus voltage angles
+	if get_transl_node_id1(transline) == 1 #if end-1 is the bus-1, or, slack bus, fix the voltage angle of that end to 0
+		transline.thetat1 = 0.0
+		Diff = ((reactance ^ 2) * end2D + end1A - end2C) / ( 2.0 + reactance ^ 2  ) #difference between the bus voltage angles
 	else
-		if transline.getTranslNodeID2() == 1 # if end-2 is the bus-1, or, slack bus, fix the voltage angle of that end to 0
-			transline.Thetat1 = ((transline.reacT ** 2.0) * end1B - end1A + end2C) / (2.0 + (transline.reacT ** 2))
+		if get_transl_node_id2(transline) == 1 # if end-2 is the bus-1, or, slack bus, fix the voltage angle of that end to 0
+			transline.thetat1 = ((reactance ^ 2.0) * end1B - end1A + end2C) / (2.0 + (reactance ^ 2))
 		else #if none of the ends is the slack bus, consider both the voltage angles as decision variables and calculate them
-			transline.Thetat1 = ((2.0 + (transline.reacT ** 2)) * end1B  - end1A + end2C + (2.0 * end2D)) / (4.0 + (transline.reacT ** 2)) #Thetat1 iterate
-			Diff = ( ( 2.0 * end1A ) - (transline.reacT ** 2) * end1B - ( 2.0 * end2C ) + (transline.reacT ** 2) * end2D ) / ( 4.0 + (transline.reacT ** 2) ) #Magnitude of the difference between the angles at the ends of the transmission line
+			transline.thetat1 = ((2.0 + (reactance ^ 2)) * end1B  - end1A + end2C + (2.0 * end2D)) / (4.0 + (reactance ^ 2)) #Thetat1 iterate
+			Diff = ( ( 2.0 * end1A ) - (reactance ^ 2) * end1B - ( 2.0 * end2C ) + (reactance ^ 2) * end2D ) / ( 4.0 + (reactance ^ 2) ) #Magnitude of the difference between the angles at the ends of the transmission line
 		end
 	end
-	Limit = transline.reacT * transline.ptMax #Upper limit of the power flow limit scaled by reactance
-	Obj1 = ( Limit - end1A ) * ( Limit - end1A ) + ( Limit + end2C ) * ( Limit + end2C ) + transline.reacT * transline.reacT * ( transline.Thetat1 - end1B ) * ( transline.Thetat1 - end1B ) + transline.reacT * transline.reacT * ( transline.Thetat1 + Limit - end2D ) * ( transline.Thetat1 + Limit - end2D ) #Objective on assumption that difference between angles is equal to upper limit allowed
-	Obj2 = ( -Limit - end1A ) * ( -Limit - end1A ) + ( -Limit + end2C ) * ( -Limit + end2C ) + transline.reacT * transline.reacT * ( transline.Thetat1 - end1B ) * ( transline.Thetat1 - end1B ) + transline.reacT * transline.reacT * ( transline.Thetat1 - Limit - end2D ) * ( transline.Thetat1 - Limit - end2D ) #Objective on assumption that difference between angles is equal to lower limit allowed
-		if ( Diff <= Limit ) and ( Diff >= -Limit ): #If the power flow and consequently the angle difference is well within allowed limits
-			Obj3 = ( Diff - end1A ) * ( Diff - end1A ) + ( Diff + end2C ) * ( Diff + end2C ) + transline.reacT * transline.reacT * ( transline.Thetat1 - end1B ) * ( transline.Thetat1 - end1B ) + transline.reacT * transline.reacT * ( transline.Thetat1 + Diff - end2D ) * ( transline.Thetat1 + Diff - end2D ) #Objective on assumption that Difference between angles lies well within the allowed limits
-			Obj = (Obj1 if Obj1 < Obj3 else Obj3) if Obj1 < Obj2 else (Obj2 if Obj2 < Obj3 else Obj3)
-			if Obj == Obj1:# if Diff == Limit gives the lowest objective
-				if transline.getTranslNodeID2() == 1: #check if end-2 is slack bus
-					transline.Thetat2 = 0.0 #in that case fix the corresponding angle to zero
-					transline.Thetat1 = transline.Thetat2 - Limit #adjust the end-1 angle accordingly
-				else: #if end-2 is not the slack bus
-					transline.Thetat2 = transline.Thetat1 + Limit #adjust the end-2 angle accordingly
-			else:
-				if Obj == Obj2: #if Diff == -Limit gives the lowest objective
-					if transline.getTranslNodeID2() == 1: #check if end-2 is slack bus
-						transline.Thetat2 = 0.0 #in that case fix the corresponding angle to zero
-						transline.Thetat1 = transline.Thetat2 + Limit #adjust the end-1 angle accordingly
-					else: #if end-2 is not the slack bus
-						transline.Thetat2 = transline.Thetat1 - Limit #adjust the end-2 angle accordingly
-				else: #if an intermediate value of Diff gives the lowest objective
-					if getTranslNodeID2() == 1: #check if end-2 is slack bus
-						transline.Thetat2 = 0.0 #in that case fix the corresponding angle to zero
-						transline.Thetat1 = transline.Thetat2 - Diff #adjust the end-1 angle accordingly
-					else: #if end-2 is not the slack bus
-						transline.Thetat2 = transline.Thetat1 + Diff #adjust the end-2 angle accordingly
-		else: #if value of Diff that minimizes the objective falls outside the range
-			Obj = Obj1 if Obj1 < Obj2 else Obj2 #check the objective value at the two limit points
-			if Obj == Obj1: # if Diff == Limit gives the lowest objective
-				if transline.getTranslNodeID2() == 1: #check if end-2 is the slack bus
-					transline.Thetat2 = 0.0 #in that case set the voltage angle of that end to zero
-					transline.Thetat1 = transline.Thetat2 - Limit #adjust the angle of end-1 accordingly
-				else: #if end-2 is not the slack bus
-					transline.Thetat2 = transline.Thetat1 + Limit #adjust the end-2 angle accordingly
-			else: #if Diff == -Limit gives the lowest objective
-				if transline.getTranslNodeID2() == 1: # check if end-2 is the slack bus
-					transline.Thetat2 = 0.0 #in that case set the voltage angle of that end to zero
-					transline.Thetat1 = transline.Thetat2 + Limit #adjust the angle of end-1 accordingly
-				else: #if end-2 is not the slack bus
-					transline.Thetat2 = transline.Thetat1 - Limit #adjust the end-2 angle accordingly
+	Limit = reactance * flow_limit #Upper limit of the power flow limit scaled by reactance
+	Obj1 = ( Limit - end1A ) * ( Limit - end1A ) + ( Limit + end2C ) * ( Limit + end2C ) + reactance * reactance * ( transline.thetat1 - end1B ) * ( transline.thetat1 - end1B ) + reactance * reactance * ( transline.thetat1 + Limit - end2D ) * ( transline.thetat1 + Limit - end2D ) #Objective on assumption that difference between angles is equal to upper limit allowed
+	Obj2 = ( -Limit - end1A ) * ( -Limit - end1A ) + ( -Limit + end2C ) * ( -Limit + end2C ) + reactance * reactance * ( transline.thetat1 - end1B ) * ( transline.thetat1 - end1B ) + reactance * reactance * ( transline.thetat1 - Limit - end2D ) * ( transline.thetat1 - Limit - end2D ) #Objective on assumption that difference between angles is equal to lower limit allowed
+		if ( Diff <= Limit ) && ( Diff >= -Limit ) #If the power flow and consequently the angle difference is well within allowed limits
+			Obj3 = ( Diff - end1A ) * ( Diff - end1A ) + ( Diff + end2C ) * ( Diff + end2C ) + reactance * reactance * ( transline.thetat1 - end1B ) * ( transline.thetat1 - end1B ) + reactance * reactance * ( transline.thetat1 + Diff - end2D ) * ( transline.thetat1 + Diff - end2D ) #Objective on assumption that Difference between angles lies well within the allowed limits
+			Obj = (Obj1 < Obj3 ? Obj1 : Obj3) < Obj2 ? (Obj1 < Obj3 ? Obj1 : Obj3) : (Obj2 < Obj3 ? Obj2 : Obj3)
+			if Obj == Obj1 # if Diff == Limit gives the lowest objective
+				if get_transl_node_id2(transline) == 1 #check if end-2 is slack bus
+					transline.thetat2 = 0.0 #in that case fix the corresponding angle to zero
+					transline.thetat1 = transline.thetat2 - Limit #adjust the end-1 angle accordingly
+				else #if end-2 is not the slack bus
+					transline.thetat2 = transline.thetat1 + Limit #adjust the end-2 angle accordingly
+				end
+			else
+				if Obj == Obj2 #if Diff == -Limit gives the lowest objective
+					if get_transl_node_id2(transline) == 1 #check if end-2 is slack bus
+						transline.thetat2 = 0.0 #in that case fix the corresponding angle to zero
+						transline.thetat1 = transline.thetat2 + Limit #adjust the end-1 angle accordingly
+					else #if end-2 is not the slack bus
+						transline.thetat2 = transline.thetat1 - Limit #adjust the end-2 angle accordingly
+					end
+				else #if an intermediate value of Diff gives the lowest objective
+					if get_transl_node_id2(transline) == 1 #check if end-2 is slack bus
+						transline.thetat2 = 0.0 #in that case fix the corresponding angle to zero
+						transline.thetat1 = transline.thetat2 - Diff #adjust the end-1 angle accordingly
+					else #if end-2 is not the slack bus
+						transline.thetat2 = transline.thetat1 + Diff #adjust the end-2 angle accordingly
+					end
+				end
+			end
+		else #if value of Diff that minimizes the objective falls outside the range
+			Obj = Obj1 < Obj2 ? Obj1 : Obj2 #check the objective value at the two limit points
+			if Obj == Obj1 # if Diff == Limit gives the lowest objective
+				if get_transl_node_id2(transline) == 1 #check if end-2 is the slack bus
+					transline.thetat2 = 0.0 #in that case set the voltage angle of that end to zero
+					transline.thetat1 = transline.thetat2 - Limit #adjust the angle of end-1 accordingly
+				else #if end-2 is not the slack bus
+					transline.thetat2 = transline.thetat1 + Limit #adjust the end-2 angle accordingly
+				end
+			else #if Diff == -Limit gives the lowest objective
+				if get_transl_node_id2(transline) == 1 # check if end-2 is the slack bus
+					transline.thetat2 = 0.0 #in that case set the voltage angle of that end to zero
+					transline.thetat1 = transline.thetat2 + Limit #adjust the angle of end-1 accordingly
+				else #if end-2 is not the slack bus
+					transline.thetat2 = transline.thetat1 - Limit #adjust the end-2 angle accordingly
+				end
+			end
+		end
 		#whichever objective is the minimum, consider that value of angle difference as the optimizer
-		transline.Pt2 = (transline.Thetat1 - transline.Thetat2) / transline.reacT #get the transmission line end-2 Power iterate
-		transline.Pt1 = (transline.Thetat2 - transline.Thetat1) / transline.reacT #get the transmission line end-2 voltage angle iterate
-		transline.connNodet1Ptr.powerangleMessage(transline.Pt1, transline.v1, transline.Thetat1) #passes to node object at end 1 the corresponding iterates of power, angle and v
-		transline.connNodet2Ptr.powerangleMessage(transline.Pt2, transline.v2, transline.Thetat2) #passes to node object at end 2 the corresponding iterates of power, angle and v
+		transline.pt2 = (transline.thetat1 - transline.thetat2) / reactance #get the transmission line end-2 Power iterate
+		transline.pt1 = (transline.thetat2 - transline.thetat1) / reactance #get the transmission line end-2 voltage angle iterate
+		power_angle_message!(transline.conn_nodet1_ptr, transline.pt1, transline.v1, transline.thetat1) #passes to node object at end 1 the corresponding iterates of power, angle and v
+		power_angle_message!(transline.conn_nodet2_ptr, transline.pt2, transline.v2, transline.thetat2) #passes to node object at end 2 the corresponding iterates of power, angle and v
 		#function tpowerangleMessage ends
 end
 
@@ -147,74 +165,98 @@ function translPower2(transline::transmissionLine) #function translPower2 begins
 end
 
 function calcPtilde1(transline::transmissionLine) #function calcPtilde1 begins
-	P_avg1 = transline.connNodet1Ptr.PavMessage() #Gets average power for end-1 from the corresponding node object
-	Ptilde1 = transline.Pt1 - P_avg1 #calculates the difference between power iterate and average
-	return Ptilde1 #returns the difference
+	P_avg1 = p_avg_message(transline.conn_nodet1_ptr) #Gets average power for end-1 from the corresponding node object
+	if P_avg1 !== nothing
+		Ptilde1 = transline.pt1 - P_avg1 #calculates the difference between power iterate and average
+		return Ptilde1 #returns the difference
+	else
+		return 0.0
+	end
 	#function calcPtilde1 ends
 end
 
 function calcPavInit1(transline::transmissionLine) #function calcPavInit1 begins
-	return transline.connNodet1Ptr.devpinitMessage() #seeks the initial Ptilde from the node at end 1
+	return dev_p_init_message(transline.conn_nodet1_ptr) #seeks the initial Ptilde from the node at end 1
 	#function calcPavInit1 ends
 end
 
 function calcPtilde2(transline::transmissionLine) #function calcPtilde2 begins
-	P_avg2 = transline.connNodet2Ptr.PavMessage() #Gets average power for end-2 from the corresponding node object
-	Ptilde2 = transline.Pt2 - P_avg2 #calculates the difference between power iterate and average
-	return Ptilde2 #returns the difference
+	P_avg2 = p_avg_message(transline.conn_nodet2_ptr) #Gets average power for end-2 from the corresponding node object
+	if P_avg2 !== nothing
+		Ptilde2 = transline.pt2 - P_avg2 #calculates the difference between power iterate and average
+		return Ptilde2 #returns the difference
+	else
+		return 0.0
+	end
 	#function calcPtilde2 ends
 end
 
 function calcPavInit2(transline::transmissionLine) #function calcPavInit2 begins
-	return transline.connNodet2Ptr.devpinitMessage() #seeks the initial Ptilde from the node at end 2
+	return dev_p_init_message(transline.conn_nodet2_ptr) #seeks the initial Ptilde from the node at end 2
 	#function calcPavInit2 ends
 end
 
 function getu1(transline::transmissionLine) #function getu1 begins
-	u1 = transline.connNodet1Ptr.uMessage() #gets the value of the price corresponding to power balance from node
+	u1 = u_message!(transline.conn_nodet1_ptr) #gets the value of the price corresponding to power balance from node
 	#print("u1: {}".print(u1))
-	return u1 #returns the price
+	return u1 !== nothing ? u1 : 0.0 #returns the price
 	#function getu1 ends
 end
 
 function getu2(transline::transmissionLine) #function getu2 begins
-	u2 = transline.connNodet2Ptr.uMessage() #gets the value of the price corresponding to power balance from node
+	u2 = u_message!(transline.conn_nodet2_ptr) #gets the value of the price corresponding to power balance from node
 	#print("u2: {}".format(u2))
-	return u2 #returns the price
+	return u2 !== nothing ? u2 : 0.0 #returns the price
 	#function getu2 ends
 end
 
 function calcThetatilde1(transline::transmissionLine) #function calcThetatilde1 begins
-	Theta_avg1 = transline.connNodet1Ptr.ThetaavMessage() #get the average voltage angle at the particular node
-	Theta_tilde1 = transline.Thetat1 - Theta_avg1 #claculate the deviation between the voltage angle of the device and the average
-	return Theta_tilde1 #return the deviation
+	Theta_avg1 = theta_avg_message(transline.conn_nodet1_ptr) #get the average voltage angle at the particular node
+	if Theta_avg1 !== nothing
+		Theta_tilde1 = transline.thetat1 - Theta_avg1 #claculate the deviation between the voltage angle of the device and the average
+		return Theta_tilde1 #return the deviation
+	else
+		return 0.0
+	end
 	#function calcThetatilde1 ends
 end
 
 function calcThetatilde2(transline::transmissionLine) #function calcThetatilde2 begins
-	Theta_avg2 = transline.connNodet2Ptr.ThetaavMessage() #get the average voltage angle at the particular node
-	Theta_tilde2 = transline.Thetat2 - Theta_avg2 #claculate the deviation between the voltage angle of the device and the average
-	return Theta_tilde2 #return the deviation
+	Theta_avg2 = theta_avg_message(transline.conn_nodet2_ptr) #get the average voltage angle at the particular node
+	if Theta_avg2 !== nothing
+		Theta_tilde2 = transline.thetat2 - Theta_avg2 #claculate the deviation between the voltage angle of the device and the average
+		return Theta_tilde2 #return the deviation
+	else
+		return 0.0
+	end
 	#function calcThetatilde2 ends
 end
 
 function calcvtilde1(transline::transmissionLine) #function calcvtilde1 begins
-	v_avg1 = transline.connNodet1Ptr.vavMessage() #get the average of the Lagrange multiplier corresponding to voltage angle balance
-	v_tilde1 = transline.v1 - v_avg1 #calculate the deviation of the node Lagrange multiplier to the average
-	return v_tilde1 #return the deviation
+	v_avg1 = v_avg_message(transline.conn_nodet1_ptr) #get the average of the Lagrange multiplier corresponding to voltage angle balance
+	if v_avg1 !== nothing
+		v_tilde1 = transline.v1 - v_avg1 #calculate the deviation of the node Lagrange multiplier to the average
+		return v_tilde1 #return the deviation
+	else
+		return 0.0
+	end
 	#function calcvtilde1 ends
 end
 
 function calcvtilde2(transline::transmissionLine) #function calcvtilde2 begins
-	v_avg2 = transline.connNodet2Ptr.vavMessage() #get the average of the Lagrange multiplier corresponding to voltage angle balance
-	v_tilde2 = transline.v2 - v_avg2 #calculate the deviation of the node Lagrange multiplier to the average
-	return v_tilde2 #return the deviation
+	v_avg2 = v_avg_message(transline.conn_nodet2_ptr) #get the average of the Lagrange multiplier corresponding to voltage angle balance
+	if v_avg2 !== nothing
+		v_tilde2 = transline.v2 - v_avg2 #calculate the deviation of the node Lagrange multiplier to the average
+		return v_tilde2 #return the deviation
+	else
+		return 0.0
+	end
 	#function calcvtilde2 ends
 end
 
 function getv1(transline::transmissionLine) #function getv1 begins
 	#print("v1_initial: {}".format(v1))
-	transline.v1 = transline.v1 + transline.calcThetatilde1() #Calculate the value of the Lagrange multiplier corresponding to angle constraint
+	transline.v1 = transline.v1 + calcThetatilde1(transline) #Calculate the value of the Lagrange multiplier corresponding to angle constraint
 	#print("v1_final: {}".format(v1))
 	return transline.v1 #return the voltage angle price
 	#function getv1 ends
@@ -222,12 +264,12 @@ end
 
 function getv2(transline::transmissionLine) #function getv2 begins
 	#print("v2_initial: {}".format(v2))
-	transline.v2 = transline.v2 + transline.calcThetatilde2() #Calculate the value of the Lagrange multiplier corresponding to angle constraint
+	transline.v2 = transline.v2 + calcThetatilde2(transline) #Calculate the value of the Lagrange multiplier corresponding to angle constraint
 	#print("v2_final: {}".format(v2))
 	return transline.v2 #Calculate the value of the Lagrange multiplier corresponding to angle constraint
 	#function getv2 ends
 end
 
 function getReactance(transline::transmissionLine)
-	return transline.reacT
+	return get_reactance(transline)
 end
