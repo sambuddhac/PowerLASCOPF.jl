@@ -61,6 +61,36 @@ const _PSYCB = PowerSystemCaseBuilder
 struct ERCOTSystem <: _PSYCB.SystemCategory end
 struct IEEESystem <: _PSYCB.SystemCategory end
 
+# ===== INCLUDE CORE MODULES =====
+include("core/types.jl")
+include("core/constants.jl")
+include("core/settings.jl")
+
+# ===== INCLUDE COMPONENT MODULES =====
+# Note: Some components may have circular dependencies, include carefully
+# include("components/node.jl")
+# include("components/load.jl")
+# include("components/transmission_line.jl")
+# include("components/network.jl")
+# include("components/supernetwork.jl")
+
+# ===== INCLUDE SOLVER MODULES =====
+# include("solvers/interfaces/solver_interface.jl")
+
+# ===== INCLUDE UTILITY MODULES =====
+include("utils/helpers.jl")
+include("utils/validation.jl")
+include("utils/conversion.jl")
+
+# ===== INCLUDE I/O MODULES =====
+# include("io/readers/read_csv_inputs.jl")
+# include("io/readers/read_json_inputs.jl")
+# include("io/readers/read_inputs_and_parse.jl")
+
+# ===== INCLUDE EXTENSION MODULES =====
+# include("extensions/powersystems_integration.jl")
+# include("extensions/extended_system.jl")
+
 # ===== POWERLAS COPF PSY.SYSTEM EXTENSION =====
 # Export PSY functions for convenience
 export System, get_name, get_base_power, add_component!
@@ -72,26 +102,18 @@ export PowerLASCOPFSystem, Network, SuperNetwork
 export add_node!, add_transmission_line!, add_generator!
 export convert_psy_system_to_powerlas_copf!, validate_powerlas_copf_system
 
-# Abstract type hierarchy for PowerLASCOPF components
-"""
-Abstract base type for all PowerLASCOPF components.
-"""
-abstract type PowerLASCOPFComponent end
+# Export core types
+export AbstractSolver, AbstractADMMComponent, AbstractAPPComponent
+export IntervalType, GenIntervals, LineIntervals
+export AbstractModel, AbstractCost, AbstractConstraints
 
-"""
-Abstract type for power system subsystems (e.g., nodes, areas).
-"""
-abstract type Subsystem <: PowerLASCOPFComponent end
+# Export constants
+export DEFAULT_MAX_ITERATIONS, DEFAULT_TOLERANCE, DEFAULT_RHO
+export DEFAULT_SOLVER_CHOICE, DEFAULT_CONTINGENCY_COUNT
 
-"""
-Abstract type for power system devices (e.g., lines, transformers).
-"""
-abstract type Device <: PowerLASCOPFComponent end
-
-"""
-Abstract type for power generators with optimization capabilities.
-"""
-abstract type PowerGenerator <: Device end
+# Export utility functions
+export validate_component, validate_system_connectivity
+export mw_to_pu, pu_to_mw, degrees_to_radians, radians_to_degrees
 
 """
     PowerLASCOPFSystem
@@ -184,22 +206,4 @@ function validate_powerlas_copf_system(sys::PowerLASCOPFSystem)
     return isempty(issues), issues
 end
 
-#=
-include("models/solver_models/gensolver_cont.jl")
-include("models/solver_models/gensolver_first_base.jl")
-include("models/solver_models/gensolver_first_cont.jl")
-include("models/solver_models/gensolver_first_dz_cont.jl")
-include("models/solver_models/gensolver_first_dz.jl")
-include("models/solver_models/gensolver_first.jl")
-include("models/solver_models/gensolver_second_base.jl")
-include("models/solver_models/gensolver_second_cont.jl")
-include("models/solver_models/linesolver_base.jl")
-include("models/solver_models/sdp_opf_centralized.jl")
-include("models/subsystems/generator.jl")
-include("models/subsystems/load.jl")
-include("models/subsystems/transmission_line.jl")
-include("models/subsystems/node.jl")
-include("models/subsystems/network.jl")
-include("models/subsystems/supernetwork.jl")
-include("models/run_sim_lascopf_temp_app.jl")=#
-end
+end # module

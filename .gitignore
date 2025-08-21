@@ -7,3 +7,28 @@ src/.DS_Store
 .DS_Store
 
 .codegpt
+
+# Build artifacts
+build/
+dist/
+target/
+
+# Editor files
+.vscode/
+.idea/
+*~
+*.swp
+*.swo
+
+# Temporary files
+tmp/
+temp/
+.tmp/
+
+# Log files
+*.log
+logs/
+
+# Output files
+output/
+results/
