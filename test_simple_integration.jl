@@ -158,10 +158,10 @@ try
     PSY.set_name!(psy_system, "Source_PSY_System")
     
     # Create PowerLASCOPF system
-    powerlas_copf_system = PowerLASCOPFSystem(100.0; name="Target_PowerLASCOPF_System")
+    power_lascopf_system = PowerLASCOPFSystem(100.0; name="Target_PowerLASCOPF_System")
     
     # Simulated conversion function
-    function convert_psy_to_powerlas_copf!(source::PSY.System, target::PowerLASCOPFSystem)
+    function convert_psy_to_power_lascopf!(source::PSY.System, target::PowerLASCOPFSystem)
         # Set system properties
         target.network_id = hash(PSY.get_name(source)) % 1000
         target.contingency_count = 3
@@ -174,14 +174,14 @@ try
         return true
     end
     
-    success = convert_psy_to_powerlas_copf!(psy_system, powerlas_copf_system)
+    success = convert_psy_to_power_lascopf!(psy_system, power_lascopf_system)
     
     if success
         println("✅ PSY → PowerLASCOPF conversion concept validated")
         println("   - Source PSY: $(PSY.get_name(psy_system))")
-        println("   - Target PowerLASCOPF: $(PSY.get_name(powerlas_copf_system))")
-        println("   - Network ID: $(powerlas_copf_system.network_id)")
-        println("   - Contingency Count: $(powerlas_copf_system.contingency_count)")
+        println("   - Target PowerLASCOPF: $(PSY.get_name(power_lascopf_system))")
+        println("   - Network ID: $(power_lascopf_system.network_id)")
+        println("   - Contingency Count: $(power_lascopf_system.contingency_count)")
     else
         println("❌ Conversion failed")
     end

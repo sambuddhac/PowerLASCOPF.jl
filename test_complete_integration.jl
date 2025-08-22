@@ -162,7 +162,7 @@ println("-" ^ 30)
 mutable struct Network
     network_id::Int
     name::String
-    powerlas_copf_system::PowerLASCOPFSystem
+    power_lascopf_system::PowerLASCOPFSystem
     
     # Network topology
     adjacency_matrix::Matrix{Bool}
@@ -248,13 +248,13 @@ end
 println("\n📊 Step 5: PSY System Conversion")
 println("-" ^ 35)
 
-function convert_psy_system_to_powerlas_copf!(psy_system::PSY.System, 
-                                             powerlas_copf_system::PowerLASCOPFSystem)
+function convert_psy_system_to_power_lascopf!(psy_system::PSY.System, 
+                                             power_lascopf_system::PowerLASCOPFSystem)
     # This would contain the conversion logic from PSY components to PowerLASCOPF components
     # For now, we'll create a simple demo
     
-    powerlas_copf_system.network_id = hash(PSY.get_name(psy_system)) % 1000
-    powerlas_copf_system.contingency_count = 3  # Default
+    power_lascopf_system.network_id = hash(PSY.get_name(psy_system)) % 1000
+    power_lascopf_system.contingency_count = 3  # Default
     
     return true
 end

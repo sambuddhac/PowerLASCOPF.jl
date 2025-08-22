@@ -279,7 +279,7 @@ end
 
 # ===== SYSTEM CONVERSION AND VALIDATION =====
 
-function convert_psy_system_to_powerlas_copf!(sys::PowerLASCOPFSystem; number_of_scenarios::Int = 1)
+function convert_psy_system_to_power_lascopf!(sys::PowerLASCOPFSystem; number_of_scenarios::Int = 1)
     """Convert all components in the PSY.System to PowerLASCOPF equivalents"""
     
     println("🔄 Converting PSY.System to PowerLASCOPF System...")
@@ -323,7 +323,7 @@ function convert_psy_system_to_powerlas_copf!(sys::PowerLASCOPFSystem; number_of
     return sys
 end
 
-function validate_powerlas_copf_system(sys::PowerLASCOPFSystem)
+function validate_power_lascopf_system(sys::PowerLASCOPFSystem)
     """Validate that the PowerLASCOPF system is properly constructed"""
     println("🔍 Validating PowerLASCOPF System...")
     
@@ -491,6 +491,6 @@ export add_node!, get_nodes, get_node, get_node_count
 export add_transmission_line!, get_transmission_lines, get_transmission_line, get_transmission_line_count
 export add_extended_thermal_generator!, get_extended_thermal_generators, get_extended_thermal_generator, get_extended_thermal_generator_count
 export create_node_from_bus!, create_transmission_line_from_branch!, create_extended_thermal_generator_from_generator!
-export convert_psy_system_to_powerlas_copf!, validate_powerlas_copf_system
+export convert_psy_system_to_power_lascopf!, validate_power_lascopf_system
 export create_network_from_system, system_summary
 export MockLineInterval

@@ -23,7 +23,7 @@ try
     # Test that we can access the enhanced types
     println("✅ PowerLASCOPF module loaded successfully")
     println("   - Module: PowerLASCOPF")
-    println("   - Available: PowerLASCOPFSystem, convert_psy_system_to_powerlas_copf!")
+    println("   - Available: PowerLASCOPFSystem, convert_psy_system_to_power_lascopf!")
     println("   - PSY Integration: ✅ Ready")
     
 catch e
@@ -37,20 +37,20 @@ println("-" ^ 42)
 
 try
     # Create PowerLASCOPF system
-    powerlas_copf_system = PowerLASCOPF.PowerLASCOPFSystem(100.0; name="Enhanced_PowerLASCOPF_System")
-    powerlas_copf_system.network_id = 14
-    powerlas_copf_system.contingency_count = 3
-    powerlas_copf_system.solver_choice = 1  # IPOPT
+    power_lascopf_system = PowerLASCOPF.PowerLASCOPFSystem(100.0; name="Enhanced_PowerLASCOPF_System")
+    power_lascopf_system.network_id = 14
+    power_lascopf_system.contingency_count = 3
+    power_lascopf_system.solver_choice = 1  # IPOPT
     
     println("✅ PowerLASCOPFSystem created successfully")
-    println("   - Name: $(PSY.get_name(powerlas_copf_system))")
-    println("   - Base Power: $(PSY.get_base_power(powerlas_copf_system)) MVA")
-    println("   - Network ID: $(powerlas_copf_system.network_id)")
-    println("   - Contingency Count: $(powerlas_copf_system.contingency_count)")
-    println("   - Solver Choice: $(powerlas_copf_system.solver_choice) (IPOPT)")
+    println("   - Name: $(PSY.get_name(power_lascopf_system))")
+    println("   - Base Power: $(PSY.get_base_power(power_lascopf_system)) MVA")
+    println("   - Network ID: $(power_lascopf_system.network_id)")
+    println("   - Contingency Count: $(power_lascopf_system.contingency_count)")
+    println("   - Solver Choice: $(power_lascopf_system.solver_choice) (IPOPT)")
     
     # Validate the system
-    is_valid, issues = PowerLASCOPF.validate_powerlas_copf_system(powerlas_copf_system)
+    is_valid, issues = PowerLASCOPF.validate_power_lascopf_system(power_lascopf_system)
     if is_valid
         println("   - Validation: ✅ Passed")
     else
@@ -72,16 +72,16 @@ try
     PSY.set_name!(psy_system, "IEEE_14_Bus_Test_System")
     
     # Create PowerLASCOPF system from PSY system
-    powerlas_copf_system = PowerLASCOPF.PowerLASCOPFSystem(psy_system)
+    power_lascopf_system = PowerLASCOPF.PowerLASCOPFSystem(psy_system)
     
     # Perform conversion
-    success = PowerLASCOPF.convert_psy_system_to_powerlas_copf!(psy_system, powerlas_copf_system)
+    success = PowerLASCOPF.convert_psy_system_to_power_lascopf!(psy_system, power_lascopf_system)
     
     if success
         println("✅ PSY → PowerLASCOPF conversion completed")
         println("   - Original PSY System: $(PSY.get_name(psy_system))")
-        println("   - PowerLASCOPF System: $(PSY.get_name(powerlas_copf_system))")
-        println("   - Network ID: $(powerlas_copf_system.network_id)")
+        println("   - PowerLASCOPF System: $(PSY.get_name(power_lascopf_system))")
+        println("   - Network ID: $(power_lascopf_system.network_id)")
         println("   - Integration: ✅ PSY.System wrapped successfully")
     else
         println("❌ Conversion failed")
@@ -126,30 +126,30 @@ try
     PSY.set_name!(psy_system, "PowerLASCOPF_Workflow_Demo")
     
     # Step 1: Create PowerLASCOPF system
-    powerlas_copf_system = PowerLASCOPF.PowerLASCOPFSystem(psy_system)
-    powerlas_copf_system.network_id = 118  # IEEE 118-bus system
-    powerlas_copf_system.contingency_count = 5
-    powerlas_copf_system.interval_id = 1
-    powerlas_copf_system.consensus_tolerance = 1e-6
-    powerlas_copf_system.max_iterations = 100
+    power_lascopf_system = PowerLASCOPF.PowerLASCOPFSystem(psy_system)
+    power_lascopf_system.network_id = 118  # IEEE 118-bus system
+    power_lascopf_system.contingency_count = 5
+    power_lascopf_system.interval_id = 1
+    power_lascopf_system.consensus_tolerance = 1e-6
+    power_lascopf_system.max_iterations = 100
     
     # Step 2: Configure for distributed optimization
-    powerlas_copf_system.solver_choice = 1  # IPOPT for LineSolver
+    power_lascopf_system.solver_choice = 1  # IPOPT for LineSolver
     
     # Step 3: Convert PSY components
-    PowerLASCOPF.convert_psy_system_to_powerlas_copf!(psy_system, powerlas_copf_system)
+    PowerLASCOPF.convert_psy_system_to_power_lascopf!(psy_system, power_lascopf_system)
     
     # Step 4: Validate system
-    is_valid, issues = PowerLASCOPF.validate_powerlas_copf_system(powerlas_copf_system)
+    is_valid, issues = PowerLASCOPF.validate_power_lascopf_system(power_lascopf_system)
     
     println("✅ Complete PowerLASCOPF workflow demonstrated")
-    println("   - PSY.System: $(PSY.get_name(powerlas_copf_system))")
-    println("   - Network ID: $(powerlas_copf_system.network_id)")
-    println("   - Contingency Scenarios: $(powerlas_copf_system.contingency_count)")
-    println("   - Interval ID: $(powerlas_copf_system.interval_id)")
-    println("   - APMP Tolerance: $(powerlas_copf_system.consensus_tolerance)")
-    println("   - Max Iterations: $(powerlas_copf_system.max_iterations)")
-    println("   - Solver: $(powerlas_copf_system.solver_choice == 1 ? "IPOPT" : "Other")")
+    println("   - PSY.System: $(PSY.get_name(power_lascopf_system))")
+    println("   - Network ID: $(power_lascopf_system.network_id)")
+    println("   - Contingency Scenarios: $(power_lascopf_system.contingency_count)")
+    println("   - Interval ID: $(power_lascopf_system.interval_id)")
+    println("   - APMP Tolerance: $(power_lascopf_system.consensus_tolerance)")
+    println("   - Max Iterations: $(power_lascopf_system.max_iterations)")
+    println("   - Solver: $(power_lascopf_system.solver_choice == 1 ? "IPOPT" : "Other")")
     println("   - Validation: $(is_valid ? "✅ Passed" : "⚠️ Issues found")")
     
 catch e
