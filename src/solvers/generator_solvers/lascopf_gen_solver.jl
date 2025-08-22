@@ -408,3 +408,4 @@ function solve_generator_last_interval!(
         return false
     end
 end
+end
