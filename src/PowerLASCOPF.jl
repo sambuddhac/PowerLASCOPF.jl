@@ -100,7 +100,7 @@ export PowerLASCOPFComponent, Subsystem, Device, PowerGenerator
 export Node, transmissionLine, ExtendedThermalGenerator
 export PowerLASCOPFSystem, Network, SuperNetwork
 export add_node!, add_transmission_line!, add_generator!
-export convert_psy_system_to_powerlas_copf!, validate_powerlas_copf_system
+export convert_psy_system_to_power_lascopf!, validate_power_lascopf_system
 
 # Export core types
 export AbstractSolver, AbstractADMMComponent, AbstractAPPComponent
@@ -159,16 +159,16 @@ PSY.get_base_power(sys::PowerLASCOPFSystem) = PSY.get_base_power(sys.psy_system)
 PSY.set_name!(sys::PowerLASCOPFSystem, name::String) = PSY.set_name!(sys.psy_system, name)
 
 """
-    convert_psy_system_to_powerlas_copf!(psy_system::PSY.System, powerlas_copf_system::PowerLASCOPFSystem)
+    convert_psy_system_to_power_lascopf!(psy_system::PSY.System, power_lascopf_system::PowerLASCOPFSystem)
 
 Convert components from a PSY.System to PowerLASCOPF components in the extended system.
 This function provides the bridge between PowerSystems.jl and PowerLASCOPF.jl.
 """
-function convert_psy_system_to_powerlas_copf!(psy_system::PSY.System, 
-                                             powerlas_copf_system::PowerLASCOPFSystem)
+function convert_psy_system_to_power_lascopf!(psy_system::PSY.System, 
+                                             power_lascopf_system::PowerLASCOPFSystem)
     # Set system properties from PSY system
-    powerlas_copf_system.network_id = hash(PSY.get_name(psy_system)) % 1000
-    powerlas_copf_system.contingency_count = 3  # Default contingency scenarios
+    power_lascopf_system.network_id = hash(PSY.get_name(psy_system)) % 1000
+    power_lascopf_system.contingency_count = 3  # Default contingency scenarios
     
     println("🔄 Converting PSY.System to PowerLASCOPF system...")
     println("   - Source: $(PSY.get_name(psy_system))")
@@ -186,11 +186,11 @@ function convert_psy_system_to_powerlas_copf!(psy_system::PSY.System,
 end
 
 """
-    validate_powerlas_copf_system(system::PowerLASCOPFSystem)
+    validate_power_lascopf_system(system::PowerLASCOPFSystem)
 
 Validate the PowerLASCOPF system for consistency and completeness.
 """
-function validate_powerlas_copf_system(sys::PowerLASCOPFSystem)
+function validate_power_lascopf_system(sys::PowerLASCOPFSystem)
     issues = String[]
     
     # Basic validation

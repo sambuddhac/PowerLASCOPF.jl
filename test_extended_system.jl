@@ -162,7 +162,7 @@ println("-" ^ 50)
 
 try
     # Convert the PSY system to PowerLASCOPF equivalents
-    convert_psy_system_to_powerlas_copf!(system; number_of_scenarios = 3)
+    convert_psy_system_to_power_lascopf!(system; number_of_scenarios = 3)
     
     println("✅ Conversion completed successfully")
     println("   - PowerLASCOPF Nodes: $(get_node_count(system))")
@@ -178,7 +178,7 @@ println("\n📊 Test 4: Validating PowerLASCOPF System")
 println("-" ^ 45)
 
 try
-    validation_result = validate_powerlas_copf_system(system)
+    validation_result = validate_power_lascopf_system(system)
     
     if validation_result
         println("✅ System validation passed!")
