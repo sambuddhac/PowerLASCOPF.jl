@@ -53,3 +53,77 @@ set_fixed!(value::ExtendedHydroGenerationCost, val) = value.hydro_cost_core.fixe
 set_regularization_term!(value::ExtendedHydroGenerationCost, val) = value.regularization_term = val
 """Set [`ExtendedHydroGenerationCost`](@ref) `cost_core`."""
 set_cost_core(value::ExtendedHydroGenerationCost, cost_core) = value.hydro_cost_core = cost_core
+
+"""
+    compute_regularization_cost(cost::ExtendedHydroGenerationCost{T}, Pg, PgNext, PgPrev, Thetag) where {T<:GenIntervals}
+
+Compute the regularization cost term for hydro generators based on the interval type.
+This function dispatches to the appropriate regularization_term function based on the GenIntervals type.
+"""
+function compute_regularization_cost(cost::ExtendedHydroGenerationCost{T}, Pg, args...) where {T<:GenIntervals}
+    if isa(cost.regularization_term, Float64)
+        # Simple float regularization (backward compatibility)
+        return cost.regularization_term * Pg^2
+    else
+        # Use the sophisticated regularization term based on GenIntervals type
+        return regularization_term(cost.regularization_term, Pg, args...)
+    end
+end
+
+"""
+    build_hydro_cost_expression(cost::ExtendedHydroGenerationCost, Pg, args...)
+
+Build the complete cost expression including both core hydro cost and regularization term.
+"""
+function build_hydro_cost_expression(cost::ExtendedHydroGenerationCost, Pg, args...)
+    # Core hydro cost from PowerSystems
+    core_cost = PSY.get_variable(cost.hydro_cost_core) * Pg + PSY.get_fixed(cost.hydro_cost_core)
+    
+    # Add regularization cost
+    regularization_cost = compute_regularization_cost(cost, Pg, args...)
+    
+    return core_cost + regularization_cost
+end
+
+"""
+    update_regularization_parameters!(cost::ExtendedHydroGenerationCost{T}, new_params::Dict) where {T<:GenIntervals}
+
+Update the parameters in the regularization term interval struct.
+"""
+function update_regularization_parameters!(cost::ExtendedHydroGenerationCost{T}, new_params::Dict) where {T<:GenIntervals}
+    if !isa(cost.regularization_term, Float64)
+        # Update interval parameters
+        for (key, value) in new_params
+            if hasfield(T, Symbol(key))
+                setfield!(cost.regularization_term, Symbol(key), value)
+            end
+        end
+    end
+end
+
+"""
+    set_regularization_interval!(cost::ExtendedHydroGenerationCost, interval::T) where {T<:GenIntervals}
+
+Set a new regularization interval for the hydro generation cost.
+"""
+function set_regularization_interval!(cost::ExtendedHydroGenerationCost, interval::T) where {T<:GenIntervals}
+    cost.regularization_term = interval
+end
+
+"""
+    get_regularization_type(cost::ExtendedHydroGenerationCost{T}) where {T<:GenIntervals}
+
+Get the type of regularization interval being used.
+"""
+function get_regularization_type(cost::ExtendedHydroGenerationCost{T}) where {T<:GenIntervals}
+    return T
+end
+
+"""
+    is_regularization_active(cost::ExtendedHydroGenerationCost)
+
+Check if regularization is active (i.e., not just a simple float).
+"""
+function is_regularization_active(cost::ExtendedHydroGenerationCost)
+    return !isa(cost.regularization_term, Float64)
+end

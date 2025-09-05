@@ -16,13 +16,12 @@ const PSY = PowerSystems
 const PSI = PowerSimulations
 const IS = InfrastructureSystems
 
-# Import required types and functions
-include(joinpath(@__DIR__, "solver_model_types.jl"))     # Core types (GenFirstBaseInterval, etc.)
-include(joinpath(@__DIR__, "sienna_integration_improved.jl"))  # PSI formulations and variable implementations (defines LASCOPFGeneratorFormulation)
-include(joinpath(@__DIR__, "parameters.jl"))             # PSI parameter definitions  
-include(joinpath(@__DIR__, "variables.jl"))              # PSI variable definitions
-include(joinpath(@__DIR__, "objective_functions.jl"))    # PSI objective function implementations
-include(joinpath(@__DIR__, "solver_interface.jl"))       # High-level PSI model building interface
+# Include necessary modules from the codebase
+include("../../core/solver_model_types.jl")     # Core types (GenFirstBaseInterval, etc.)
+include("../../core/ExtendedThermalGenerationCost.jl")
+include("../../core/ExtendedRenewableGenerationCost.jl") 
+include("../../core/ExtendedHydroGenerationCost.jl")
+include("../../core/cost_utilities.jl")
 
 # Configuration for preallocation vs non-preallocation
 @kwdef mutable struct GenSolverConfig
@@ -33,8 +32,7 @@ end
 
 @kwdef mutable struct GenSolver{T<:Union{ExtendedThermalGenerationCost,
     ExtendedRenewableGenerationCost,
-    ExtendedHydroGenerationCost,
-    ExtendedStorageGenerationCost}, U<:GenIntervals}<:AbstractModel
+    ExtendedHydroGenerationCost}, U<:GenIntervals}<:AbstractModel
     interval_type::U # Interval type
     cost_curve::T
     model::Union{JuMP.Model, Nothing} = nothing
@@ -258,63 +256,48 @@ function set_objective_preallocated!(container::PSI.OptimizationContainer,
     for device in devices, t in time_steps
         name = PSY.get_name(device)
         
-        # Get cost coefficients from device
-        cost_func = PSY.get_cost(device)
-        if isa(cost_func, PSY.QuadraticCost)
-            c0 = cost_func.fixed
-            c1 = cost_func.proportional  
-            c2 = cost_func.quadratic
-        elseif isa(cost_func, PSY.LinearCost)
-            c0 = cost_func.fixed
-            c1 = cost_func.proportional
-            c2 = 0.0
+        # Build cost expression using extended cost model
+        if isa(solver.cost_curve, ExtendedThermalGenerationCost)
+            cost_expr = build_thermal_cost_expression(
+                solver.cost_curve, 
+                Pg[name, t], 
+                1.0,  # commitment_var (assuming committed for now)
+                PgNext[name, t], 
+                thetag[name, t]
+            )
+        elseif isa(solver.cost_curve, ExtendedRenewableGenerationCost)
+            # For renewable generators, we need curtailment variable
+            Pcurt = 0.0  # Simplified - would need actual curtailment variable
+            renewable_forecast = 1.0  # Would need actual forecast
+            cost_expr = build_renewable_cost_expression(
+                solver.cost_curve,
+                Pg[name, t],
+                Pcurt,
+                renewable_forecast,
+                PgNext[name, t],
+                thetag[name, t]
+            )
+        elseif isa(solver.cost_curve, ExtendedHydroGenerationCost)
+            cost_expr = build_hydro_cost_expression(
+                solver.cost_curve,
+                Pg[name, t],
+                PgNext[name, t],
+                thetag[name, t]
+            )
         else
-            c0, c1, c2 = 0.0, 1.0, 0.0  # Default linear cost
-        end
-        
-        # Add generation cost
-        JuMP.add_to_expression!(objective_expr, c2 * (Pg[name, t]^2))
-        JuMP.add_to_expression!(objective_expr, c1 * Pg[name, t])
-        JuMP.add_to_expression!(objective_expr, c0)
-        
-        # Add LASCOPF-specific terms if interval data is available
-        if isa(solver.interval_type, GenFirstBaseInterval)
-            interval_data = solver.interval_type
-            
-            # APP regularization terms  
-            JuMP.add_to_expression!(objective_expr, 
-                (interval_data.beta/2) * (Pg[name, t] - interval_data.Pg_nu)^2)
-            JuMP.add_to_expression!(objective_expr, 
-                (interval_data.beta/2) * (PgNext[name, t] - sum(interval_data.Pg_next_nu))^2)
-            JuMP.add_to_expression!(objective_expr, 
-                (interval_data.beta_inner/2) * (Pg[name, t] - interval_data.Pg_nu_inner)^2)
-            
-            # Security constraint regularization
-            for i in 1:interval_data.cont_count
-                JuMP.add_to_expression!(objective_expr, 
-                    interval_data.gamma_sc * Pg[name, t] * interval_data.BSC[i])
-                JuMP.add_to_expression!(objective_expr, 
-                    Pg[name, t] * interval_data.lambda_1_sc[i])
+            # Fallback to simple cost computation
+            cost_func = PSY.get_cost(device)
+            if isa(cost_func, PSY.QuadraticCost)
+                cost_expr = cost_func.quadratic * (Pg[name, t]^2) + 
+                           cost_func.proportional * Pg[name, t] + 
+                           cost_func.fixed
+            else
+                cost_expr = get_variable(cost_func) * Pg[name, t]
             end
-            
-            # Interval coupling terms
-            JuMP.add_to_expression!(objective_expr, 
-                interval_data.gamma * Pg[name, t] * sum(interval_data.B))
-            JuMP.add_to_expression!(objective_expr, 
-                interval_data.gamma * PgNext[name, t] * sum(interval_data.D))
-            JuMP.add_to_expression!(objective_expr, 
-                sum(interval_data.lambda_1) * Pg[name, t])
-            JuMP.add_to_expression!(objective_expr, 
-                sum(interval_data.lambda_2) * PgNext[name, t])
-            
-            # ADMM penalty terms
-            JuMP.add_to_expression!(objective_expr, 
-                (interval_data.rho/2) * (Pg[name, t] - interval_data.Pg_N_init + 
-                                       interval_data.Pg_N_avg + interval_data.ug_N)^2)
-            JuMP.add_to_expression!(objective_expr, 
-                (interval_data.rho/2) * (thetag[name, t] - interval_data.Vg_N_avg - 
-                                       interval_data.thetag_N_avg + interval_data.vg_N)^2)
         end
+        
+        # Add to objective
+        JuMP.add_to_expression!(objective_expr, cost_expr)
     end
     
     # Set the objective
@@ -341,63 +324,48 @@ function set_objective_direct!(model::JuMP.Model, solver::GenSolver, devices, ti
     for device in devices, t in time_steps
         name = PSY.get_name(device)
         
-        # Get cost coefficients from device
-        cost_func = PSY.get_cost(device)
-        if isa(cost_func, PSY.QuadraticCost)
-            c0 = cost_func.fixed
-            c1 = cost_func.proportional  
-            c2 = cost_func.quadratic
-        elseif isa(cost_func, PSY.LinearCost)
-            c0 = cost_func.fixed
-            c1 = cost_func.proportional
-            c2 = 0.0
+        # Build cost expression using extended cost model
+        if isa(solver.cost_curve, ExtendedThermalGenerationCost)
+            cost_expr = build_thermal_cost_expression(
+                solver.cost_curve, 
+                Pg[name, t], 
+                1.0,  # commitment_var (assuming committed for now)
+                PgNext[name, t], 
+                thetag[name, t]
+            )
+        elseif isa(solver.cost_curve, ExtendedRenewableGenerationCost)
+            # For renewable generators, we need curtailment variable
+            Pcurt = 0.0  # Simplified - would need actual curtailment variable
+            renewable_forecast = 1.0  # Would need actual forecast
+            cost_expr = build_renewable_cost_expression(
+                solver.cost_curve,
+                Pg[name, t],
+                Pcurt,
+                renewable_forecast,
+                PgNext[name, t],
+                thetag[name, t]
+            )
+        elseif isa(solver.cost_curve, ExtendedHydroGenerationCost)
+            cost_expr = build_hydro_cost_expression(
+                solver.cost_curve,
+                Pg[name, t],
+                PgNext[name, t],
+                thetag[name, t]
+            )
         else
-            c0, c1, c2 = 0.0, 1.0, 0.0  # Default linear cost
-        end
-        
-        # Add generation cost
-        JuMP.add_to_expression!(objective_expr, c2 * (Pg[name, t]^2))
-        JuMP.add_to_expression!(objective_expr, c1 * Pg[name, t])
-        JuMP.add_to_expression!(objective_expr, c0)
-        
-        # Add LASCOPF-specific terms if interval data is available
-        if isa(solver.interval_type, GenFirstBaseInterval)
-            interval_data = solver.interval_type
-            
-            # APP regularization terms  
-            JuMP.add_to_expression!(objective_expr, 
-                (interval_data.beta/2) * (Pg[name, t] - interval_data.Pg_nu)^2)
-            JuMP.add_to_expression!(objective_expr, 
-                (interval_data.beta/2) * (PgNext[name, t] - sum(interval_data.Pg_next_nu))^2)
-            JuMP.add_to_expression!(objective_expr, 
-                (interval_data.beta_inner/2) * (Pg[name, t] - interval_data.Pg_nu_inner)^2)
-            
-            # Security constraint regularization
-            for i in 1:interval_data.cont_count
-                JuMP.add_to_expression!(objective_expr, 
-                    interval_data.gamma_sc * Pg[name, t] * interval_data.BSC[i])
-                JuMP.add_to_expression!(objective_expr, 
-                    Pg[name, t] * interval_data.lambda_1_sc[i])
+            # Fallback to simple cost computation
+            cost_func = PSY.get_cost(device)
+            if isa(cost_func, PSY.QuadraticCost)
+                cost_expr = cost_func.quadratic * (Pg[name, t]^2) + 
+                           cost_func.proportional * Pg[name, t] + 
+                           cost_func.fixed
+            else
+                cost_expr = get_variable(cost_func) * Pg[name, t]
             end
-            
-            # Interval coupling terms
-            JuMP.add_to_expression!(objective_expr, 
-                interval_data.gamma * Pg[name, t] * sum(interval_data.B))
-            JuMP.add_to_expression!(objective_expr, 
-                interval_data.gamma * PgNext[name, t] * sum(interval_data.D))
-            JuMP.add_to_expression!(objective_expr, 
-                sum(interval_data.lambda_1) * Pg[name, t])
-            JuMP.add_to_expression!(objective_expr, 
-                sum(interval_data.lambda_2) * PgNext[name, t])
-            
-            # ADMM penalty terms
-            JuMP.add_to_expression!(objective_expr, 
-                (interval_data.rho/2) * (Pg[name, t] - interval_data.Pg_N_init + 
-                                       interval_data.Pg_N_avg + interval_data.ug_N)^2)
-            JuMP.add_to_expression!(objective_expr, 
-                (interval_data.rho/2) * (thetag[name, t] - interval_data.Vg_N_avg - 
-                                       interval_data.thetag_N_avg + interval_data.vg_N)^2)
         end
+        
+        # Add to objective
+        JuMP.add_to_expression!(objective_expr, cost_expr)
     end
     
     # Set the objective
@@ -1052,6 +1020,38 @@ end
 Comprehensive performance testing suite
 """
 function run_performance_tests(sys::PSY.System)
+    println("🧪 LASCOPF Generator Solver Performance Test Suite")
+    println("=" * 70)
+    
+    # Test 1: Basic benchmark
+    println("\n📈 Test 1: Basic Performance Comparison")
+    basic_results = benchmark_gensolver_approaches(sys, num_runs=3)
+    
+    # Test 2: Memory usage (if BenchmarkTools available)
+    println("\n💾 Test 2: Memory Usage Analysis") 
+    memory_results = benchmark_memory_usage(sys)
+    
+    # Test 3: Scaling test with different problem sizes
+    println("\n📏 Test 3: Problem Size Scaling")
+    scaling_results = Dict()
+    for horizon in [12, 24, 48]
+        println("  Testing time horizon: $horizon hours")
+        result = benchmark_gensolver_approaches(sys, num_runs=2, time_horizon=horizon)
+        scaling_results[horizon] = result
+        
+        println("    Preallocated: $(round(result["avg_preallocated_ms"], digits=2)) ms")
+        println("    Direct: $(round(result["avg_direct_ms"], digits=2)) ms")
+        println("    Speedup: $(round(result["speedup_factor"], digits=2))x")
+    end
+    
+    println("\n✅ Performance testing complete!")
+    
+    return Dict(
+        "basic_benchmark" => basic_results,
+        "memory_benchmark" => memory_results,
+        "scaling_benchmark" => scaling_results
+    )
+end
     println("🧪 LASCOPF Generator Solver Performance Test Suite")
     println("=" * 70)
     

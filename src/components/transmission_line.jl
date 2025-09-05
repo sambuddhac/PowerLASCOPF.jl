@@ -1,9 +1,13 @@
 # Member functions for class transmissionLine
 
 using PowerSystems
-const PSY = PowerSystems
 
 # Import necessary types from extended_system (for legacy compatibility)
+# Define abstract types for PowerLASCOPF hierarchy
+abstract type PowerLASCOPFComponent end
+abstract type Subsystem <: PowerLASCOPFComponent end
+abstract type Device <: PowerLASCOPFComponent end
+abstract type PowerGenerator <: Device end
 abstract type LineIntervals end
 abstract type MockLineInterval <: LineIntervals end
 
@@ -213,12 +217,12 @@ function tpowerFutureMessage(transline::transmissionLine, tRho)
 end # For the upcoming interval, opinions about RND flows		
 
 function translPower1(transline::transmissionLine) #function translPower1 begins
-	return transline.Pt1 #returns the Pt1 iterate
+	return transline.pt1 #returns the pt1 iterate (fixed property name)
 	#function translPower1 ends
 end
 
 function translPower2(transline::transmissionLine) #function translPower2 begins
-	return transline.Pt2 #returns the Pt2 iterate
+	return transline.pt2 #returns the pt2 iterate (fixed property name)
 	#function translPower2 ends
 end
 

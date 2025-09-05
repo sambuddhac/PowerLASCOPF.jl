@@ -14,15 +14,7 @@
     regularization_term::Union{T, Float64} # Regularization Term
 end
 
-# @kwdef mutable struct ExtendedRenewableGenerationCost{T<:GenIntervals}<:AbstractModel
-#     renewable_cost_core::PSY.RenewableGenerationCost # Coefficient of the quadratic term
-#     regularization_term::Union{T, Float64} # Regularization Term
-# end
-
-# This outer constructor is fine for cases where regularization_term is a GenIntervals subtype
-# but will cause a TypeError if regularization_term is a Float64, as it will try to infer T as Float64.
-# We'll discuss a more robust version for this below.
-
+# Constructors
 ExtendedRenewableGenerationCost(renewable_cost_core, regularization_term) = ExtendedRenewableGenerationCost(; renewable_cost_core, regularization_term)
 
 # FIX IS HERE: Make this constructor parametric.
@@ -33,29 +25,59 @@ function ExtendedRenewableGenerationCost{T}(::Nothing) where {T<:GenIntervals}
     # When this constructor is called, `T` is already known.
     # We then call the keyword argument constructor for `ExtendedRenewableGenerationCost{T}`.
     # The `0.0` is a `Float64`, which is allowed for `regularization_term` because of `Union{T, Float64}`.
-    ExtendedRenewableGenerationCost{T}(; renewable_cost_core=PSY.RenewableGenerationCost(nothing), regularization_term=0.0)
+    ExtendedRenewableGenerationCost{T}(; renewable_cost_core=PSY.RenewableGenerationCost(0.0), regularization_term=0.0)
 end
 
-"""Get [`ExtendedRenewbleGenerationCost`](@ref) `variable`."""
+# Getter functions
 get_variable(value::ExtendedRenewableGenerationCost) = PSY.get_variable(value.renewable_cost_core)
-"""Get [`ExtendedRenewbleGenerationCost`](@ref) `fixed`."""
-get_fixed(value::ExtendedRenewbleGenerationCost) = PSY.get_fixed(value.renewable_cost_core)
-"""Get [`ExtendedThermalGenerationCost`](@ref) `start_up`."""
-get_start_up(value::ExtendedRenewableGenerationCost) = PSY.get_start_up(value.renewable_cost_core)
-"""Get [`ExtendedRenewableGenerationCost`](@ref) `shut_down`."""
-get_shut_down(value::ExtendedRenewableGenerationCost) = PSY.get_shut_down(value.renewable_cost_core)
-"""Get [`ExtendedRenewableGenerationCost`](@ref) `regularization_term`."""
-get_regularization(value::ExtendedRenewableGenerationCost) = value.regularization_term
-"""Get [`ExtendedRenewableGenerationCost`](@ref) `cost_core`."""
-get_cost_core(value::ExtendedRenewableGenerationCost) = value.renewable_cost_core
-"""Get [`ExtendedRenewableGenerationCost`](@ref) `curtailment_cost`."""
 get_curtailment_cost(value::ExtendedRenewableGenerationCost) = PSY.get_curtailment_cost(value.renewable_cost_core)
+get_regularization_term(value::ExtendedRenewableGenerationCost) = value.regularization_term
+get_cost_core(value::ExtendedRenewableGenerationCost) = value.renewable_cost_core
 
 """Set [`ExtendedRenewableGenerationCost`](@ref) `variable`."""
-set_variable!(value::ExtendedRenewableGenerationCost, val) = value.renewable_cost_core.variable = val
-"""Set [`ExtendedRenewableGenerationCost`](@ref) `curtailment_cost`."""
-set_curtailment_cost!(value::ExtendedRenewableGenerationCost, val) = value.renewable_core_cost.curtailment_cost = val
-"""Set [`ExtendedRenewableGenerationCost`](@ref) `regularization`."""
-set_regularization!(value::ExtendedRenewaableGenerationCost, val) = value.regularization_term = val
-"""Set [`ExtendedRenewableGenerationCost`](@ref) `cost_core`."""
+set_variable!(value::ExtendedRenewableGenerationCost, val) = PSY.set_variable!(value.renewable_cost_core, val)
+set_curtailment_cost!(value::ExtendedRenewableGenerationCost, val) = PSY.set_curtailment_cost!(value.renewable_cost_core, val)
+set_regularization_term!(value::ExtendedRenewableGenerationCost, val) = value.regularization_term = val
 set_cost_core(value::ExtendedRenewableGenerationCost, cost_core) = value.renewable_cost_core = cost_core
+
+"""
+    compute_regularization_cost(cost::ExtendedRenewableGenerationCost{T}, Pg, args...) where {T<:GenIntervals}
+
+Compute the regularization cost term for renewable generators based on the interval type.
+"""
+function compute_regularization_cost(cost::ExtendedRenewableGenerationCost{T}, Pg, args...) where {T<:GenIntervals}
+    if isa(cost.regularization_term, Float64)
+        return cost.regularization_term * Pg^2
+    else
+        return regularization_term(cost.regularization_term, Pg, args...)
+    end
+end
+
+"""
+    build_renewable_cost_expression(cost::ExtendedRenewableGenerationCost, Pg, Pcurt, renewable_forecast, args...)
+
+Build the complete renewable cost expression including variable cost, curtailment cost, and regularization.
+"""
+function build_renewable_cost_expression(cost::ExtendedRenewableGenerationCost, Pg, Pcurt, renewable_forecast, args...)
+    # Variable cost for generation
+    variable_cost = PSY.get_variable(cost.renewable_cost_core) * Pg
+    
+    # Curtailment cost (cost of not using available renewable energy)
+    curtailment_cost = cost.curtailment_cost * Pcurt
+    
+    # Add regularization cost
+    regularization_cost = compute_regularization_cost(cost, Pg, args...)
+    
+    return variable_cost + curtailment_cost + regularization_cost
+end
+
+# Common utility functions
+update_regularization_parameters!(cost::ExtendedRenewableGenerationCost{T}, new_params::Dict) where {T<:GenIntervals} = 
+    update_regularization_parameters_generic!(cost, new_params, T)
+
+set_regularization_interval!(cost::ExtendedRenewableGenerationCost, interval::T) where {T<:GenIntervals} = 
+    (cost.regularization_term = interval)
+
+get_regularization_type(cost::ExtendedRenewableGenerationCost{T}) where {T<:GenIntervals} = T
+
+is_regularization_active(cost::ExtendedRenewableGenerationCost) = !isa(cost.regularization_term, Float64)

@@ -5,6 +5,12 @@ Random.seed!(123)
 using PowerSystems
 const PSY = PowerSystems
 
+# Include PowerLASCOPF components
+include("../src/components/GeneralizedGenerator.jl")
+include("../src/components/Node.jl")
+include("../src/components/transmission_line.jl")
+include("../src/models/solver_models/solver_model_types.jl")
+
 DayAhead = collect(
     DateTime("1/1/2024  0:00:00", "d/m/y  H:M:S"):Hour(1):DateTime(
         "1/1/2024  23:00:00",
@@ -14,15 +20,15 @@ DayAhead = collect(
 #Dispatch_11am =  collect(DateTime("1/1/2024  0:11:00", "d/m/y  H:M:S"):Minute(15):DateTime("1/1/2024  12::00", "d/m/y  H:M:S"))
 
 nodes5() = [
-    Bus(1, "nodeA", "PV", 0, 1.0, (min = 0.9, max = 1.05), 230, nothing, nothing),
-    Bus(2, "nodeB", "PQ", 0, 1.0, (min = 0.9, max = 1.05), 230, nothing, nothing),
-    Bus(3, "nodeC", "PV", 0, 1.0, (min = 0.9, max = 1.05), 230, nothing, nothing),
-    Bus(4, "nodeD", "REF", 0, 1.0, (min = 0.9, max = 1.05), 230, nothing, nothing),
-    Bus(5, "nodeE", "PV", 0, 1.0, (min = 0.9, max = 1.05), 230, nothing, nothing),
+    PSY.ACBus(1, "nodeA", "PV", 0, 1.0, (min = 0.9, max = 1.05), 230, nothing, nothing),
+    PSY.ACBus(2, "nodeB", "PQ", 0, 1.0, (min = 0.9, max = 1.05), 230, nothing, nothing),
+    PSY.ACBus(3, "nodeC", "PV", 0, 1.0, (min = 0.9, max = 1.05), 230, nothing, nothing),
+    PSY.ACBus(4, "nodeD", "REF", 0, 1.0, (min = 0.9, max = 1.05), 230, nothing, nothing),
+    PSY.ACBus(5, "nodeE", "PV", 0, 1.0, (min = 0.9, max = 1.05), 230, nothing, nothing),
 ];
 
 branches5_dc(nodes5) = [
-    Line(
+    PSY.Line(
         "1",
         true,
         0.0,
@@ -328,7 +334,7 @@ hydro_inflow_ts_DA = [
 ];
 
 thermal_generators5(nodes5) = [
-    ThermalStandard(;
+    PSY.ThermalStandard(;
         name = "Alta",
         available = true,
         status = true,
@@ -345,7 +351,7 @@ thermal_generators5(nodes5) = [
         operation_cost = ThreePartCost((0.0, 14.0), 0.0, 4.0, 2.0),
         base_power = 100.0,
     ),
-    ThermalStandard(
+    PSY.ThermalStandard(
         name = "Park City",
         available = true,
         status = true,
@@ -362,7 +368,7 @@ thermal_generators5(nodes5) = [
         operation_cost = ThreePartCost((0.0, 15.0), 0.0, 1.5, 0.75),
         base_power = 100.0,
     ),
-    ThermalStandard(
+    PSY.ThermalStandard(
         name = "Solitude",
         available = true,
         status = true,
@@ -379,7 +385,7 @@ thermal_generators5(nodes5) = [
         operation_cost = ThreePartCost((0.0, 30.0), 0.0, 3.0, 1.5),
         base_power = 100.0,
     ),
-    ThermalStandard(
+    PSY.ThermalStandard(
         name = "Sundance",
         available = true,
         status = true,
@@ -396,7 +402,7 @@ thermal_generators5(nodes5) = [
         operation_cost = ThreePartCost((0.0, 40.0), 0.0, 4.0, 2.0),
         base_power = 100.0,
     ),
-    ThermalStandard(
+    PSY.ThermalStandard(
         name = "Brighton",
         available = true,
         status = true,
@@ -416,7 +422,7 @@ thermal_generators5(nodes5) = [
 ];
 
 thermal_generators5_pwl(nodes5) = [
-    ThermalStandard(
+    PSY.ThermalStandard(
         name = "Test PWL",
         available = true,
         status = true,
@@ -441,7 +447,7 @@ thermal_generators5_pwl(nodes5) = [
 ];
 
 thermal_generators5_pwl_nonconvex(nodes5) = [
-    ThermalStandard(
+    PSY.ThermalStandard(
         name = "Test PWL Nonconvex",
         available = true,
         status = true,
@@ -521,7 +527,7 @@ thermal_pglib_generators5(nodes5) = [
 ];
 
 thermal_generators5_uc_testing(nodes) = [
-    ThermalStandard(
+    PSY.ThermalStandard(
         name = "Alta",
         available = true,
         status = false,
@@ -538,7 +544,7 @@ thermal_generators5_uc_testing(nodes) = [
         operation_cost = ThreePartCost((0.0, 14.0), 0.0, 4.0, 2.0),
         base_power = 100.0,
     ),
-    ThermalStandard(
+    PSY.ThermalStandard(
         name = "Park City",
         available = true,
         status = false,
@@ -555,7 +561,7 @@ thermal_generators5_uc_testing(nodes) = [
         operation_cost = ThreePartCost((0.0, 15.0), 0.0, 1.5, 0.75),
         base_power = 100.0,
     ),
-    ThermalStandard(
+    PSY.ThermalStandard(
         name = "Solitude",
         available = true,
         status = true,
@@ -572,7 +578,7 @@ thermal_generators5_uc_testing(nodes) = [
         operation_cost = ThreePartCost((0.0, 30.0), 0.0, 3.0, 1.5),
         base_power = 100.0,
     ),
-    ThermalStandard(
+    PSY.ThermalStandard(
         name = "Sundance",
         available = true,
         status = false,
@@ -589,7 +595,7 @@ thermal_generators5_uc_testing(nodes) = [
         operation_cost = ThreePartCost((0.0, 40.0), 0.0, 4.0, 2.0),
         base_power = 100.0,
     ),
-    ThermalStandard(
+    PSY.ThermalStandard(
         name = "Brighton",
         available = true,
         status = true,
@@ -652,7 +658,7 @@ renewable_generators5(nodes5) = [
 ];
 
 hydro_generators5(nodes5) = [
-    HydroDispatch(
+    PSY.HydroDispatch(
         name = "HydroDispatch",
         available = true,
         bus = nodes5[2],
@@ -666,7 +672,7 @@ hydro_generators5(nodes5) = [
         time_limits = nothing,
         base_power = 100.0,
     ),
-    HydroEnergyReservoir(
+    PSY.HydroEnergyReservoir(
         name = "HydroEnergyReservoir",
         available = true,
         bus = nodes5[3],
@@ -688,7 +694,7 @@ hydro_generators5(nodes5) = [
 ];
 
 hydro_generators5_ems(nodes5) = [
-    HydroDispatch(
+    PSY.HydroDispatch(
         name = "HydroDispatch",
         available = true,
         bus = nodes5[2],
@@ -702,7 +708,7 @@ hydro_generators5_ems(nodes5) = [
         time_limits = nothing,
         base_power = 100.0,
     ),
-    HydroEnergyReservoir(
+    PSY.HydroEnergyReservoir(
         name = "HydroEnergyReservoir",
         available = true,
         bus = nodes5[3],
@@ -731,7 +737,7 @@ hydro_generators5_ems(nodes5) = [
 ];
 
 phes5(nodes5) = [
-    HydroPumpedStorage(
+    PSY.HydroPumpedStorage(
         name = "HydroPumpedStorage",
         available = true,
         bus = nodes5[3],
@@ -1095,3 +1101,421 @@ Iload_timeseries_DA = [
     [TimeSeries.TimeArray(DayAhead, loadbus4_ts_DA)],
     [TimeSeries.TimeArray(DayAhead + Day(1), loadbus4_ts_DA + 0.1 * rand(24))],
 ]
+
+"""
+Create PowerLASCOPF Nodes from PSY Buses
+"""
+function powerlascopf_nodes5()
+    psy_buses = nodes5()
+    nodes = Node{PSY.Bus}[]
+    
+    for (i, bus) in enumerate(psy_buses)
+        # Create Node parameterized on PSY.Bus
+        node = Node{PSY.Bus}(bus, i, 0,)
+        push!(nodes, node)
+    end
+    
+    return nodes
+end
+
+"""
+Create PowerLASCOPF transmission lines from PSY Branches
+"""
+function powerlascopf_branches5(nodes::Vector{Node{PSY.Bus}})
+    psy_branches = branches5(nodes5())
+    transmission_lines = transmissionLine[]
+    
+    for (i, branch) in enumerate(psy_branches)
+        if isa(branch, PSY.Line)
+            # Find corresponding nodes
+            from_bus_name = PSY.get_name(PSY.get_from(PSY.get_arc(branch)))
+            to_bus_name = PSY.get_name(PSY.get_to(PSY.get_arc(branch)))
+            
+            from_node = findfirst(n -> PSY.get_name(n.bus_data) == from_bus_name, nodes)
+            to_node = findfirst(n -> PSY.get_name(n.bus_data) == to_bus_name, nodes)
+            
+            # Create LineSolverBase for the line
+            solver_base = LineSolverBase(
+                lambda_txr = randn(cont_count * (RND_int-1)),
+                interval_type = LineBaseInterval(),
+                E_coeff = [0.9^i for i in 1:RND_int],
+                Pt_next_nu = zeros(cont_count * (RND_int-1)),
+                BSC = 0.1 * randn(cont_count * (RND_int-1)),
+                E_temp_coeff = 0.01 * randn(RND_int, RND_int),
+                alpha_factor = 0.05,
+                beta_factor = 0.1,
+                beta = 0.1,
+                gamma = 0.2,
+                Pt_max = 1000.0,
+                temp_init = 340.0,
+                temp_amb = 300.0,
+                max_temp = 473.0,
+                RND_int = 1,
+                cont_count = 1
+            )
+            
+            # Create transmissionLine parameterized on PSY.Line
+            trans_line = transmissionLine{PSY.Line}(
+                transl_type = branch,
+                solver_line_base = solver_base,
+                transl_id = i,
+                conn_nodet1_ptr = nodes[from_node],
+                conn_nodet2_ptr = nodes[to_node],
+                cont_scen_tracker = 0.0,
+                thetat1 = 0.0,
+                thetat2 = 0.0,
+                pt1 = 0.0,
+                pt2 = 0.0,
+                v1 = 0.0,
+                v2 = 0.0
+            )
+            
+            # Assign connection nodes
+            assign_conn_nodes(trans_line)
+            
+            push!(transmission_lines, trans_line)
+            
+        elseif isa(branch, PSY.HVDCLine)
+            # Handle HVDC lines similarly
+            from_bus_name = PSY.get_name(PSY.get_from(PSY.get_arc(branch)))
+            to_bus_name = PSY.get_name(PSY.get_to(PSY.get_arc(branch)))
+            
+            from_node = findfirst(n -> PSY.get_name(n.bus_data) == from_bus_name, nodes)
+            to_node = findfirst(n -> PSY.get_name(n.bus_data) == to_bus_name, nodes)
+            
+            solver_base = LineSolverBase(
+                lambda_txr = [0.0],
+                interval_type = MockLineInterval(),
+                E_coeff = [1.0],
+                Pt_next_nu = [0.0],
+                BSC = [0.0],
+                E_temp_coeff = reshape([0.1], 1, 1),
+                RND_int = 1,
+                cont_count = 1
+            )
+            
+            # Create transmissionLine parameterized on PSY.HVDCLine
+            trans_line = transmissionLine{PSY.HVDCLine}(
+                transl_type = branch,
+                solver_line_base = solver_base,
+                transl_id = i,
+                conn_nodet1_ptr = nodes[from_node],
+                conn_nodet2_ptr = nodes[to_node],
+                cont_scen_tracker = 0.0,
+                thetat1 = 0.0,
+                thetat2 = 0.0,
+                pt1 = 0.0,
+                pt2 = 0.0,
+                v1 = 0.0,
+                v2 = 0.0
+            )
+            
+            assign_conn_nodes(trans_line)
+            push!(transmission_lines, trans_line)
+        end
+    end
+    
+    return transmission_lines
+end
+
+"""
+Create PowerLASCOPF GeneralizedGenerators from PSY Thermal Generators
+"""
+function powerlascopf_thermal_generators5(nodes::Vector{Node{PSY.Bus}})
+    psy_gens = thermal_generators5(nodes5())
+    generators = GeneralizedGenerator[]
+    
+    for (i, gen) in enumerate(psy_gens)
+        # Find corresponding node
+        bus_name = PSY.get_name(PSY.get_bus(gen))
+        node_idx = findfirst(n -> PSY.get_name(n.bus_data) == bus_name, nodes)
+        
+        if node_idx === nothing
+            error("Could not find node for generator $(PSY.get_name(gen))")
+        end
+        
+        # Create thermal cost function
+        cost_function = ExtendedThermalGenerationCost{StandardGenIntervals}(
+            variable_cost = PSY.get_variable(PSY.get_operation_cost(gen)),
+            fixed_cost = PSY.get_fixed(PSY.get_operation_cost(gen)),
+            startup_cost = PSY.get_start_up(PSY.get_operation_cost(gen)),
+            shutdown_cost = PSY.get_shut_down(PSY.get_operation_cost(gen)),
+            base_power = PSY.get_base_power(gen)
+        )
+        
+        # Create solver
+        gen_solver = GenSolver{typeof(gen), StandardGenIntervals}()
+        
+        # Create GeneralizedGenerator parameterized on ThermalStandard
+        lascopf_gen = GeneralizedGenerator{typeof(gen), StandardGenIntervals}(
+            generator = gen,
+            cost_function = cost_function,
+            id_of_gen = i,
+            interval = 1,
+            last_flag = false,
+            cont_scenario_count = 2,
+            gensolver = gen_solver,
+            PC_scenario_count = 1,
+            baseCont = 0,
+            dummyZero = 0,
+            accuracy = 1,
+            nodeConng = nodes[node_idx],
+            countOfContingency = 2,
+            gen_total = length(psy_gens)
+        )
+        
+        push!(generators, lascopf_gen)
+    end
+    
+    return generators
+end
+
+"""
+Create PowerLASCOPF GeneralizedGenerators from PSY Renewable Generators
+"""
+function powerlascopf_renewable_generators5(nodes::Vector{Node{PSY.Bus}})
+    psy_gens = renewable_generators5(nodes5())
+    generators = GeneralizedGenerator[]
+    
+    for (i, gen) in enumerate(psy_gens)
+        # Find corresponding node
+        bus_name = PSY.get_name(PSY.get_bus(gen))
+        node_idx = findfirst(n -> PSY.get_name(n.bus_data) == bus_name, nodes)
+        
+        if node_idx === nothing
+            error("Could not find node for generator $(PSY.get_name(gen))")
+        end
+        
+        # Create renewable cost function
+        cost_function = ExtendedRenewableGenerationCost{StandardGenIntervals}(
+            variable_cost = PSY.get_variable(PSY.get_operation_cost(gen)),
+            curtailment_cost = PSY.get_fixed(PSY.get_operation_cost(gen)),
+            base_power = PSY.get_base_power(gen)
+        )
+        
+        # Create solver
+        gen_solver = GenSolver{typeof(gen), StandardGenIntervals}()
+        
+        # Create GeneralizedGenerator parameterized on RenewableDispatch
+        lascopf_gen = GeneralizedGenerator{typeof(gen), StandardGenIntervals}(
+            generator = gen,
+            cost_function = cost_function,
+            id_of_gen = i,
+            interval = 1,
+            last_flag = false,
+            cont_scenario_count = 2,
+            gensolver = gen_solver,
+            PC_scenario_count = 1,
+            baseCont = 0,
+            dummyZero = 0,
+            accuracy = 1,
+            nodeConng = nodes[node_idx],
+            countOfContingency = 2,
+            gen_total = length(psy_gens)
+        )
+        
+        # Add renewable timeseries data
+        if PSY.get_prime_mover(gen) == PSY.PrimeMovers.WT
+            wind_data = TimeSeries.TimeArray(DayAhead, wind_ts_DA)
+            PSY.add_time_series!(gen, PSY.Deterministic("max_active_power", wind_data))
+        elseif PSY.get_prime_mover(gen) == PSY.PrimeMovers.PV
+            solar_data = TimeSeries.TimeArray(DayAhead, solar_ts_DA)
+            PSY.add_time_series!(gen, PSY.Deterministic("max_active_power", solar_data))
+        end
+        
+        push!(generators, lascopf_gen)
+    end
+    
+    return generators
+end
+
+"""
+Create PowerLASCOPF GeneralizedGenerators from PSY Hydro Generators
+"""
+function powerlascopf_hydro_generators5(nodes::Vector{Node{PSY.Bus}})
+    psy_gens = hydro_generators5(nodes5())
+    generators = GeneralizedGenerator[]
+    
+    for (i, gen) in enumerate(psy_gens)
+        # Find corresponding node
+        bus_name = PSY.get_name(PSY.get_bus(gen))
+        node_idx = findfirst(n -> PSY.get_name(n.bus_data) == bus_name, nodes)
+        
+        if node_idx === nothing
+            error("Could not find node for generator $(PSY.get_name(gen))")
+        end
+        
+        # Create hydro cost function
+        if isa(gen, PSY.HydroEnergyReservoir)
+            cost_function = ExtendedHydroGenerationCost{StandardGenIntervals}(
+                variable_cost = PSY.get_variable(PSY.get_operation_cost(gen)),
+                fixed_cost = PSY.get_fixed(PSY.get_operation_cost(gen)),
+                storage_cost = 0.0,
+                spillage_cost = 10.0,
+                base_power = PSY.get_base_power(gen)
+            )
+        else
+            cost_function = ExtendedHydroGenerationCost{StandardGenIntervals}(
+                variable_cost = 0.0,
+                fixed_cost = 0.0,
+                storage_cost = 0.0,
+                spillage_cost = 10.0,
+                base_power = PSY.get_base_power(gen)
+            )
+        end
+        
+        # Create solver
+        gen_solver = GenSolver{typeof(gen), StandardGenIntervals}()
+        
+        # Create GeneralizedGenerator parameterized on HydroGen
+        lascopf_gen = GeneralizedGenerator{typeof(gen), StandardGenIntervals}(
+            generator = gen,
+            cost_function = cost_function,
+            id_of_gen = i,
+            interval = 1,
+            last_flag = false,
+            cont_scenario_count = 2,
+            gensolver = gen_solver,
+            PC_scenario_count = 1,
+            baseCont = 0,
+            dummyZero = 0,
+            accuracy = 1,
+            nodeConng = nodes[node_idx],
+            countOfContingency = 2,
+            gen_total = length(psy_gens)
+        )
+        
+        # Add hydro inflow timeseries
+        if isa(gen, PSY.HydroEnergyReservoir)
+            inflow_data = TimeSeries.TimeArray(DayAhead, hydro_inflow_ts_DA)
+            PSY.add_time_series!(gen, PSY.Deterministic("inflow", inflow_data))
+        end
+        
+        push!(generators, lascopf_gen)
+    end
+    
+    return generators
+end
+
+"""
+Create complete PowerLASCOPF system data
+"""
+function create_5bus_powerlascopf_system()
+    # Create components using existing PowerLASCOPF structs
+    nodes = powerlascopf_nodes5()
+    branches = powerlascopf_branches5(nodes)
+    thermal_gens = powerlascopf_thermal_generators5(nodes)
+    renewable_gens = powerlascopf_renewable_generators5(nodes)
+    hydro_gens = powerlascopf_hydro_generators5(nodes)
+    
+    # Create system data dictionary (using existing PowerLASCOPF pattern)
+    system_data = Dict(
+        "name" => "5-Bus Test System",
+        "nodes" => nodes,
+        "branches" => branches,
+        "thermal_generators" => thermal_gens,
+        "renewable_generators" => renewable_gens,
+        "hydro_generators" => hydro_gens,
+        "storage_generators" => GeneralizedGenerator[],
+        "loads" => loads5(nodes5()),  # Keep PSY loads for now
+        "base_power" => 100.0,
+        "time_horizon" => DayAhead,
+        "scenarios" => create_scenarios()
+    )
+    
+    return system_data
+end
+
+"""
+Create scenario data for stochastic optimization
+"""
+function create_scenarios()
+    scenarios = Dict[]
+    
+    # Base case scenario
+    base_scenario = Dict(
+        "scenario_id" => 1,
+        "name" => "Base Case",
+        "probability" => 0.8,
+        "contingencies" => Dict[],
+        "renewable_forecasts" => Dict(
+            "wind" => wind_ts_DA,
+            "solar" => solar_ts_DA
+        ),
+        "load_forecasts" => Dict(
+            "bus2" => loadbus2_ts_DA,
+            "bus3" => loadbus3_ts_DA,
+            "bus4" => loadbus4_ts_DA
+        ),
+        "hydro_inflows" => hydro_inflow_ts_DA
+    )
+    push!(scenarios, base_scenario)
+    
+    # Contingency scenarios
+    contingency_scenario = Dict(
+        "scenario_id" => 2,
+        "name" => "Line 1 Outage",
+        "probability" => 0.2,
+        "contingencies" => [Dict(
+            "id" => 1,
+            "name" => "Line_1_outage",
+            "component_type" => "Line",
+            "component_id" => 1,
+            "outage_probability" => 1.0
+        )],
+        "renewable_forecasts" => Dict(
+            "wind" => wind_ts_DA * 0.9,
+            "solar" => solar_ts_DA * 0.95
+        ),
+        "load_forecasts" => Dict(
+            "bus2" => loadbus2_ts_DA,
+            "bus3" => loadbus3_ts_DA,
+            "bus4" => loadbus4_ts_DA
+        ),
+        "hydro_inflows" => hydro_inflow_ts_DA * 0.8
+    )
+    push!(scenarios, contingency_scenario)
+    
+    return scenarios
+end
+
+"""
+Helper functions for Node operations (needed for ADMM/APP)
+"""
+
+# Add these helper functions to support the simulation
+function p_avg_message(node::Node{PSY.Bus})
+    return node.P_net  # Simplified - in full implementation would average connected devices
+end
+
+function theta_avg_message(node::Node{PSY.Bus})
+    return node.theta_node
+end
+
+function v_avg_message(node::Node{PSY.Bus})
+    return node.v_node
+end
+
+function u_message!(node::Node{PSY.Bus})
+    return node.u
+end
+
+function get_power_balance(node::Node{PSY.Bus})
+    # Calculate power balance at node (simplified)
+    return node.P_net  # In full implementation: generation - load - transmission flows
+end
+
+function update_node_averages!(node::Node{PSY.Bus})
+    # Update node average variables from connected devices
+    # This is a simplified version - full implementation would average all connected devices
+    node.P_net = 0.0  # Placeholder
+    node.theta_node = 0.0  # Placeholder
+    return node.P_net  # In full implementation: generation - load - transmission flows
+end
+
+function update_node_averages!(node::Node{PSY.Bus})
+    # Update node average variables from connected devices
+    # This is a simplified version - full implementation would average all connected devices
+    node.P_net = 0.0  # Placeholder
+    node.theta_node = 0.0  # Placeholder
+end

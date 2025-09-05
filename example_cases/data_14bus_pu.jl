@@ -1,6 +1,7 @@
 using TimeSeries
 using Dates
 using PowerSystems
+#const PSY = PowerSystems
 
 dates = collect(
     DateTime("1/1/2024  0:00:00", "d/m/y  H:M:S"):Hour(1):DateTime(
@@ -10,8 +11,8 @@ dates = collect(
 )
 
 nodes14() = [
-    Bus(1, "Bus 1", "REF", 0.0, 1.06, (min = 0.94, max = 1.06), 69, nothing, nothing),
-    Bus(
+    PSY.Bus(1, "Bus 1", "REF", 0.0, 1.06, (min = 0.94, max = 1.06), 69, nothing, nothing),
+    PSY.Bus(
         2,
         "Bus 2",
         "PV",
@@ -22,7 +23,7 @@ nodes14() = [
         nothing,
         nothing,
     ),
-    Bus(
+    PSY.Bus(
         3,
         "Bus 3",
         "PV",

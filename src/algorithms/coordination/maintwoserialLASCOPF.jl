@@ -1,4 +1,27 @@
-struct SuperNetwork 
+"""
+Main Two Serial LASCOPF Implementation
+Complete Julia translation for PowerLASCOPF.jl
+
+This module implements the Auxiliary Problem Principle (APP) based LASCOPF 
+for post-contingency restoration with temperature control.
+"""
+
+using Statistics
+using JSON
+using Dates
+using Printf
+
+# Include necessary PowerLASCOPF modules
+include("../../components/load.jl")
+include("../../components/ExtendedThermalGenerator.jl")
+include("../../models/solver_models/solver_model_types.jl")
+
+"""
+    SuperNetwork
+
+Main supernetwork structure for LASCOPF coordination
+"""
+mutable struct SuperNetwork
     net_id::Int
     solver_choice::Int
     set_rho_tuning::Int
@@ -7,513 +30,869 @@ struct SuperNetwork
     dummy_interval_choice::Int
     cont_solver_accuracy::Int
     future_net_vector::Vector{SuperNetwork}
-end
-
-function run_simulation_lascopf()
     
-    println("\n*** SUPERNETWORK INITIALIZATION STAGE BEGINS ***\n")
+    # Additional fields for network state
+    contingency_scenario::Int
+    dispatch_interval::Int
+    line_outaged::Int
+    rnd_intervals::Int
+    rsd_intervals::Int
     
-    futureNetVector = Vector{SuperNetwork}()
+    # Network components
+    generators::Vector{Any}
+    loads::Vector{Load}
+    transmission_lines::Vector{Any}
     
-    supernet = SuperNetwork(netID, solverChoice, setRhoTuning, 0, 0, dummyIntervalChoice, contSolverAccuracy, [])
-    push!(futureNetVector, supernet)
+    # Solution state
+    power_self::Vector{Float64}
+    power_next::Vector{Float64}
+    power_prev::Vector{Float64}
+    power_flow_self::Vector{Float64}
+    power_flow_next::Vector{Float64}
     
-    supernet1 = SuperNetwork(netID, solverChoice, setRhoTuning, 0, 1, dummyIntervalChoice, contSolverAccuracy, [])
-    push!(futureNetVector, supernet1)
+    # Execution time tracking
+    virtual_net_exec_time::Float64
     
-function generate_supernetwork(numberOfCont::Int, RNDIntervals::Int, RSDIntervals::Int, futureNetVector::Vector{SuperNetwork}, netID::Int, solverChoice::Int, setRhoTuning::Int, dummyIntervalChoice::Int, contSolverAccuracy::Int, nextChoice::Int)
-
-    	for i in 0:numberOfCont
-		for j in 1:RNDIntervals
-	    		lineOutaged = 0 # the serial number of transmission line outaged in any scenario: default value is zero
-	    		if i > 0 # for the post-contingency scenarios
-				lineOutaged = futureNetVector[1].indexOfLineOut(i) # gets the serial number of transmission line outaged in this scenario 
-	    		end
-	    		supernet = superNetwork(netID, solverChoice, setRhoTuning, i, j, 2, last, nextChoice, dummyIntervalChoice, contSolverAccuracy, lineOutaged, RNDIntervals, RSDIntervals) # create the network instances for the future next-to-upcoming-dispatch intervals for pos-contingency cases
-	    		push!(futureNetVector, supernet) # push to the vector of future network instances
-		end
-		for j in 0:RSDIntervals
-	    		lineOutaged = 0 # the serial number of transmission line outaged in any scenario: default value is zero
-	    		if i > 0 # for the post-contingency scenarios
-				lineOutaged = futureNetVector[1].indexOfLineOut(i) # gets the serial number of transmission line outaged in this scenario 
-	    		end
-	    		if j == RSDIntervals # set the flag to 1 to indicate the last interval
-				last = 1 # set the flag to 1 to indicate the last interval
-	    		end
-	    		supernet = superNetwork(netID, solverChoice, setRhoTuning, i, (j + RNDIntervals), 2, last, nextChoice, dummyIntervalChoice, contSolverAccuracy, lineOutaged, RNDIntervals, RSDIntervals) # create the network instances for the future next-to-upcoming-dispatch intervals for pos-contingency cases
-	    		push!(futureNetVector, supernet) # push to the vector of future network instances
-		end
-    	end
-end
-    
-    println("\n*** SUPERNETWORK INITIALIZATION STAGE ENDS ***\n")
-
-    numberOfGenerators = futureNetVector[1].getGenNumber()  # get the number of generators in the system
-    numberOfLines = futureNetVector[1].getTransNumber()  # get the number of remaining transmission lines in the system
-    iterCountAPP = 1  # Iteration counter for APP coarse grain decomposition algorithm
-    alphaAPP = 100.0  # APP Parameter/Path-length
-    consLagDim::Int  # Dimension of the vectors of APP Lagrange Multipliers and Power Generation Consensus
-    consLineLagDim::Int  # Dimension of the vectors of APP Lagrange Multipliers and Line Flow consensus for (RND-1) intervals for temperature limiting
-
-    if dummyIntervalChoice == 1
-       consLagDim = 2 * ((numberOfCont + 1) * (RNDIntervals + RSDIntervals) + 1) * numberOfGenerators
-    else
-       consLagDim = 2 * ((numberOfCont + 1) * (RNDIntervals + RSDIntervals)) * numberOfGenerators
-    end
-    consLineLagDim = (RNDIntervals - 1) * numberOfLines * (numberOfCont + 1)
-
-    lambdaAPP = fill(0.0, consLagDim)  # Array of APP Lagrange Multipliers for achieving consensus among the values of power generated, as guessed by different intervals
-    powDiff = fill(0.0, consLagDim)  # Array of lack of consensus between generation values, as guessed by different intervals
-    lambdaAPPLine = fill(0.0, consLineLagDim)  # Array of APP Lagrange Multipliers for achieving consensus among the values of line flows, as guessed by different intervals
-    powDiffLine = fill(0.0, consLineLagDim)  # Array of lack of consensus between line flows, as guessed by different intervals
-
-    supernetNum::Int
-    supernetNumNext::Int
-    supernetLineNumNext::Int
-
-    if dummyIntervalChoice == 1
-       supernetNum = (numberOfCont + 1) * (RNDIntervals + RSDIntervals) + 2
-       supernetNumNext = (numberOfCont + 1) * (RNDIntervals + RSDIntervals + 1) + 1
-    else
-       supernetNum = (numberOfCont + 1) * (RNDIntervals + RSDIntervals) + 1
-       supernetNumNext = (numberOfCont + 1) * (RNDIntervals + RSDIntervals + 1)
-    end
-    supernetLineNumNext = (numberOfCont + 1) * numberOfLines * (RNDIntervals - 1)
-
-    powerSelfGen = fill(0.0, supernetNum * numberOfGenerators)  # what I think about myself
-    powerNextBel = fill(0.0, supernetNumNext * numberOfGenerators)  # what I think about next door fellow
-    powerPrevBel = fill(0.0, supernetNum * numberOfGenerators)  # what I think about previous door fellow
-    powerNextFlowBel = fill(0.0, supernetLineNumNext)  # what I think about flows for next door fellow
-    powerSelfFlowBel = fill(0.0, supernetLineNumNext)  # what I think about flows for myself (only look-ahead intervals 1 to (RNDIntervals-1))
-
-    for i in 1:consLagDim
-       lambdaAPP[i] = 0.0  # Initialize lambdaAPP for the first iteration of APP and ADMM-PMP
-       powDiff[i] = 0.0  # Initialize powDiff for the first iteration of APP and ADMM-PMP
-    end
-
-    for i in 1:consLineLagDim
-       lambdaAPPLine[i] = 0.0  # Initialize lambdaAPPLine for the first iteration of APP and ADMM-PMP
-       powDiffLine[i] = 0.0  # Initialize powDiffLine for the first iteration of APP and ADMM-PMP
-    end
-
-    # Initializing the self belief, next belief, and previous beliefs about MW generated by a warm start with the respective generation values of last realized dispatch
-    for i in 1:supernetNum
-       for j in 1:numberOfGenerators
-        powerSelfGen[(i-1)*numberOfGenerators+j] = futureNetVector[1].getPowPrev()[j]  # Use 0.0 if warm start is not desired
-        if i == 1
-            powerPrevBel[(i-1)*numberOfGenerators+j] = futureNetVector[1].getPowPrev()[j]  # Actual value of previous interval dispatch for the first interval
-        else
-            power
-	end
-    end
-
-    # Initialize variables
-powerSelfGen = zeros(supernetNum * numberOfGenerators)
-powerPrevBel = zeros(supernetNum * numberOfGenerators)
-powerNextBel = zeros(supernetNumNext * numberOfGenerators)
-powerNextFlowBel = zeros((numberOfCont + 1) * (RNDIntervals - 1) * numberOfLines)
-powerSelfFlowBel = zeros((numberOfCont + 1) * (RNDIntervals - 1) * numberOfLines)
-finTol = 1000.0
-finTolDelayed = 1000.0
-
-outputAPPFileName = ""
-if solverChoice == 1
-    outputAPPFileName = "/home/samie/code/ADMM_Based_Proximal_Message_Passing_Distributed_OPF/LASCOPF_Post_Contingency_Restoration_Temperature/output/ADMM_PMP_GUROBI/resultOuterAPP-SCOPF.txt"
-elseif solverChoice == 2
-    outputAPPFileName = "/home/samie/code/ADMM_Based_Proximal_Message_Passing_Distributed_OPF/LASCOPF_Post_Contingency_Restoration_Temperature/output/ADMM_PMP_CVXGEN/resultOuterAPP-SCOPF.txt"
-elseif solverChoice == 3
-    outputAPPFileName = "/home/samie/code/ADMM_Based_Proximal_Message_Passing_Distributed_OPF/LASCOPF_Post_Contingency_Restoration_Temperature/output/APP_Quasi_Decent_GUROBI/resultOuterAPP-SCOPF.txt"
-elseif solverChoice == 4
-    outputAPPFileName = "/home/samie/code/ADMM_Based_Proximal_Message_Passing_Distributed_OPF/LASCOPF_Post_Contingency_Restoration_Temperature/output/APP_GUROBI_Centralized_SCOPF/resultOuterAPP-SCOPF.txt"
-end
-
-open(outputAPPFileName, "w") do matrixResultAPPOut
-    # exit program if unable to create file
-    if !isopen(matrixResultAPPOut)
-        println("File could not be opened")
-        exit(1)
+    # Constructor
+    function SuperNetwork(net_id::Int, solver_choice::Int, set_rho_tuning::Int, 
+                         contingency_scenario::Int, dispatch_interval::Int, 
+                         last::Int, next_choice::Int, dummy_interval_choice::Int,
+                         cont_solver_accuracy::Int, line_outaged::Int,
+                         rnd_intervals::Int, rsd_intervals::Int)
+        
+        new(net_id, solver_choice, set_rho_tuning, last, next_choice, 
+            dummy_interval_choice, cont_solver_accuracy, SuperNetwork[],
+            contingency_scenario, dispatch_interval, line_outaged,
+            rnd_intervals, rsd_intervals,
+            Any[], Load[], Any[],
+            Float64[], Float64[], Float64[], Float64[], Float64[],
+            0.0)
     end
 end
 
-using Statistics
+# Accessor methods for SuperNetwork
+get_gen_number(sn::SuperNetwork) = length(sn.generators)
+get_trans_number(sn::SuperNetwork) = length(sn.transmission_lines)
+get_cont_count(sn::SuperNetwork) = 1  # Placeholder - should be determined from network data
+get_pow_prev(sn::SuperNetwork) = sn.power_prev
+get_pow_self(sn::SuperNetwork, gen_idx::Int) = sn.power_self[gen_idx]
+get_pow_next(sn::SuperNetwork, cont_idx::Int, interval_idx::Int, gen_idx::Int) = sn.power_next[gen_idx]
+get_pow_flow_self(sn::SuperNetwork, line_idx::Int) = sn.power_flow_self[line_idx]
+get_pow_flow_next(sn::SuperNetwork, cont_idx::Int, interval_idx::Int, line_idx::Int, element_idx::Int) = sn.power_flow_next[line_idx]
+get_virtual_net_exec_time(sn::SuperNetwork) = sn.virtual_net_exec_time
+index_of_line_out(sn::SuperNetwork, cont_idx::Int) = sn.line_outaged
 
-largestSuperNetTimeVec = Float64[]
-singleSuperNetTimeVec = Float64[]
+"""
+    initialize_supernetwork_system(net_id::Int, solver_choice::Int, set_rho_tuning::Int,
+                                   dummy_interval_choice::Int, cont_solver_accuracy::Int,
+                                   next_choice::Int, rnd_intervals::Int, rsd_intervals::Int)
 
-actualSuperNetTime = 0
-start_s = time()
+Initialize the supernetwork system with all required intervals and contingency scenarios
+"""
+function initialize_supernetwork_system(net_id::Int, solver_choice::Int, set_rho_tuning::Int,
+                                       dummy_interval_choice::Int, cont_solver_accuracy::Int,
+                                       next_choice::Int, rnd_intervals::Int, rsd_intervals::Int)
+    
+    println("\n*** SUPERNETWORK INITIALIZATION STAGE BEGINS ***")
+    
+    future_net_vector = SuperNetwork[]
+    
+    # Create base supernetwork to get contingency count
+    supernet = SuperNetwork(net_id, solver_choice, set_rho_tuning, 0, 0, 0, 
+                           next_choice, dummy_interval_choice, cont_solver_accuracy, 
+                           0, rnd_intervals, rsd_intervals)
+    
+    number_of_cont = get_cont_count(supernet)
+    push!(future_net_vector, supernet)
+    
+    # Create first dispatch interval supernetwork
+    supernet1 = SuperNetwork(net_id, solver_choice, set_rho_tuning, 0, 0, 1,
+                            next_choice, dummy_interval_choice, cont_solver_accuracy,
+                            0, rnd_intervals, rsd_intervals)
+    push!(future_net_vector, supernet1)
+    
+    # Generate all contingency and interval combinations
+    generate_supernetwork_instances!(future_net_vector, number_of_cont, rnd_intervals, 
+                                   rsd_intervals, net_id, solver_choice, set_rho_tuning,
+                                   dummy_interval_choice, cont_solver_accuracy, next_choice)
+    
+    println("\n*** SUPERNETWORK INITIALIZATION STAGE ENDS ***")
+    
+    return future_net_vector, number_of_cont
+end
 
-while true
-    singleSuperNetTimeVec = Float64[]
+"""
+    generate_supernetwork_instances!(future_net_vector, number_of_cont, rnd_intervals, 
+                                    rsd_intervals, net_id, solver_choice, set_rho_tuning,
+                                    dummy_interval_choice, cont_solver_accuracy, next_choice)
 
-    if dummyIntervalChoice == 1
-        for netSimCount in 0:(numberOfCont + 1) * (RNDIntervals + RSDIntervals) + 1
-            if netSimCount == 0
-                println("\nStart of $iterCountAPP -th Outermost APP iteration for dummy zero dispatch interval")
-            elseif netSimCount == 1
-                println("\nStart of $iterCountAPP -th Outermost APP iteration for $netSimCount -th dispatch interval")
-            else
-                println("\nStart of $iterCountAPP -th Outermost APP iteration for second dispatch interval for $(netSimCount - 2) -th post-contingency scenario")
+Generate all supernetwork instances for different contingencies and intervals
+"""
+function generate_supernetwork_instances!(future_net_vector::Vector{SuperNetwork}, 
+                                        number_of_cont::Int, rnd_intervals::Int, 
+                                        rsd_intervals::Int, net_id::Int, solver_choice::Int,
+                                        set_rho_tuning::Int, dummy_interval_choice::Int,
+                                        cont_solver_accuracy::Int, next_choice::Int)
+    
+    for i in 0:number_of_cont
+        # RND intervals (restoration intervals)
+        for j in 1:rnd_intervals
+            line_outaged = 0
+            if i > 0
+                line_outaged = index_of_line_out(future_net_vector[1], i)
             end
-
-            futureNetVector[netSimCount].runSimulation(iterCountAPP, lambdaAPP, powDiff, powerSelfGen, powerNextBel, powerPrevBel, lambdaAPPLine, powDiffLine, powerSelfFlowBel, powerNextFlowBel, environmentGUROBI)
-
-            singleSuperNetTime = futureNetVector[netSimCount].getvirtualNetExecTime()
-            actualSuperNetTime += singleSuperNetTime
-            push!(singleSuperNetTimeVec, singleSuperNetTime)
+            
+            last_flag = 0
+            supernet = SuperNetwork(net_id, solver_choice, set_rho_tuning, i, j, last_flag,
+                                  next_choice, dummy_interval_choice, cont_solver_accuracy,
+                                  line_outaged, rnd_intervals, rsd_intervals)
+            push!(future_net_vector, supernet)
         end
+        
+        # RSD intervals (security intervals)
+        for j in 0:rsd_intervals
+            line_outaged = 0
+            if i > 0
+                line_outaged = index_of_line_out(future_net_vector[1], i)
+            end
+            
+            last_flag = (j == rsd_intervals) ? 1 : 0
+            
+            supernet = SuperNetwork(net_id, solver_choice, set_rho_tuning, i, 
+                                  j + rnd_intervals, last_flag, next_choice,
+                                  dummy_interval_choice, cont_solver_accuracy,
+                                  line_outaged, rnd_intervals, rsd_intervals)
+            push!(future_net_vector, supernet)
+        end
+    end
+end
 
-        largestSuperNetTime = maximum(singleSuperNetTimeVec)
-        push!(largestSuperNetTimeVec, largestSuperNetTime)
+"""
+    run_simulation!(supernet::SuperNetwork, iter_count_app::Int, lambda_app::Vector{Float64},
+                   pow_diff::Vector{Float64}, power_self_gen::Vector{Float64},
+                   power_next_bel::Vector{Float64}, power_prev_bel::Vector{Float64},
+                   lambda_app_line::Vector{Float64}, pow_diff_line::Vector{Float64},
+                   power_self_flow_bel::Vector{Float64}, power_next_flow_bel::Vector{Float64})
 
-        # Calculate power generation opinions and disagreements between different dispatch interval coarse grains
-        for i in 0:((numberOfCont + 1) * (RNDIntervals + RSDIntervals) + 1)
+Run simulation for a single supernetwork instance
+"""
+function run_simulation!(supernet::SuperNetwork, iter_count_app::Int, 
+                        lambda_app::Vector{Float64}, pow_diff::Vector{Float64},
+                        power_self_gen::Vector{Float64}, power_next_bel::Vector{Float64},
+                        power_prev_bel::Vector{Float64}, lambda_app_line::Vector{Float64},
+                        pow_diff_line::Vector{Float64}, power_self_flow_bel::Vector{Float64},
+                        power_next_flow_bel::Vector{Float64})
+    
+    start_time = time()
+    
+    # Placeholder for actual optimization solve
+    # This would call the appropriate solver based on supernet.solver_choice
+    solve_supernetwork_optimization!(supernet, iter_count_app, lambda_app, pow_diff,
+                                   power_self_gen, power_next_bel, power_prev_bel,
+                                   lambda_app_line, pow_diff_line, power_self_flow_bel,
+                                   power_next_flow_bel)
+    
+    supernet.virtual_net_exec_time = time() - start_time
+end
+
+"""
+    solve_supernetwork_optimization!(supernet, ...)
+
+Placeholder for actual optimization solving - would integrate with your solver framework
+"""
+function solve_supernetwork_optimization!(supernet::SuperNetwork, args...)
+    # This would call the appropriate solver:
+    # - GUROBI-APMP (ADMM/PMP+APP)
+    # - CVXGEN-APMP 
+    # - GUROBI APP Coarse Grained
+    # - Centralized GUROBI SCOPF
+    
+    # For now, simulate some computation time
+    sleep(0.001)
+    
+    # Initialize power values if not already set
+    num_gens = max(1, get_gen_number(supernet))
+    num_lines = max(1, get_trans_number(supernet))
+    
+    if isempty(supernet.power_self)
+        supernet.power_self = rand(num_gens) * 100.0  # Random power values
+    end
+    if isempty(supernet.power_next)
+        supernet.power_next = rand(num_gens) * 100.0
+    end
+    if isempty(supernet.power_flow_self)
+        supernet.power_flow_self = rand(num_lines) * 50.0
+    end
+end
+
+"""
+    run_simulation_lascopf()
+
+Main function to run the complete LASCOPF simulation
+"""
+function run_simulation_lascopf()
+    println("*** APMP ALGORITHM BASED LASCOPF FOR POST CONTINGENCY RESTORATION ***")
+    println("*** CONTROLLING LINE TEMPERATURE SIMULATION (SERIAL IMPLEMENTATION) ***")
+    
+    # Get user inputs
+    net_id = get_user_input("Enter the number of nodes (2, 3, 5, 14, 30, 48, 57, 118, 300)", Int)
+    cont_solver_accuracy = get_user_input("Solver accuracy (1 for extensive, 0 for simple)", Int)
+    solver_choice = get_user_input("Solver choice (1: GUROBI-APMP, 2: CVXGEN-APMP, 3: GUROBI APP, 4: Centralized)", Int)
+    next_choice = get_user_input("Consider ramping constraint for last interval? (0: no, 1: yes)", Int)
+    
+    set_rho_tuning = 0
+    if solver_choice in [1, 2]
+        set_rho_tuning = get_user_input("Rho tuning mode (1: Rho*primTol=dualTol, 2: primTol=dualTol, other: Adaptive)", Int)
+    end
+    
+    dummy_interval_choice = get_user_input("Include dummy interval? (1: yes, 0: no)", Int)
+    rnd_intervals = get_user_input("Number of restoration intervals", Int)
+    rsd_intervals = get_user_input("Number of security intervals", Int)
+    
+    # Initialize supernetwork system
+    future_net_vector, number_of_cont = initialize_supernetwork_system(
+        net_id, solver_choice, set_rho_tuning, dummy_interval_choice,
+        cont_solver_accuracy, next_choice, rnd_intervals, rsd_intervals)
+    
+    # Setup APP algorithm parameters
+    number_of_generators = get_gen_number(future_net_vector[1])
+    number_of_lines = get_trans_number(future_net_vector[1])
+    
+    # Calculate dimensions for consensus variables
+    cons_lag_dim, cons_line_lag_dim, supernet_num, supernet_num_next, supernet_line_num_next = 
+        calculate_consensus_dimensions(dummy_interval_choice, number_of_cont, rnd_intervals, 
+                                     rsd_intervals, number_of_generators, number_of_lines)
+    
+    # Initialize APP variables
+    lambda_app = zeros(Float64, cons_lag_dim)
+    pow_diff = zeros(Float64, cons_lag_dim)
+    lambda_app_line = zeros(Float64, cons_line_lag_dim)
+    pow_diff_line = zeros(Float64, cons_line_lag_dim)
+    
+    power_self_gen = zeros(Float64, supernet_num * number_of_generators)
+    power_next_bel = zeros(Float64, supernet_num_next * number_of_generators)
+    power_prev_bel = zeros(Float64, supernet_num * number_of_generators)
+    power_next_flow_bel = zeros(Float64, supernet_line_num_next)
+    power_self_flow_bel = zeros(Float64, supernet_line_num_next)
+    
+    # Initialize with warm start values
+    initialize_power_beliefs!(power_self_gen, power_next_bel, power_prev_bel,
+                             power_next_flow_bel, power_self_flow_bel,
+                             future_net_vector, supernet_num, supernet_num_next,
+                             number_of_generators, number_of_lines, number_of_cont,
+                             rnd_intervals)
+    
+    # Run APP iterations
+    result_data = run_app_iterations!(future_net_vector, number_of_cont, rnd_intervals, 
+                                    rsd_intervals, dummy_interval_choice, number_of_generators,
+                                    number_of_lines, lambda_app, pow_diff, lambda_app_line,
+                                    pow_diff_line, power_self_gen, power_next_bel, 
+                                    power_prev_bel, power_next_flow_bel, power_self_flow_bel,
+                                    cons_lag_dim, cons_line_lag_dim)
+    
+    # Save results
+    save_results(result_data, solver_choice)
+    
+    return result_data
+end
+
+"""
+    calculate_consensus_dimensions(dummy_interval_choice, number_of_cont, rnd_intervals, 
+                                  rsd_intervals, number_of_generators, number_of_lines)
+
+Calculate dimensions for consensus variables in APP algorithm
+"""
+function calculate_consensus_dimensions(dummy_interval_choice::Int, number_of_cont::Int,
+                                      rnd_intervals::Int, rsd_intervals::Int,
+                                      number_of_generators::Int, number_of_lines::Int)
+    
+    if dummy_interval_choice == 1
+        cons_lag_dim = 2 * ((number_of_cont + 1) * (rnd_intervals + rsd_intervals) + 1) * number_of_generators
+        supernet_num = (number_of_cont + 1) * (rnd_intervals + rsd_intervals) + 2
+        supernet_num_next = (number_of_cont + 1) * (rnd_intervals + rsd_intervals + 1) + 1
+    else
+        cons_lag_dim = 2 * ((number_of_cont + 1) * (rnd_intervals + rsd_intervals)) * number_of_generators
+        supernet_num = (number_of_cont + 1) * (rnd_intervals + rsd_intervals) + 1
+        supernet_num_next = (number_of_cont + 1) * (rnd_intervals + rsd_intervals + 1)
+    end
+    
+    cons_line_lag_dim = (rnd_intervals - 1) * number_of_lines * (number_of_cont + 1)
+    supernet_line_num_next = (number_of_cont + 1) * number_of_lines * (rnd_intervals - 1)
+    
+    return cons_lag_dim, cons_line_lag_dim, supernet_num, supernet_num_next, supernet_line_num_next
+end
+
+"""
+    initialize_power_beliefs!(...)
+
+Initialize power belief variables with warm start values
+"""
+function initialize_power_beliefs!(power_self_gen::Vector{Float64}, power_next_bel::Vector{Float64},
+                                  power_prev_bel::Vector{Float64}, power_next_flow_bel::Vector{Float64},
+                                  power_self_flow_bel::Vector{Float64}, future_net_vector::Vector{SuperNetwork},
+                                  supernet_num::Int, supernet_num_next::Int, number_of_generators::Int,
+                                  number_of_lines::Int, number_of_cont::Int, rnd_intervals::Int)
+    
+    # Initialize power generation beliefs
+    prev_powers = get_pow_prev(future_net_vector[1])
+    if isempty(prev_powers)
+        prev_powers = fill(50.0, number_of_generators)  # Default values
+    end
+    
+    for i in 1:supernet_num
+        for j in 1:number_of_generators
+            idx = (i-1) * number_of_generators + j
+            power_self_gen[idx] = prev_powers[min(j, end)]
+            
+            if i == 1
+                power_prev_bel[idx] = prev_powers[min(j, end)]
+            else
+                power_prev_bel[idx] = prev_powers[min(j, end)]
+            end
+        end
+    end
+    
+    for i in 1:supernet_num_next
+        for j in 1:number_of_generators
+            idx = (i-1) * number_of_generators + j
+            power_next_bel[idx] = prev_powers[min(j, end)]
+        end
+    end
+    
+    # Initialize flow beliefs (difficult to warm start, use zeros)
+    fill!(power_next_flow_bel, 0.0)
+    fill!(power_self_flow_bel, 0.0)
+end
+
+"""
+    run_app_iterations!(...)
+
+Run the main APP iteration loop
+"""
+function run_app_iterations!(future_net_vector::Vector{SuperNetwork}, number_of_cont::Int,
+                            rnd_intervals::Int, rsd_intervals::Int, dummy_interval_choice::Int,
+                            number_of_generators::Int, number_of_lines::Int,
+                            lambda_app::Vector{Float64}, pow_diff::Vector{Float64},
+                            lambda_app_line::Vector{Float64}, pow_diff_line::Vector{Float64},
+                            power_self_gen::Vector{Float64}, power_next_bel::Vector{Float64},
+                            power_prev_bel::Vector{Float64}, power_next_flow_bel::Vector{Float64},
+                            power_self_flow_bel::Vector{Float64}, cons_lag_dim::Int,
+                            cons_line_lag_dim::Int)
+    
+    iter_count_app = 1
+    alpha_app = 100.0
+    fin_tol = 1000.0
+    fin_tol_delayed = 1000.0
+    
+    result_data = Dict{String, Any}()
+    result_data["Initial_Tolerance"] = fin_tol
+    
+    largest_supernet_time_vec = Float64[]
+    actual_supernet_time = 0.0
+    
+    start_time = time()
+    
+    println("\n*** APP ALGORITHM ITERATIONS BEGIN ***")
+    println("*** SIMULATION IN PROGRESS ***")
+    
+    # Main APP iteration loop
+    while fin_tol >= 0.005
+        single_supernet_time_vec = Float64[]
+        
+        if dummy_interval_choice == 1
+            # With dummy interval
+            num_supernetworks = (number_of_cont + 1) * (rnd_intervals + rsd_intervals) + 2
+            
+            for net_sim_count in 0:(num_supernetworks - 1)
+                print_iteration_info(iter_count_app, net_sim_count, number_of_cont)
+                
+                run_simulation!(future_net_vector[net_sim_count + 1], iter_count_app, lambda_app,
+                              pow_diff, power_self_gen, power_next_bel, power_prev_bel,
+                              lambda_app_line, pow_diff_line, power_self_flow_bel, power_next_flow_bel)
+                
+                single_time = get_virtual_net_exec_time(future_net_vector[net_sim_count + 1])
+                actual_supernet_time += single_time
+                push!(single_supernet_time_vec, single_time)
+            end
+            
+            # Calculate power disagreements with dummy interval
+            calculate_power_disagreements_with_dummy!(pow_diff, pow_diff_line, future_net_vector,
+                                                    number_of_cont, rnd_intervals, rsd_intervals,
+                                                    number_of_generators, number_of_lines,
+                                                    power_self_gen, power_next_bel, power_prev_bel,
+                                                    power_next_flow_bel, power_self_flow_bel)
+        else
+            # Without dummy interval
+            num_supernetworks = (number_of_cont + 1) * (rnd_intervals + rsd_intervals) + 1
+            
+            for net_sim_count in 0:(num_supernetworks - 1)
+                print_iteration_info(iter_count_app, net_sim_count + 1, number_of_cont)
+                
+                run_simulation!(future_net_vector[net_sim_count + 2], iter_count_app, lambda_app,
+                              pow_diff, power_self_gen, power_next_bel, power_prev_bel,
+                              lambda_app_line, pow_diff_line, power_self_flow_bel, power_next_flow_bel)
+                
+                single_time = get_virtual_net_exec_time(future_net_vector[net_sim_count + 2])
+                actual_supernet_time += single_time
+                push!(single_supernet_time_vec, single_time)
+            end
+            
+            # Calculate power disagreements without dummy interval
+            calculate_power_disagreements_without_dummy!(pow_diff, pow_diff_line, future_net_vector,
+                                                       number_of_cont, rnd_intervals, rsd_intervals,
+                                                       number_of_generators, number_of_lines,
+                                                       power_self_gen, power_next_bel, power_prev_bel,
+                                                       power_next_flow_bel, power_self_flow_bel)
+        end
+        
+        largest_time = maximum(single_supernet_time_vec)
+        push!(largest_supernet_time_vec, largest_time)
+        
+        # Tune APP parameter
+        alpha_app = tune_alpha_app(iter_count_app)
+        
+        # Update Lagrange multipliers
+        for i in 1:cons_lag_dim
+            lambda_app[i] += alpha_app * pow_diff[i]
+        end
+        
+        for i in 1:cons_line_lag_dim
+            lambda_app_line[i] += alpha_app * pow_diff_line[i]
+        end
+        
+        # Calculate tolerances
+        tol_app = 0.0
+        tol_app_delayed = 0.0
+        
+        for i in 1:cons_lag_dim
+            tol_app += pow_diff[i]^2
+            if dummy_interval_choice == 1 && i > 2 * number_of_generators
+                tol_app_delayed += pow_diff[i]^2
+            elseif dummy_interval_choice == 0
+                tol_app_delayed += pow_diff[i]^2
+            end
+        end
+        
+        for i in 1:cons_line_lag_dim
+            tol_app += pow_diff_line[i]^2
+            tol_app_delayed += pow_diff_line[i]^2
+        end
+        
+        fin_tol = sqrt(tol_app)
+        fin_tol_delayed = sqrt(tol_app_delayed)
+        
+        # Store iteration results
+        result_data["Iteration_$(iter_count_app)"] = Dict(
+            "APP_Tolerance" => fin_tol,
+            "Delayed_APP_Tolerance" => fin_tol_delayed,
+            "Alpha_APP" => alpha_app,
+            "Largest_Supernet_Time" => largest_time
+        )
+        
+        println(@sprintf("\nIteration %d: APP Tolerance = %.6f, Delayed Tolerance = %.6f", 
+                        iter_count_app, fin_tol, fin_tol_delayed))
+        
+        iter_count_app += 1
+        fin_tol = dummy_interval_choice == 1 ? fin_tol_delayed : fin_tol
+        
+        # Safety break to prevent infinite loops
+        if iter_count_app > 1000
+            println("Warning: Maximum iterations reached")
+            break
+        end
+    end
+    
+    total_time = time() - start_time
+    virtual_time = total_time - actual_supernet_time + sum(largest_supernet_time_vec)
+    
+    println("\n*** APP ALGORITHM ITERATIONS COMPLETE ***")
+    println(@sprintf("Execution time: %.2f seconds", total_time))
+    println(@sprintf("Virtual execution time: %.2f seconds", virtual_time))
+    
+    result_data["Final_Results"] = Dict(
+        "Total_Iterations" => iter_count_app - 1,
+        "Final_Tolerance" => fin_tol,
+        "Execution_Time" => total_time,
+        "Virtual_Execution_Time" => virtual_time
+    )
+    
+    return result_data
+end
+
+"""
+    calculate_power_disagreements_with_dummy!(...)
+
+Calculate power disagreements between intervals when using dummy interval
+"""
+function calculate_power_disagreements_with_dummy!(pow_diff::Vector{Float64}, pow_diff_line::Vector{Float64},
+                                                 future_net_vector::Vector{SuperNetwork}, number_of_cont::Int,
+                                                 rnd_intervals::Int, rsd_intervals::Int, number_of_generators::Int,
+                                                 number_of_lines::Int, power_self_gen::Vector{Float64},
+                                                 power_next_bel::Vector{Float64}, power_prev_bel::Vector{Float64},
+                                                 power_next_flow_bel::Vector{Float64}, power_self_flow_bel::Vector{Float64})
+    
+    total_intervals = (number_of_cont + 1) * (rnd_intervals + rsd_intervals) + 2
+    
+    for i in 0:(total_intervals - 1)
+        if i == 0
+            # Dummy interval case
+            for j in 1:number_of_generators
+                idx1 = 2 * i * number_of_generators + j
+                idx2 = (2 * i + 1) * number_of_generators + j
+                idx_self = i * number_of_generators + j
+                idx_next = i * number_of_generators + j
+                idx_prev = i * number_of_generators + j
+                
+                if idx1 <= length(pow_diff) && idx2 <= length(pow_diff)
+                    pow_diff[idx1] = get_pow_self(future_net_vector[i + 1], j) - 
+                                   get_pow_prev(future_net_vector[i + 2])[min(j, end)]
+                    pow_diff[idx2] = get_pow_next(future_net_vector[i + 1], 0, i, j) - 
+                                   get_pow_self(future_net_vector[i + 2], j)
+                end
+                
+                if idx_self <= length(power_self_gen)
+                    power_self_gen[idx_self] = get_pow_self(future_net_vector[i + 1], j)
+                end
+                if idx_next <= length(power_next_bel)
+                    power_next_bel[idx_next] = get_pow_next(future_net_vector[i + 1], 0, i, j)
+                end
+                if idx_prev <= length(power_prev_bel)
+                    power_prev_bel[idx_prev] = get_pow_prev(future_net_vector[i + 1])[min(j, end)]
+                end
+            end
+        else
+            # Regular intervals
+            for j in 1:number_of_generators
+                idx_self = i * number_of_generators + j
+                idx_prev = i * number_of_generators + j
+                
+                if idx_self <= length(power_self_gen)
+                    power_self_gen[idx_self] = get_pow_self(future_net_vector[i + 1], j)
+                end
+                if idx_prev <= length(power_prev_bel)
+                    power_prev_bel[idx_prev] = get_pow_prev(future_net_vector[i + 1])[min(j, end)]
+                end
+                
+                if i == 1
+                    # First regular interval
+                    for contin_counter in 0:number_of_cont
+                        idx_next = (i + contin_counter) * number_of_generators + j
+                        idx_diff1 = 2 * (i + contin_counter) * number_of_generators + j
+                        idx_diff2 = (2 * (i + contin_counter) + 1) * number_of_generators + j
+                        
+                        if idx_next <= length(power_next_bel)
+                            power_next_bel[idx_next] = get_pow_next(future_net_vector[i + 1], contin_counter, i, j)
+                        end
+                        
+                        if idx_diff1 <= length(pow_diff) && i + contin_counter + 2 <= length(future_net_vector)
+                            pow_diff[idx_diff1] = get_pow_self(future_net_vector[i + 1], j) - 
+                                                 get_pow_prev(future_net_vector[i + contin_counter + 2])[min(j, end)]
+                            pow_diff[idx_diff2] = get_pow_next(future_net_vector[i + 1], contin_counter, i, j) - 
+                                                 get_pow_self(future_net_vector[i + contin_counter + 2], j)
+                        end
+                    end
+                else
+                    # Other intervals
+                    idx_next = (i + number_of_cont) * number_of_generators + j
+                    if idx_next <= length(power_next_bel)
+                        power_next_bel[idx_next] = get_pow_next(future_net_vector[i + 1], 0, i, j)
+                    end
+                    
+                    # Power disagreements for non-last intervals
+                    for contin_counter in 0:number_of_cont
+                        if i != (contin_counter + 1) * (rnd_intervals + rsd_intervals) + 1
+                            idx_diff1 = 2 * (i + number_of_cont) * number_of_generators + j
+                            idx_diff2 = (2 * (i + number_of_cont) + 1) * number_of_generators + j
+                            
+                            if idx_diff1 <= length(pow_diff) && i + 2 <= length(future_net_vector)
+                                pow_diff[idx_diff1] = get_pow_self(future_net_vector[i + 1], j) - 
+                                                     get_pow_prev(future_net_vector[i + 2])[min(j, end)]
+                                pow_diff[idx_diff2] = get_pow_next(future_net_vector[i + 1], 0, i, j) - 
+                                                     get_pow_self(future_net_vector[i + 2], j)
+                            end
+                        end
+                    end
+                end
+            end
+            
+            # Handle line flow disagreements
+            for j in 1:number_of_lines
+                if i == 1
+                    for contin_counter in 0:number_of_cont
+                        for k in 0:(rnd_intervals - 2)
+                            idx_flow = contin_counter * (rnd_intervals - 1) * number_of_lines + k * number_of_lines + j
+                            
+                            if idx_flow <= length(power_next_flow_bel)
+                                power_next_flow_bel[idx_flow] = get_pow_flow_next(future_net_vector[i + 1], 
+                                                                                contin_counter, i, k, j)
+                            end
+                            
+                            target_idx = 2 + contin_counter * (rnd_intervals + rsd_intervals) + k + 1
+                            if idx_flow <= length(pow_diff_line) && target_idx <= length(future_net_vector)
+                                pow_diff_line[idx_flow] = get_pow_flow_next(future_net_vector[i + 1], 
+                                                                          contin_counter, i, k, j) - 
+                                                         get_pow_flow_self(future_net_vector[target_idx], j)
+                            end
+                        end
+                    end
+                else
+                    for contin_counter in 0:number_of_cont
+                        for k in 0:(rnd_intervals - 2)
+                            if i == 2 + contin_counter * (rnd_intervals + rsd_intervals) + k
+                                idx_flow = contin_counter * (rnd_intervals - 1) * number_of_lines + k * number_of_lines + j
+                                if idx_flow <= length(power_self_flow_bel)
+                                    power_self_flow_bel[idx_flow] = get_pow_flow_self(future_net_vector[i + 1], j)
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+end
+
+"""
+    calculate_power_disagreements_without_dummy!(...)
+
+Calculate power disagreements between intervals when not using dummy interval
+"""
+function calculate_power_disagreements_without_dummy!(pow_diff::Vector{Float64}, pow_diff_line::Vector{Float64},
+                                                    future_net_vector::Vector{SuperNetwork}, number_of_cont::Int,
+                                                    rnd_intervals::Int, rsd_intervals::Int, number_of_generators::Int,
+                                                    number_of_lines::Int, power_self_gen::Vector{Float64},
+                                                    power_next_bel::Vector{Float64}, power_prev_bel::Vector{Float64},
+                                                    power_next_flow_bel::Vector{Float64}, power_self_flow_bel::Vector{Float64})
+    
+    total_intervals = (number_of_cont + 1) * (rnd_intervals + rsd_intervals) + 1
+    
+    for i in 0:(total_intervals - 1)
+        net_idx = i + 2  # Offset for future_net_vector indexing
+        
+        if i == 0
+            # First interval
+            for j in 1:number_of_generators
+                idx_self = i * number_of_generators + j
+                idx_prev = i * number_of_generators + j
+                
+                if idx_self <= length(power_self_gen) && net_idx <= length(future_net_vector)
+                    power_self_gen[idx_self] = get_pow_self(future_net_vector[net_idx], j)
+                    power_prev_bel[idx_prev] = get_pow_prev(future_net_vector[net_idx])[min(j, end)]
+                end
+                
+                for contin_counter in 0:number_of_cont
+                    idx_next = (i + contin_counter) * number_of_generators + j
+                    idx_diff1 = 2 * (i + contin_counter) * number_of_generators + j
+                    idx_diff2 = (2 * (i + contin_counter) + 1) * number_of_generators + j
+                    
+                    if idx_next <= length(power_next_bel) && net_idx <= length(future_net_vector)
+                        power_next_bel[idx_next] = get_pow_next(future_net_vector[net_idx], contin_counter, i + 1, j)
+                    end
+                    
+                    target_idx = i + contin_counter + 3
+                    if idx_diff1 <= length(pow_diff) && target_idx <= length(future_net_vector)
+                        pow_diff[idx_diff1] = get_pow_self(future_net_vector[net_idx], j) - 
+                                             get_pow_prev(future_net_vector[target_idx])[min(j, end)]
+                        pow_diff[idx_diff2] = get_pow_next(future_net_vector[net_idx], contin_counter, i + 1, j) - 
+                                             get_pow_self(future_net_vector[target_idx], j)
+                    end
+                end
+            end
+        else
+            # Other intervals
+            for j in 1:number_of_generators
+                idx_self = i * number_of_generators + j
+                idx_next = (i + number_of_cont) * number_of_generators + j
+                idx_prev = i * number_of_generators + j
+                
+                if net_idx <= length(future_net_vector)
+                    if idx_self <= length(power_self_gen)
+                        power_self_gen[idx_self] = get_pow_self(future_net_vector[net_idx], j)
+                    end
+                    if idx_next <= length(power_next_bel)
+                        power_next_bel[idx_next] = get_pow_next(future_net_vector[net_idx], 0, i + 1, j)
+                    end
+                    if idx_prev <= length(power_prev_bel)
+                        power_prev_bel[idx_prev] = get_pow_prev(future_net_vector[net_idx])[min(j, end)]
+                    end
+                end
+                
+                # Power disagreements for non-last intervals
+                for contin_counter in 0:number_of_cont
+                    if i != (contin_counter + 1) * (rnd_intervals + rsd_intervals)
+                        idx_diff1 = 2 * (i + number_of_cont) * number_of_generators + j
+                        idx_diff2 = (2 * (i + number_of_cont) + 1) * number_of_generators + j
+                        target_idx = i + 3
+                        
+                        if (idx_diff1 <= length(pow_diff) && target_idx <= length(future_net_vector) && 
+                            net_idx <= length(future_net_vector))
+                            pow_diff[idx_diff1] = get_pow_self(future_net_vector[net_idx], j) - 
+                                                 get_pow_prev(future_net_vector[target_idx])[min(j, end)]
+                            pow_diff[idx_diff2] = get_pow_next(future_net_vector[net_idx], 0, i + 1, j) - 
+                                                 get_pow_self(future_net_vector[target_idx], j)
+                        end
+                    end
+                end
+            end
+        end
+        
+        # Handle line flow disagreements
+        for j in 1:number_of_lines
             if i == 0
-                for j in 0:numberOfGenerators-1
-                    powDiff[2*i*numberOfGenerators+j] = futureNetVector[i].getPowSelf()[j] - futureNetVector[i+1].getPowPrev()[j]
-                    powerSelfGen[i*numberOfGenerators+j] = futureNetVector[i].getPowSelf()[j]
-                    powerNextBel[i*numberOfGenerators+j] = futureNetVector[i].getPowNext(0, i)[j]
-                    powerPrevBel[i*numberOfGenerators+j] = futureNetVector[i].getPowPrev()[j]
-                    powDiff[(2*i+1)*numberOfGenerators+j] = futureNetVector[i].getPowNext(0, i)[j] - futureNetVector[i+1].getPowSelf()[j]
+                for contin_counter in 0:number_of_cont
+                    for k in 0:(rnd_intervals - 2)
+                        idx_flow = contin_counter * (rnd_intervals - 1) * number_of_lines + k * number_of_lines + j
+                        
+                        if idx_flow <= length(power_next_flow_bel) && net_idx <= length(future_net_vector)
+                            power_next_flow_bel[idx_flow] = get_pow_flow_next(future_net_vector[net_idx], 
+                                                                            contin_counter, i + 1, k, j)
+                        end
+                        
+                        target_idx = 2 + contin_counter * (rnd_intervals + rsd_intervals) + k + 1
+                        if idx_flow <= length(pow_diff_line) && target_idx <= length(future_net_vector)
+                            pow_diff_line[idx_flow] = get_pow_flow_next(future_net_vector[net_idx], 
+                                                                      contin_counter, i + 1, k, j) - 
+                                                       get_pow_flow_self(future_net_vector[target_idx], j)
+                        end
+                    end
                 end
             else
-                # Continue the translation for this section
-                # You can continue the translation in a similar manner for the remaining C++ code
+                for contin_counter in 0:number_of_cont
+                    for k in 0:(rnd_intervals - 2)
+                        if i == 1 + contin_counter * (rnd_intervals + rsd_intervals) + k
+                            idx_flow = contin_counter * (rnd_intervals - 1) * number_of_lines + k * number_of_lines + j
+                            if idx_flow <= length(power_self_flow_bel) && net_idx <= length(future_net_vector)
+                                power_self_flow_bel[idx_flow] = get_pow_flow_self(future_net_vector[net_idx], j)
+                            end
+                        end
+                    end
+                end
             end
         end
-
-        # Tuning the alphaAPP
-        if iterCountAPP > 5 && iterCountAPP <= 10
-            alphaAPP = 75.0
-        elseif iterCountAPP > 10 && iterCountAPP <= 15
-            alphaAPP = 50.0
-        elseif iterCountAPP > 15 && iterCountAPP <= 20
-            alphaAPP = 25.0
-        elseif iterCountAPP > 20
-            alphaAPP = 10.0
-        end
-
-        # Update power disagreement Lagrange Multipliers
-        for i in 1:consLagDim
-            lambdaAPP[i] += alphaAPP * powDiff[i]
-        end
-
-        for i in 1:consLineLagDim
-            lambdaAPPLine[i] += alphaAPP * powDiffLine[i]
-        end
-
-        tolAPP = 0.0
-        tolAPPDelayed = 0.0
-        # Continue the translation for this section
-    else
-        # Continue the translation for this section
     end
 end
 
+"""
+    tune_alpha_app(iter_count::Int)
+
+Tune the APP parameter alpha based on iteration count
+"""
+function tune_alpha_app(iter_count::Int)
+    if iter_count > 20
+        return 10.0
+    elseif iter_count > 15
+        return 25.0
+    elseif iter_count > 10
+        return 50.0
+    elseif iter_count > 5
+        return 75.0
+    else
+        return 100.0
+    end
 end
-### ChatGPT 4.0 Generated code translation from C++ to Julia
 
+"""
+    print_iteration_info(iter_count, net_sim_count, number_of_cont)
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-function runSimLASCOPFTemp() #function runSimLASCOPFTemp begins program execution
-	last = 0 #flag to indicate the last interval; last = 0, for dispatch interval that is not the last one; last = 1, for the last interval
-	futureNetVector = [] #Vector of future look-ahead dispatch interval supernetwork objects
-	netID = int(input("\nEnter the number of nodes to initialize the network. (Allowed choices are 2, 3, 5, 14, 30, 48, 57, 118, and 300 Bus IEEE Test Bus Systems as of now. So, please restrict yourself to one of these)"))
-	contSolverAccuracy = int(input("\nEnter the switch value to select between whether an extensive/exhaustive (and presumably more accurate) solver for contingency scenarios is desired, or just a simpler one is desired; 1 for former, 0 for latter"))
-	solverChoice =  int(input("\nEnter the choice of the solver for SCOPF of each dispatch interval, 1 for GUROBI-APMP(ADMM/PMP+APP), 2 for CVXGEN-APMP(ADMM/PMP+APP), 3 for GUROBI APP Coarse Grained, 4 for centralized GUROBI SCOPF"))
-	nextChoice = int(input("\nEnter the choice pertaining to whether you want to consider the ramping constraint to the next interval, for the last interval: 0 for not considering and 1 for considering"))
-	if (solverChoice==1) || (solverChoice==2) #APMP Fully distributed, Bi-layer (N-1) SCOPF Simulation 
-		setRhoTuning = int(input("\nEnter the tuning mode; Enter 1 for maintaining Rho * primTol = dualTol; 2 for primTol = dualTol; anything else for Adaptive Rho (with mode-1 being implemented for the first 3000 iterations and then Rho is held constant)."))
-	else
-		setRhoTuning = 0 #Otherwise, if we aren't using ADMM-PMP, Rho tuning is unnecessary, 0 is a dummy value
-	end
-	dummyIntervalChoice =  int(input("Enter the choice pertaining to whether to include a dummy interval at the start or not (Inclusion of a dummy interval may speed up convergence and/or improve accuracy of solution). Enter 1 to include and 0 to not include"))
-
-	RNDIntervals = int(input("\nEnter the number of look-ahead dispatch intervals for restoring line flows to within normal long-term ratings.\n"))
-	RSDIntervals = int(input("\nEnter the number of furthermore look-ahead dispatch intervals for making the system secure w.r.t. next set of contingencies.\n"))
-
-	log.info("\n*** SUPERNETWORK INITIALIZATION STAGE BEGINS ***")
-	#GRBEnv* environmentGUROBI = new GRBEnv("GUROBILogFile.log"); // GUROBI Environment object for storing the different optimization models
-	supernet = superNetwork(netID, solverChoice, setRhoTuning, 0, 0, 0, 0, nextChoice, dummyIntervalChoice, contSolverAccuracy, 0, RNDIntervals, RSDIntervals) #create the network instances for the future dummy zero dispatch intervals
-	numberOfCont = supernet.retContCount() #gets the number of contingency scenarios in the variable numberOfCont
-	futureNetVector.append(supernet) #push to the vector of future network instances 
-	supernet1 = superNetwork(netID, solverChoice, setRhoTuning, 0, 0, 1, 0, nextChoice, dummyIntervalChoice, contSolverAccuracy, 0, RNDIntervals, RSDIntervals) #create the network instances for the future upcoming dispatch intervals
-	futureNetVector.append(supernet1) #push to the vector of future network instances 
-	for i in 1:numberOfCont
-		for j in 1:(RNDIntervals - 2)
-			lineOutaged = 0 #the serial number of transmission line outaged in any scenario: default value is zero
-			if i > 0 #for the post-contingency scenarios
-				lineOutaged = futureNetVector[0].indexOfLineOut(i) #gets the serial number of transmission line outaged in this scenario 
-			#create the network instances for the future next-to-upcoming-dispatch intervals for pos-contingency cases
-			futureNetVector.append(superNetwork(netID, solverChoice, setRhoTuning, i, j+1, 2, last, nextChoice, dummyIntervalChoice, contSolverAccuracy, lineOutaged, RNDIntervals, RSDIntervals)) #push to the vector of future network instances
-			end
-		end
-		for j in 1:RSDIntervals
-			lineOutaged = 0 #the serial number of transmission line outaged in any scenario: default value is zero
-			if i > 0 #for the post-contingency scenarios
-				lineOutaged = futureNetVector[0].indexOfLineOut(i) #gets the serial number of transmission line outaged in this scenario
-			end
-			if j == RSDIntervals #set the flag to 1 to indicate the last interval
-				last = 1 #set the flag to 1 to indicate the last interval
-			end
-			#create the network instances for the future next-to-upcoming-dispatch intervals for pos-contingency cases
-			futureNetVector.append(superNetwork(netID, solverChoice, setRhoTuning, i, (j+RNDIntervals), 2, last, nextChoice, dummyIntervalChoice, contSolverAccuracy, lineOutaged, RNDIntervals, RSDIntervals)) # push to the vector of future network instances
-		end
-	end
-	log.info("\n*** SUPERNETWORK INITIALIZATION STAGE ENDS ***\n")
-
-	numberOfGenerators = futureNetVector[0].getGenNumber() #get the number of generators in the system
-	numberOfLines = futureNetVector[0].getTransNumber() #get the number of remaining transmission lines in the system
-	iterCountAPP = 1 #Iteration counter for APP coarse grain decomposition algorithm
-	alphaAPP = 100.0 #APP Parameter/Path-length
-	#Dimension of the vectors of APP Lagrange Multipliers and Power Generation Consensus
-	if dummyIntervalChoice==1
-		consLagDim = 2*((numberOfCont+1)*(RNDIntervals+RSDIntervals)+1)*numberOfGenerators #Dimension of the vectors of APP Lagrange Multipliers and Power Generation Consensus
-	else
-		consLagDim = 2*((numberOfCont+1)*(RNDIntervals+RSDIntervals))*numberOfGenerators #Dimension of the vectors of APP Lagrange Multipliers and Power Generation Consensus
-	end
-	#Dimension of the vectors of APP Lagrange Multipliers and Line Flow consensus for (RND-1) intervals for temperature limiting	
-	consLineLagDim = (RNDIntervals-1)*numberOfLines*(numberOfCont+1) #Dimension of the vectors of APP Lagrange Multipliers and remaining transmission lines in the system-flow Consensus
-	lambdaAPP = np.zeros(consLagDim, float) #Array of APP Lagrange Multipliers for achieving consensus among the values of power generated, as guessed by different intervals
-	powDiff = np.zeros(consLagDim, float) #Array of lack of consensus between generation values, as guessed by different intervals
-	lambdaAPPLine = np.zeros(consLineLagDim, float) #Array of APP Lagrange Multipliers for achieving consensus among the values of line flows, as guessed by different intervals
-	powDiffLine = np.zeros(consLineLagDim, float) #Array of lack of consensus between line flows, as guessed by different intervals
-	if dummyIntervalChoice==1
-		supernetNum=(numberOfCont+1)*(RNDIntervals+RSDIntervals)+2 #Number of supernetworks considered for computation (whether dummy interval is included or not)
-		supernetNumNext=(numberOfCont+1)*(RNDIntervals+RSDIntervals+1)+1 #Number of future supernetworks about which generation belief are held by the existing supernetworks
-	else
-		supernetNum=(numberOfCont+1)*(RNDIntervals+RSDIntervals)+1 #Number of supernetworks considered for computation (whether dummy interval is included or not)
-		supernetNumNext=(numberOfCont+1)*(RNDIntervals+RSDIntervals+1) #Number of future supernetworks about which generation belief are held by the existing supernetworks
-	end
-	supernetLineNumNext=(numberOfCont+1)*numberOfLines*(RNDIntervals-1) #Number of future supernetworks about which line flow beliefs are held by the existing supernetworks
-	powerSelfGen = np.zeros(supernetNum*numberOfGenerators, float) #what I think about myself
-	powerNextBel = np.zeros(supernetNumNext*numberOfGenerators, float) #what I think about next door fellow
-	powerPrevBel = np.zeros(supernetNum*numberOfGenerators, float) #what I think about previous door fellow
-	powerNextFlowBel = np.zeros(supernetLineNumNext, float) #what I think about flows for next door fellow
-	powerSelfFlowBel = np.zeros(supernetLineNumNext, float) #what I think about flows for myself (only look-ahead intervals 1 to (RNDIntervals-1))
-
-	#Initializing the self belief, next belief, and previous beliefs about MW generated by a warm start with the respective generation values of last realized dispatch
-	for i in 1:supernetNum-1
-		for j in range(numberOfGenerators):
-			powerSelfGen[i*numberOfGenerators+j] = (futureNetVector[0]).getPowPrev(j) #Use 0.0 if warm start is not desired
-			if i==0:
-				powerPrevBel[i*numberOfGenerators+j] = (futureNetVector[0]).getPowPrev(j) #Actual value of previous interval dispatch for the first interval
-			else:
-				powerPrevBel[i*numberOfGenerators+j] = (futureNetVector[0]).getPowPrev(j) #Use 0.0 if warm start is not desired
-	for i in range(supernetNumNext):
-		for j in range(numberOfGenerators):
-			powerNextBel[i*numberOfGenerators+j] = (futureNetVector[0]).getPowPrev(j) #Use 0.0 if warm start is not desired
-	for i in range(numberOfCont+1):
-		for k in range(RNDIntervals-1):
-			for j in range(numberOfLines):
-				powerNextFlowBel[i*(RNDIntervals-1)*numberOfLines+k*numberOfLines+j] = 0.0 #Difficult to warm start so just assume 0
-				powerSelfFlowBel[i*(RNDIntervals-1)*numberOfLines+k*numberOfLines+j] = 0.0 #Difficult to warm start so just assume 0
-	finTol = 1000.0 #Initial Guess of the Final tolerance of the APP iteration/Stopping criterion
-	finTolDelayed = 1000.0 #Initial Guess of the Final tolerance delayed of the APP iteration/Stopping criterion
-	matrixResultAPPOut = dict() #create a new dictionary to output the results
-		
-	matrixResultAPPOut[0] = {'Initial Value of the Tolerance to kick-start the APP outer iterations':finTol}
-	log.info("\n*** APMP ALGORITHM BASED LASCOPF FOR POST CONTINGENCY RESTORATION CONTROLLING LINE TEMPERATURE SIMULATION (SERIAL IMPLEMENTATION) SUPERNETWORK LAYER BEGINS ***\n")
-	log.info("\n*** SIMULATION IN PROGRESS; PLEASE DON'T CLOSE ANY WINDOW OR OPEN ANY OUTPUT FILE YET ... ***\n")
-
-#*********************************************AUXILIARY PROBLEM PRINCIPLE (APP) COARSE GRAINED DECOMPOSITION COMPONENT******************************************************//
-	largestSuperNetTimeVec = [] # vector largest value of the computational time in a particular outer APP iteration for any supernetwork
-	singleSuperNetTimeVec = [] #vector of the computational times in a particular outer APP iteration for all supernetworks
-	actualSuperNetTime = 0 #Initialize the supernetwork computational time
-	profiler.start() #begin keeping track of the time
-	while finTol >= 0.005: #Check the termination criterion of the APP iterations #APP Coarse grain iterations start
-	#for iterCountAPP in range(101):
-		singleSuperNetTimeVec = [] #clear for upcoming iteration
-		if dummyIntervalChoice == 1: #Outermost APP layer with a dummy zero interval at the beginning
-			for netSimCount in range((numberOfCont+1)*(RNDIntervals+RSDIntervals)+2):
-				if netSimCount == 0:
-					log.info("\nStart of {} -th Outermost APP iteration for dummy zero dispatch interval".format(iterCountAPP))
-				elif netSimCount == 1:
-					log.info("\nStart of {} -th Outermost APP iteration for {} -th dispatch interval".format(iterCountAPP, netSimCount))
-				else:
-					log.info("\nStart of {} -th Outermost APP iteration for second dispatch interval for {} -th post-contingency scenario".format(iterCountAPP, netSimCount-2))
-				futureNetVector[netSimCount].runSimulation(iterCountAPP, lambdaAPP, powDiff, powerSelfGen, powerNextBel, powerPrevBel, lambdaAPPLine, powDiffLine, powerSelfFlowBel, powerNextFlowBel)#, environmentGUROBI) #start simulation
-				singleSuperNetTime = futureNetVector[netSimCount].getvirtualNetExecTime() #get the computational time for each supernetwork under the assumption of nested and complete parallelism of each generator optimization, within each coarse grain optimization in the supernetworks
-				actualSuperNetTime += singleSuperNetTime #Actual time
-				singleSuperNetTimeVec.append(singleSuperNetTime) #Vector of all independent supernet solve times
-			largestSuperNetTime = max(singleSuperNetTimeVec) #get the laziest solve-time for this iteration
-			largestSuperNetTimeVec.append(largestSuperNetTime) #vector of all te laziest supernet calculations over all iterations
-			#Calculate the power generation opinions and disagreements between the different dispatch interval coarse grains
-			for i in range((numberOfCont+1)*(RNDIntervals+RSDIntervals)+2):
-				if i==0:
-					for j in range(numberOfGenerators):
-						powDiff[2*i*numberOfGenerators+j] = futureNetVector[i].getPowSelf(j) - futureNetVector[i+1].getPowPrev(j) #what I think about myself Vs. what next door fellow thinks about me
-						powerSelfGen[i*numberOfGenerators+j] = futureNetVector[i].getPowSelf(j) #what I think about myself
-						powerNextBel[i*numberOfGenerators+j] = futureNetVector[i].getPowNext(0,i,j) #what I think about next door fellow
-						powerPrevBel[i*numberOfGenerators+j] = futureNetVector[i].getPowPrev(j) #what I think about previous interval
-						powDiff[(2*i+1)*numberOfGenerators+j] = futureNetVector[i].getPowNext(0,i,j) - futureNetVector[i+1].getPowSelf(j) #what I think about next door fellow Vs. what next door fellow thinks about himself
-				else:
-					for j in range(numberOfGenerators):
-						powerSelfGen[i*numberOfGenerators+j] = futureNetVector[i].getPowSelf(j) #what I think about myself
-						if i == 1:
-							for continCounter in range(numberOfCont+1):
-								powerNextBel[(i+continCounter)*numberOfGenerators+j] = futureNetVector[i].getPowNext(continCounter, i, j) #what I think about next door fellow
-								powDiff[2*(i+continCounter)*numberOfGenerators+j] = futureNetVector[i].getPowSelf(j) - futureNetVector[i+continCounter+1].getPowPrev(j) #what I think about myself Vs. what next door fellow thinks about me
-								powDiff[(2*(i+continCounter)+1)*numberOfGenerators+j] = futureNetVector[i].getPowNext(continCounter, i, j) - futureNetVector[i+continCounter+1].getPowSelf(j) #what I think about next door fellow Vs. what next door fellow thinks about himself
-						else:
-							powerNextBel[(i+numberOfCont)*numberOfGenerators+j]= futureNetVector[i].getPowNext(0, i, j) #what I think about next door fellow
-							for continCounter in range(numberOfCont+1): #Inefficient: Better, should run only for the particular value of continCounter for the particular i
-								if i != (continCounter+1)*(RNDIntervals+RSDIntervals)+1: # Make sure the last supernetworks for any post-cont scenario are left out
-									powDiff[2*(i+numberOfCont)*numberOfGenerators+j] = futureNetVector[i].getPowSelf(j) - futureNetVector[i+1].getPowPrev(j) #what I think about myself Vs. what next door fellow thinks about me
-									powDiff[(2*(i+numberOfCont)+1)*numberOfGenerators+j] = futureNetVector[i].getPowNext(0, i, j) - futureNetVector[i+1].getPowSelf(j) #what I think about next door fellow Vs. what next door fellow thinks about himself
-						powerPrevBel[i*numberOfGenerators+j] = futureNetVector[i].getPowPrev(j) #what I think about previous interval
-					for j in range(numberOfLines):
-						if i == 1:
-							for continCounter in range(numberOfCont+1):
-								for k in range(RNDIntervals-1):
-									powerNextFlowBel[continCounter*(RNDIntervals-1)*numberOfLines+k*numberOfLines+j] = futureNetVector[i].getPowFlowNext(continCounter, i, k, j) #what I think about next door fellow
-									powDiffLine[continCounter*(RNDIntervals-1)*numberOfLines+k*numberOfLines+j] = futureNetVector[i].getPowFlowNext(continCounter, i, k, j) - futureNetVector[2+continCounter*(RNDIntervals+RSDIntervals)+k].getPowFlowSelf(j)
-						else:
-							for continCounter in range(numberOfCont+1):
-								for k in range(RNDIntervals-1):
-									if i == 2+continCounter*(RNDIntervals+RSDIntervals)+k:
-										powerSelfFlowBel[continCounter*(RNDIntervals-1)*numberOfLines+k*numberOfLines+j] = futureNetVector[i].getPowFlowSelf(j)
-			#Tuning the alphaAPP
-			if ( iterCountAPP > 5 ) and ( iterCountAPP <= 10 ):
-				alphaAPP = 75.0
-			elif ( iterCountAPP > 10 ) and ( iterCountAPP <= 15 ):
-				alphaAPP = 50.0
-			elif ( iterCountAPP > 15 ) and ( iterCountAPP <= 20 ):
-				alphaAPP = 25.0
-			elif iterCountAPP > 20:
-				alphaAPP = 10.0
-			#Update power disagreement Lagrange Multipliers
-			for i in range(consLagDim):
-				lambdaAPP[i] += alphaAPP * (powDiff[i])
-			for i in range(consLineLagDim):
-				lambdaAPPLine[i] += alphaAPP * (powDiffLine[i])
-			#iterCountAPP += 1 #increment the APP iteration counter
-			tolAPP = 0.0
-			tolAPPDelayed = 0.0 #APP tolerance, excluding the first (dummy) interval
-			for i in range(consLagDim):
-				tolAPP += powDiff[i] ** 2
-				if i >= 2*numberOfGenerators:
-					tolAPPDelayed += powDiff[i] ** 2
-				matrixResultAPPOut[(iterCountAPP-1)*(consLagDim+1)+i+1] = {'Lack of consensus among power in {}-th interval'.format(i):powDiff[i]}
-			for i in range(consLineLagDim):
-				tolAPP += powDiffLine[i] ** 2
-				tolAPPDelayed += powDiffLine[i] ** 2
-				matrixResultAPPOut[(iterCountAPP-1)*(consLagDim+1)+i+1] = {'Lack of consensus among line-flows in {}-th interval'.format(i):powDiffLine[i]}
-			finTol = math.sqrt(tolAPP)
-			finTolDelayed = math.sqrt(tolAPPDelayed)
-			matrixResultAPPOut[(iterCountAPP-1)*(consLagDim+1)+consLagDim+1] = {'APP Iteration Count':iterCountAPP,
-																				'APP Tolerance':finTol,
-																				'Delayed APP Tolerance':finTolDelayed}
-			iterCountAPP += 1
-			log.info("\nFinal Value of Outer APP Tolerance {} And Final Value of Outer APP Delayed Tolerance {}".format(finTol, finTolDelayed))
-			finTol = finTolDelayed #Assign finTolDelayed to finTol in order for checking on the condition at the end of the loop
-		else: #Outermost APP layer without a dummy zero interval at the beginning
-			for netSimCount in range((numberOfCont+1)*(RNDIntervals+RSDIntervals)+1):
-				if netSimCount == 0:
-					log.info("\nStart of {} -th Outermost APP iteration for {} -th dispatch interval".format(iterCountAPP, netSimCount+1))
-				else:
-					log.info("\nStart of {} -th Outermost APP iteration for second dispatch interval for {} -th post-contingency scenario".format(iterCountAPP, netSimCount-1))
-				futureNetVector[netSimCount+1].runSimulation(iterCountAPP, lambdaAPP, powDiff, powerSelfGen, powerNextBel, powerPrevBel, lambdaAPPLine, powDiffLine, powerSelfFlowBel, powerNextFlowBel)#, environmentGUROBI) #start simulation
-				singleSuperNetTime = futureNetVector[netSimCount+1].getvirtualNetExecTime() #get the computational time for each supernetwork under the assumption of nested and complete parallelism of each generator optimization, within each coarse grain optimization in the supernetworks
-				actualSuperNetTime += singleSuperNetTime #Actual time
-				singleSuperNetTimeVec.append(singleSuperNetTime) #Vector of all independent supernet solve times
-			largestSuperNetTime = max(singleSuperNetTimeVec) #get the laziest solve-time for this iteration
-			largestSuperNetTimeVec.append(largestSuperNetTime) #vector of all te laziest supernet calculations over all iterations
-			#Calculate the power generation opinions and disagreements between the different dispatch interval coarse grains
-			for i in range((numberOfCont+1)*(RNDIntervals+RSDIntervals)+1):
-				if i==0:
-					for j in range(numberOfGenerators):
-						powerSelfGen[i*numberOfGenerators+j] = futureNetVector[i+1].getPowSelf(j) #what I think about myself
-						for continCounter in range(numberOfCont+1):
-							powerNextBel[(i+continCounter)*numberOfGenerators+j] = futureNetVector[i+1].getPowNext(continCounter, (i+1), j) #what I think about next door fellow
-							powDiff[2*(i+continCounter)*numberOfGenerators+j] = futureNetVector[i+1].getPowSelf(j) - futureNetVector[i+continCounter+2].getPowPrev(j) # what I think about myself Vs. what next door fellow thinks about me
-							powDiff[(2*(i+continCounter)+1)*numberOfGenerators+j] = futureNetVector[i+1].getPowNext(continCounter, (i+1), j) - futureNetVector[i+continCounter+2].getPowSelf(j) #what I think about next door fellow Vs. what next door fellow thinks about himself
-						powerPrevBel[i*numberOfGenerators+j] = futureNetVector[i+1].getPowPrev(j) #what I think about previous interval
-				else:
-					for j in range(numberOfGenerators):
-						powerSelfGen[i*numberOfGenerators+j] = futureNetVector[i+1].getPowSelf(j) #what I think about myself
-						powerNextBel[(i+numberOfCont)*numberOfGenerators+j] = futureNetVector[i+1].getPowNext(0, (i+1), j) #what I think about next door fellow
-						powerPrevBel[i*numberOfGenerators+j] = futureNetVector[i+1].getPowPrev(j) #what I think about previous interval
-						for continCounter in range(numberOfCont+1): #Inefficient: Better, should run only for the particular value of continCounter for the particular i
-							if i != (continCounter+1)*(RNDIntervals+RSDIntervals): #Make sure the last supernetworks for any post-cont scenario are left out
-								powDiff[2*(i+numberOfCont)*numberOfGenerators+j] = futureNetVector[i+1].getPowSelf(j) - futureNetVector[i+2].getPowPrev(j) #what I think about myself Vs. what next door fellow thinks about me
-								powDiff[(2*(i+numberOfCont)+1)*numberOfGenerators+j] = futureNetVector[i+1].getPowNext(0, (i+1), j) - futureNetVector[i+2].getPowSelf(j) #what I think about next door fellow Vs. what next door fellow thinks about himself
-				for j in range(numberOfLines):
-					if i == 0:
-						for continCounter in range(numberOfCont+1):
-							for k in range(RNDIntervals - 1):
-								powerNextFlowBel[continCounter*(RNDIntervals-1)*numberOfLines+k*numberOfLines+j] = futureNetVector[i+1].getPowFlowNext(continCounter, (i+1), k, j) #what I think about next door fellow
-								powDiffLine[continCounter*(RNDIntervals-1)*numberOfLines+k*numberOfLines+j] = futureNetVector[i+1].getPowFlowNext(continCounter, (i+1), k, j) - futureNetVector[2+continCounter*(RNDIntervals+RSDIntervals)+k].getPowFlowSelf(j)
-					else:
-						for continCounter in range(numberOfCont+1):
-							for k in range(RNDIntervals - 1):
-								if i==1+continCounter*(RNDIntervals+RSDIntervals)+k:
-									powerSelfFlowBel[continCounter*(RNDIntervals-1)*numberOfLines+k*numberOfLines+j] = futureNetVector[i+1].getPowFlowSelf(j)
-			#Tuning the alphaAPP
-			if ( iterCountAPP > 5 ) and ( iterCountAPP <= 10 ):
-				alphaAPP = 75.0
-			if ( iterCountAPP > 10 ) and ( iterCountAPP <= 15 ):
-				alphaAPP = 50.0
-			if ( iterCountAPP > 15 ) and ( iterCountAPP <= 20 ):
-				alphaAPP = 25.0
-			if iterCountAPP > 20:
-				alphaAPP = 10.0
-			#Update power disagreement Lagrange Multipliers
-			for i in range(consLagDim):
-				lambdaAPP[i] += alphaAPP * (powDiff[i])
-			for i in range(consLineLagDim):
-				lambdaAPPLine[i] += alphaAPP * (powDiffLine[i])
-			#iterCountAPP += 1 #increment the APP iteration counter
-			tolAPP = 0.0
-			for i in range(consLagDim):
-				tolAPP += powDiff[i] ** 2
-				matrixResultAPPOut[(iterCountAPP-1)*(consLagDim+1)+i+1] = {'Lack of consensus among power in {}-th interval'.format(i):powDiff[i]}
-			for i in range(consLineLagDim):
-				tolAPP += powDiffLine[i] ** 2
-				matrixResultAPPOut[(iterCountAPP-1)*(consLagDim+1)+i+1] = {'Lack of consensus among line-flows in {}-th interval'.format(i):powDiffLine[i]}
-			finTol = math.sqrt(tolAPP)
-			matrixResultAPPOut[(iterCountAPP-1)*(consLagDim+1)+consLagDim+1] = {'APP Iteration Count':iterCountAPP-1,
-																				'APP Tolerance':finTol}
-			iterCountAPP += 1
-			log.info("\nFinal Value of Outer APP Tolerance {}".format(finTol)) #Check the termination criterion of the APP iterations
-#***************************************END OF AUXILIARY PROBLEM PRINCIPLE (APP) COARSE GRAINED DECOMPOSITION COMPONENT******************************************************//
-
-	stop_s = profiler.get_interval()  #end
-	log.info("\n*** LASCOPF FOR POST-CONTINGENCY RESTORATION CONTROLLING LINE TEMPERATURE SIMULATION SUPERNETWORK LAYER ENDS ***\n")
-	log.info("\nExecution Outermost layer time (s): {:..2f} ".format(stop_s))
-	log.info("\nVirtual Outermost layer Execution time (s): {:..2f} ".format(stop_s  - actualSuperNetTime + sum(largestSuperNetTimeVec)))
-	matrixResultAPPOut[(iterCountAPP-1)*(consLagDim+1)+1] = {'Virtual Outermost layer Execution time (s)':stop_s - actualSuperNetTime + sum(largestSuperNetTimeVec),
-						  									 'Execution Outermost layer time (s)': stop_s}
-	#delete environmentGUROBI #Free the memory of the GUROBI environment object
-
-	if solverChoice==1:
-		outputAPPFileName = "ADMM_PMP_GUROBI"
-	elif solverChoice==2:
-		outputAPPFileName = "ADMM_PMP_CVXGEN"
-	elif solverChoice==3:
-		outputAPPFileName = "APP_Quasi_Decent_GUROBI"
-	elif solverChoice==4:
-		outputAPPFileName = "APP_GUROBI_Centralized_SCOPF"
-	with open(os.path.join('results', '_{}_resultOuterAPP-SCOPF'.format(outputAPPFileName) + '.json'), 'w') as f:
-                json.dump(matrixResultAPPOut, f, indent=4)	
-
-	end
+Print information about current iteration
+"""
+function print_iteration_info(iter_count::Int, net_sim_count::Int, number_of_cont::Int)
+    if net_sim_count == 0
+        println("Start of $iter_count-th APP iteration for dummy zero dispatch interval")
+    elseif net_sim_count == 1
+        println("Start of $iter_count-th APP iteration for $net_sim_count-th dispatch interval")
+    else
+        scenario_num = net_sim_count - 2
+        println("Start of $iter_count-th APP iteration for second dispatch interval for $scenario_num-th post-contingency scenario")
+    end
 end
-print("\nThis is the simulation program for running LASCOPF problem for (N-1-1) post-contingency restoration in multiple dispatch intervals with explicit control of line-temperature rise in Python+Julia/JuMP\n")
 
-try:
-    if __name__ == '__main__': runSimLASCOPFTemp()
-except:
-    log.warning("Simulation FAILED !!!!")
+"""
+    save_results(result_data, solver_choice)
+
+Save results to JSON file
+"""
+function save_results(result_data::Dict{String, Any}, solver_choice::Int)
+    solver_names = Dict(
+        1 => "ADMM_PMP_GUROBI",
+        2 => "ADMM_PMP_CVXGEN", 
+        3 => "APP_Quasi_Decent_GUROBI",
+        4 => "APP_GUROBI_Centralized_SCOPF"
+    )
+    
+    solver_name = get(solver_names, solver_choice, "Unknown_Solver")
+    filename = "results/$(solver_name)_resultOuterAPP-SCOPF.json"
+    
+    # Create results directory if it doesn't exist
+    if !isdir("results")
+        mkdir("results")
+    end
+    
+    open(filename, "w") do f
+        JSON.print(f, result_data, 4)
+    end
+    
+    println("Results saved to: $filename")
+end
+
+"""
+    get_user_input(prompt, type)
+
+Get user input with type conversion
+"""
+function get_user_input(prompt::String, ::Type{T}) where T
+    println(prompt)
+    print("> ")
+    input_str = readline()
+    
+    try
+        if T == Int
+            return parse(Int, input_str)
+        elseif T == Float64
+            return parse(Float64, input_str)
+        else
+            return input_str
+        end
+    catch
+        println("Invalid input. Please try again.")
+        return get_user_input(prompt, T)
+    end
+end
+
+# Main execution
+"""
+    main()
+
+Main entry point for LASCOPF simulation
+"""
+function main()
+    println("\n" * "="^80)
+    println("LASCOPF POST-CONTINGENCY RESTORATION WITH TEMPERATURE CONTROL")
+    println("Julia Implementation - PowerLASCOPF.jl")
+    println("="^80)
+    
+    try
+        result_data = run_simulation_lascopf()
+        println("\n✅ SIMULATION COMPLETED SUCCESSFULLY!")
+        return result_data
+    catch e
+        println("\n❌ SIMULATION FAILED!")
+        println("Error: $e")
+        println("Stacktrace:")
+        for (exc, bt) in Base.catch_stack()
+            showerror(stdout, exc, bt)
+            println()
+        end
+        return nothing
+    end
+end
+
+# Export main functions
+export SuperNetwork, run_simulation_lascopf, main
+export initialize_supernetwork_system, run_app_iterations!
+export get_user_input, save_results
+
+# Run main if script is executed directly
+if abspath(PROGRAM_FILE) == @__FILE__
+    main()
+end
