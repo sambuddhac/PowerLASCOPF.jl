@@ -40,7 +40,7 @@ branches5_dc(nodes5) = [
         2.0,
         (min = -0.7, max = 0.7),
     ),
-    HVDCLine(
+    PSY.HVDCLine(
         "DCL2",
         true,
         0.0,
@@ -102,7 +102,7 @@ branches5_dc(nodes5) = [
 ];
 
 branches5(nodes5) = [
-    Line(
+    PSY.Line(
         "1",
         true,
         0.0,
@@ -114,7 +114,7 @@ branches5(nodes5) = [
         2.0,
         (min = -0.7, max = 0.7),
     ),
-    Line(
+    PSY.Line(
         "2",
         true,
         0.0,
