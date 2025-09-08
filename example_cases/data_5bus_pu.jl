@@ -11,6 +11,12 @@ include("../src/components/Node.jl")
 include("../src/components/transmission_line.jl")
 include("../src/models/solver_models/solver_model_types.jl")
 
+# Include POMDP components
+include("../src/pomdp/PowerLASCOPFPOMDP.jl")
+include("../src/pomdp/belief_updater.jl")
+include("../src/pomdp/policy_interface.jl")
+include("../src/pomdp/utils.jl")
+
 DayAhead = collect(
     DateTime("1/1/2024  0:00:00", "d/m/y  H:M:S"):Hour(1):DateTime(
         "1/1/2024  23:00:00",
@@ -1518,4 +1524,108 @@ function update_node_averages!(node::Node{PSY.Bus})
     # This is a simplified version - full implementation would average all connected devices
     node.P_net = 0.0  # Placeholder
     node.theta_node = 0.0  # Placeholder
+end
+
+"""
+Create POMDP-integrated 5-bus system
+"""
+function create_5bus_pomdp_system()
+    # Create base system
+    system_data = create_5bus_powerlascopf_system()
+    
+    # Create POMDP
+    pomdp = create_pomdp_from_system_data(system_data)
+    
+    # Create belief updater
+    updater = PowerSystemBeliefUpdater(
+        pomdp,
+        Dict("load" => 0.01, "renewable" => 0.02),  # process noise
+        Dict("load" => 0.005, "renewable" => 0.01, "voltage" => 0.01, "flow" => 0.02),  # measurement noise
+        100,  # n_particles
+        0.5   # resampling threshold
+    )
+    
+    # Create policies
+    mpc_policy = MPCPolicy(pomdp, horizon=6, receding=1)
+    robust_policy = RobustPolicy(pomdp, conservatism=0.1)
+    
+    return Dict(
+        "pomdp" => pomdp,
+        "updater" => updater,
+        "mpc_policy" => mpc_policy,
+        "robust_policy" => robust_policy,
+        "system_data" => system_data
+    )
+end
+
+"""
+Run POMDP simulation for 5-bus system
+"""
+function run_pomdp_simulation(n_steps::Int = 24)
+    # Create system
+    pomdp_system = create_5bus_pomdp_system()
+    pomdp = pomdp_system["pomdp"]
+    updater = pomdp_system["updater"]
+    policy = pomdp_system["mpc_policy"]
+    
+    # Initialize belief
+    initial_belief = POMDPTools.initialize_belief(updater, nothing)
+    
+    # Simulation loop
+    belief = initial_belief
+    total_reward = 0.0
+    states = []
+    actions = []
+    observations = []
+    
+    # Create initial state
+    current_state = PowerSystemState(
+        trues(length(pomdp.transmission_lines)),  # All lines operational
+        [3.0, 3.0, 4.0],  # Load demands
+        [0.8, 0.6],       # Renewable forecasts
+        ones(length(pomdp.transmission_lines)),  # Line capacities
+        zeros(length(pomdp.generators)),  # Generator outputs
+        ones(length(pomdp.nodes)),       # Node voltages
+        zeros(length(pomdp.nodes)),      # Node angles
+        1, 1,  # Time step, scenario
+        Dict{String, Distribution}()
+    )
+    
+    for step in 1:n_steps
+        # Select action using policy
+        action = POMDPs.action(policy, belief)
+        
+        # Simulate system response
+        next_state_dist = POMDPs.transition(pomdp, current_state, action)
+        next_state = rand(next_state_dist)
+        
+        # Get observation
+        obs_dist = POMDPs.observation(pomdp, action, next_state)
+        observation = rand(obs_dist)
+        
+        # Calculate reward
+        reward = POMDPs.reward(pomdp, current_state, action, next_state)
+        total_reward += reward
+        
+        # Update belief
+        belief = POMDPs.update(updater, belief, action, observation)
+        
+        # Store results
+        push!(states, current_state)
+        push!(actions, action)
+        push!(observations, observation)
+        
+        # Move to next state
+        current_state = next_state
+        
+        println("Step $step: Reward = $reward, Total = $total_reward")
+    end
+    
+    return Dict(
+        "total_reward" => total_reward,
+        "states" => states,
+        "actions" => actions,
+        "observations" => observations,
+        "final_belief" => belief
+    )
 end
