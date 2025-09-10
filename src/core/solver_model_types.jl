@@ -211,10 +211,41 @@ end
     Pg_next_nu::Array{Float64} = Float64[] # Previous iterates of the corresponding decision variable values
     Pg_prev_nu::Float64 = 0.0 # Generator's output in the previous interval
     A::Float64 = 0.0 # Disagreement between the generator output values for the previous interval by the present and the previous interval, at the previous iteration
-    B::Float64 = 0.0 # Cumulative disagreement between the generator output values for the previous and next intervals by the present, next, and the previous intervals, at the previous iteration
-    D::Float64 = 0.0 # Disagreement between the generator output values for the next interval by the present and the next interval, at the previous iteration
-    BSC::Float64 = 0.0 # Cumulative disagreement between the generator output values for the previous and next intervals by the present, next, and the previous intervals, at the previous iteration
+    B::Array{Float6} = Float64[] # Cumulative disagreement between the generator output values for the previous and next intervals by the present, next, and the previous intervals, at the previous iteration
+    D::Array{Float64} = Float64[] # Disagreement between the generator output values for the next interval by the present and the next interval, at the previous iteration
+    BSC::Array{Float64} = Float64[] # Cumulative disagreement between the generator output values for the previous and next intervals by the present, next, and the previous intervals, at the previous iteration
     cont_count::Int64 = 0 #Number of contingency scenarios
+end
+
+# Simplified constructor for GenFirstBaseIntervalDZ that provides compatibility with existing code
+function GenFirstBaseIntervalDZ(lambda_1, lambda_2, lambda_3, lambda_4, B, D, A, BSC, cont_count; 
+                              rho = 1.0,
+                              beta = 1.0,
+                              beta_inner = 1.0,
+                              gamma = 1.0,
+                              gamma_sc = 1.0,
+                              lambda_1_sc = isempty(lambda_1) ? Float64[] : zeros(Float64, length(lambda_1)),
+                              Pg_N_init = 0.0,
+                              Pg_N_avg = 0.0,
+                              thetag_N_avg = 0.0,
+                              ug_N = 0.0,
+                              vg_N = 0.0,
+                              Vg_N_avg = 0.0,
+                              Pg_nu = 0.0,
+                              Pg_nu_inner = 0.0,
+                              Pg_next_nu = isempty(lambda_1) ? Float64[] : zeros(Float64, length(lambda_1)),
+                              Pg_prev_nu = 0.0)
+    return GenFirstBaseIntervalDZ(rho=rho, beta=beta, beta_inner=beta_inner, gamma=gamma, gamma_sc=gamma_sc,
+                                lambda_1=lambda_1, lambda_2=lambda_2, lambda_3=lambda_3, lambda_4=lambda_4,
+                                B=B, D=D, A=A, BSC=BSC, cont_count=cont_count, lambda_1_sc=lambda_1_sc,
+                                Pg_N_init=Pg_N_init, Pg_N_avg=Pg_N_avg, thetag_N_avg=thetag_N_avg,
+                                ug_N=ug_N, vg_N=vg_N, Vg_N_avg=Vg_N_avg, Pg_nu=Pg_nu, Pg_nu_inner=Pg_nu_inner,
+                                Pg_next_nu=Pg_next_nu, Pg_prev_nu=Pg_prev_nu)
+end
+
+# Alternative constructor for Nothing input
+function GenFirstBaseIntervalDZ(::Nothing)
+    return GenFirstBaseIntervalDZ()
 end
 
 # Simplified constructor for GenFirstBaseIntervalDZ that provides compatibility with existing code
@@ -408,64 +439,7 @@ subject to
   RgMin <= Pg-PgPrev <= RgMax
 end
 """
-@kwdef mutable struct GenFirstBaseIntervalDZ <: GenIntervals
-    rho::Float64 = 1.0 # ADMM tuning parameter
-    beta::Float64 = 1.0 # APP tuning parameter for across the dispatch intervals
-    beta_inner::Float64 = 1.0 # APP tuning parameter
-    gamma::Float64 = 1.0 # APP tuning parameter for across the dispatch intervals
-    gamma_sc::Float64 = 1.0 # APP tuning parameter
-    lambda_1::Array{Float64} = Float64[] # APP Lagrange Multiplier corresponding to the complementary slackness
-    lambda_2::Array{Float64} = Float64[] # APP Lagrange Multiplier corresponding to the complementary slackness 
-    lambda_3::Float64 = 0.0
-    lambda_4::Float64 = 0.0 # APP Lagrange Multiplier corresponding to the complementary slackness
-    lambda_1_sc::Array{Float64} = Float64[] # APP Lagrange Multiplier corresponding to the complementary slackness
-    Pg_N_init::Float64 = 0.0 # Generator injection from last iteration for base case and contingencies
-    Pg_N_avg::Float64 = 0.0 # Net average power from last iteration for base case and contingencies
-    thetag_N_avg::Float64 = 0.0 # Net average bus voltage angle from last iteration for base case and contingencies
-    ug_N::Float64 = 0.0 # Dual variable for net power balance for base case and contingencies
-    vg_N::Float64 = 0.0 #  Dual variable for net angle balance for base case and contingencies
-    Vg_N_avg::Float64 = 0.0 # Average of dual variable for net angle balance from last to last iteration for base case and contingencies
-    Pg_nu::Float64 = 0.0 # Previous iterates of the corresponding decision variable values
-    Pg_nu_inner::Float64 = 0.0 # Previous iterates of the corresponding decision variable values
-    Pg_next_nu::Array{Float64} = Float64[] # Previous iterates of the corresponding decision variable values
-    Pg_prev_nu::Float64 = 0.0 # Generator's output in the previous interval
-    A::Float64 = 0.0 # Disagreement between the generator output values for the previous interval by the present and the previous interval, at the previous iteration
-    B::Float64 = 0.0 # Cumulative disagreement between the generator output values for the previous and next intervals by the present, next, and the previous intervals, at the previous iteration
-    D::Float64 = 0.0 # Disagreement between the generator output values for the next interval by the present and the next interval, at the previous iteration
-    BSC::Float64 = 0.0 # Cumulative disagreement between the generator output values for the previous and next intervals by the present, next, and the previous intervals, at the previous iteration
-    cont_count::Int64 = 0 #Number of contingency scenarios
-end
 
-# Simplified constructor for GenFirstBaseIntervalDZ that provides compatibility with existing code
-function GenFirstBaseIntervalDZ(lambda_1, lambda_2, lambda_3, lambda_4, B, D, A, BSC, cont_count; 
-                              rho = 1.0,
-                              beta = 1.0,
-                              beta_inner = 1.0,
-                              gamma = 1.0,
-                              gamma_sc = 1.0,
-                              lambda_1_sc = isempty(lambda_1) ? Float64[] : zeros(Float64, length(lambda_1)),
-                              Pg_N_init = 0.0,
-                              Pg_N_avg = 0.0,
-                              thetag_N_avg = 0.0,
-                              ug_N = 0.0,
-                              vg_N = 0.0,
-                              Vg_N_avg = 0.0,
-                              Pg_nu = 0.0,
-                              Pg_nu_inner = 0.0,
-                              Pg_next_nu = isempty(lambda_1) ? Float64[] : zeros(Float64, length(lambda_1)),
-                              Pg_prev_nu = 0.0)
-    return GenFirstBaseIntervalDZ(rho=rho, beta=beta, beta_inner=beta_inner, gamma=gamma, gamma_sc=gamma_sc,
-                                lambda_1=lambda_1, lambda_2=lambda_2, lambda_3=lambda_3, lambda_4=lambda_4,
-                                B=B, D=D, A=A, BSC=BSC, cont_count=cont_count, lambda_1_sc=lambda_1_sc,
-                                Pg_N_init=Pg_N_init, Pg_N_avg=Pg_N_avg, thetag_N_avg=thetag_N_avg,
-                                ug_N=ug_N, vg_N=vg_N, Vg_N_avg=Vg_N_avg, Pg_nu=Pg_nu, Pg_nu_inner=Pg_nu_inner,
-                                Pg_next_nu=Pg_next_nu, Pg_prev_nu=Pg_prev_nu)
-end
-
-# Alternative constructor for Nothing input
-function GenFirstBaseIntervalDZ(::Nothing)
-    return GenFirstBaseIntervalDZ()
-end
 
 """
 dimensions
@@ -513,29 +487,6 @@ subject to
 end
 ​
 """
-@kwdef mutable struct GenFirstContInterval <: GenIntervals
-    rho::Float64 = 1.0 # ADMM tuning parameter
-    beta::Float64 = 1.0 # APP tuning parameter for across the dispatch intervals
-    beta_inner::Float64 = 1.0 # APP tuning parameter
-    gamma::Float64 = 1.0 # APP tuning parameter for across the dispatch intervals
-    gamma_sc::Float64 = 1.0 # APP tuning parameter
-    lambda_1_sc::Float64 = 0.0 # APP Lagrange Multiplier corresponding to the complementary slackness
-    lambda_1::Array{Float64} = Float64[]
-    lambda_2::Array{Float64} = Float64[] # APP Lagrange Multiplier corresponding to the complementary slackness
-    B::Array{Float64} = Float64[] # Disagreement between the generator output values for the previous interval by the present and the previous interval, at the previous iteration
-    D::Array{Float64} = Float64[] # Cumulative disagreement between the generator output values for the previous and next intervals by the present, next, and the previous intervals, at the previous iteration
-    BSC::Float64 = 0.0 # Cumulative disagreement between the generator output values for the previous and next intervals by the present, next, and the previous intervals, at the previous iteration
-    Pg_N_init::Float64 = 0.0 # Generator injection from last iteration for base case and contingencies
-    Pg_N_avg::Float64 = 0.0 # Net average power from last iteration for base case and contingencies
-    thetag_N_avg::Float64 = 0.0 # Net average bus voltage angle from last iteration for base case and contingencies
-    ug_N::Float64 = 0.0 # Dual variable for net power balance for base case and contingencies
-    vg_N::Float64 = 0.0 #  Dual variable for net angle balance for base case and contingencies
-    Vg_N_avg::Float64 = 0.0 # Average of dual variable for net angle balance from last to last iteration for base case and contingencies
-    Pg_nu::Float64 = 0.0 # Previous iterates of the corresponding decision variable values
-    Pg_nu_inner::Float64 = 0.0 # Previous iterates of the corresponding decision variable values
-    Pg_next_nu::Array{Float64} = Float64[] # Previous iterates of the corresponding decision variable values
-    Pg_prev::Float64 = 0.0 # Generator's output in the previous interval
-end
 
 # Simplified constructor for GenFirstContInterval that provides compatibility with existing code
 function GenFirstContInterval(lambda_1, lambda_2, B, D, BSC; 
@@ -627,64 +578,6 @@ subject to
   RgMin <= Pg-PgPrev <= RgMax
 end
 """
-@kwdef mutable struct GenFirstBaseIntervalDZ <: GenIntervals
-    rho::Float64 = 1.0 # ADMM tuning parameter
-    beta::Float64 = 1.0 # APP tuning parameter for across the dispatch intervals
-    beta_inner::Float64 = 1.0 # APP tuning parameter
-    gamma::Float64 = 1.0 # APP tuning parameter for across the dispatch intervals
-    gamma_sc::Float64 = 1.0 # APP tuning parameter
-    lambda_1::Array{Float64} = Float64[] # APP Lagrange Multiplier corresponding to the complementary slackness
-    lambda_2::Array{Float64} = Float64[] # APP Lagrange Multiplier corresponding to the complementary slackness 
-    lambda_3::Float64 = 0.0 # APP Lagrange Multiplier corresponding to the complementary slackness
-    lambda_4::Float64 = 0.0 # APP Lagrange Multiplier corresponding to the complementary slackness
-    lambda_1_sc::Array{Float64} = Float64[] # APP Lagrange Multiplier corresponding to the complementary slackness
-    Pg_N_init::Float64 = 0.0 # Generator injection from last iteration for base case and contingencies
-    Pg_N_avg::Float64 = 0.0 # Net average power from last iteration for base case and contingencies
-    thetag_N_avg::Float64 = 0.0 # Net average bus voltage angle from last iteration for base case and contingencies
-    ug_N::Float64 = 0.0 # Dual variable for net power balance for base case and contingencies
-    vg_N::Float64 = 0.0 #  Dual variable for net angle balance for base case and contingencies
-    Vg_N_avg::Float64 = 0.0 # Average of dual variable for net angle balance from last to last iteration for base case and contingencies
-    Pg_nu::Float64 = 0.0 # Previous iterates of the corresponding decision variable values
-    Pg_nu_inner::Float64 = 0.0 # Previous iterates of the corresponding decision variable values
-    Pg_next_nu::Array{Float64} = Float64[] # Previous iterates of the corresponding decision variable values
-    Pg_prev_nu::Float64 = 0.0 # Generator's output in the previous interval
-    A::Float64 = 0.0 # Disagreement between the generator output values for the previous interval by the present and the previous interval, at the previous iteration
-    B::Float64 = 0.0 # Cumulative disagreement between the generator output values for the previous and next intervals by the present, next, and the previous intervals, at the previous iteration
-    D::Float64 = 0.0 # Disagreement between the generator output values for the next interval by the present and the next interval, at the previous iteration
-    BSC::Float64 = 0.0 # Cumulative disagreement between the generator output values for the previous and next intervals by the present, next, and the previous intervals, at the previous iteration
-    cont_count::Int64 = 0 #Number of contingency scenarios
-end
-
-# Simplified constructor for GenFirstBaseIntervalDZ that provides compatibility with existing code
-function GenFirstBaseIntervalDZ(lambda_1, lambda_2, lambda_3, lambda_4, B, D, A, BSC, cont_count; 
-                              rho = 1.0,
-                              beta = 1.0,
-                              beta_inner = 1.0,
-                              gamma = 1.0,
-                              gamma_sc = 1.0,
-                              lambda_1_sc = isempty(lambda_1) ? Float64[] : zeros(Float64, length(lambda_1)),
-                              Pg_N_init = 0.0,
-                              Pg_N_avg = 0.0,
-                              thetag_N_avg = 0.0,
-                              ug_N = 0.0,
-                              vg_N = 0.0,
-                              Vg_N_avg = 0.0,
-                              Pg_nu = 0.0,
-                              Pg_nu_inner = 0.0,
-                              Pg_next_nu = isempty(lambda_1) ? Float64[] : zeros(Float64, length(lambda_1)),
-                              Pg_prev_nu = 0.0)
-    return GenFirstBaseIntervalDZ(rho=rho, beta=beta, beta_inner=beta_inner, gamma=gamma, gamma_sc=gamma_sc,
-                                lambda_1=lambda_1, lambda_2=lambda_2, lambda_3=lambda_3, lambda_4=lambda_4,
-                                B=B, D=D, A=A, BSC=BSC, cont_count=cont_count, lambda_1_sc=lambda_1_sc,
-                                Pg_N_init=Pg_N_init, Pg_N_avg=Pg_N_avg, thetag_N_avg=thetag_N_avg,
-                                ug_N=ug_N, vg_N=vg_N, Vg_N_avg=Vg_N_avg, Pg_nu=Pg_nu, Pg_nu_inner=Pg_nu_inner,
-                                Pg_next_nu=Pg_next_nu, Pg_prev_nu=Pg_prev_nu)
-end
-
-# Alternative constructor for Nothing input
-function GenFirstBaseIntervalDZ(::Nothing)
-    return GenFirstBaseIntervalDZ()
-end
 
 """
 dimensions
@@ -732,29 +625,6 @@ subject to
 end
 ​
 """
-@kwdef mutable struct GenFirstContInterval <: GenIntervals
-    rho::Float64 = 1.0 # ADMM tuning parameter
-    beta::Float64 = 1.0 # APP tuning parameter for across the dispatch intervals
-    beta_inner::Float64 = 1.0 # APP tuning parameter
-    gamma::Float64 = 1.0 # APP tuning parameter for across the dispatch intervals
-    gamma_sc::Float64 = 1.0 # APP tuning parameter
-    lambda_1_sc::Float64 = 0.0 # APP Lagrange Multiplier corresponding to the complementary slackness
-    lambda_1::Array{Float64} = Float64[]
-    lambda_2::Array{Float64} = Float64[] # APP Lagrange Multiplier corresponding to the complementary slackness
-    B::Array{Float64} = Float64[] # Disagreement between the generator output values for the previous interval by the present and the previous interval, at the previous iteration
-    D::Array{Float64} = Float64[] # Cumulative disagreement between the generator output values for the previous and next intervals by the present, next, and the previous intervals, at the previous iteration
-    BSC::Float64 = 0.0 # Cumulative disagreement between the generator output values for the previous and next intervals by the present, next, and the previous intervals, at the previous iteration
-    Pg_N_init::Float64 = 0.0 # Generator injection from last iteration for base case and contingencies
-    Pg_N_avg::Float64 = 0.0 # Net average power from last iteration for base case and contingencies
-    thetag_N_avg::Float64 = 0.0 # Net average bus voltage angle from last iteration for base case and contingencies
-    ug_N::Float64 = 0.0 # Dual variable for net power balance for base case and contingencies
-    vg_N::Float64 = 0.0 #  Dual variable for net angle balance for base case and contingencies
-    Vg_N_avg::Float64 = 0.0 # Average of dual variable for net angle balance from last to last iteration for base case and contingencies
-    Pg_nu::Float64 = 0.0 # Previous iterates of the corresponding decision variable values
-    Pg_nu_inner::Float64 = 0.0 # Previous iterates of the corresponding decision variable values
-    Pg_next_nu::Array{Float64} = Float64[] # Previous iterates of the corresponding decision variable values
-    Pg_prev::Float64 = 0.0 # Generator's output in the previous interval
-end
 
 # Simplified constructor for GenFirstContInterval that provides compatibility with existing code
 function GenFirstContInterval(lambda_1, lambda_2, B, D, BSC; 
@@ -846,33 +716,6 @@ subject to
   RgMin <= Pg-PgPrev <= RgMax
 end
 """
-@kwdef mutable struct GenFirstBaseIntervalDZ <: GenIntervals
-    rho::Float64 = 1.0 # ADMM tuning parameter
-    beta::Float64 = 1.0 # APP tuning parameter for across the dispatch intervals
-    beta_inner::Float64 = 1.0 # APP tuning parameter
-    gamma::Float64 = 1.0 # APP tuning parameter for across the dispatch intervals
-    gamma_sc::Float64 = 1.0 # APP tuning parameter
-    lambda_1::Array{Float64} = Float64[] # APP Lagrange Multiplier corresponding to the complementary slackness
-    lambda_2::Array{Float64} = Float64[] # APP Lagrange Multiplier corresponding to the complementary slackness 
-    lambda_3::Float64 = 0.0 # APP Lagrange Multiplier corresponding to the complementary slackness
-    lambda_4::Float64 = 0.0 # APP Lagrange Multiplier corresponding to the complementary slackness
-    lambda_1_sc::Array{Float64} = Float64[] # APP Lagrange Multiplier corresponding to the complementary slackness
-    Pg_N_init::Float64 = 0.0 # Generator injection from last iteration for base case and contingencies
-    Pg_N_avg::Float64 = 0.0 # Net average power from last iteration for base case and contingencies
-    thetag_N_avg::Float64 = 0.0 # Net average bus voltage angle from last iteration for base case and contingencies
-    ug_N::Float64 = 0.0 # Dual variable for net power balance for base case and contingencies
-    vg_N::Float64 = 0.0 #  Dual variable for net angle balance for base case and contingencies
-    Vg_N_avg::Float64 = 0.0 # Average of dual variable for net angle balance from last to last iteration for base case and contingencies
-    Pg_nu::Float64 = 0.0 # Previous iterates of the corresponding decision variable values
-    Pg_nu_inner::Float64 = 0.0 # Previous iterates of the corresponding decision variable values
-    Pg_next_nu::Array{Float64} = Float64[] # Previous iterates of the corresponding decision variable values
-    Pg_prev_nu::Float64 = 0.0 # Generator's output in the previous interval
-    A::Float64 = 0.0 # Disagreement between the generator output values for the previous interval by the present and the previous interval, at the previous iteration
-    B::Float64 = 0.0 # Cumulative disagreement between the generator output values for the previous and next intervals by the present, next, and the previous intervals, at the previous iteration
-    D::Float64 = 0.0 # Disagreement between the generator output values for the next interval by the present and the next interval, at the previous iteration
-    BSC::Float64 = 0.0 # Cumulative disagreement between the generator output values for the previous and next intervals by the present, next, and the previous intervals, at the previous iteration
-    cont_count::Int64 = 0 #Number of contingency scenarios
-end
 
 # Simplified constructor for GenFirstBaseIntervalDZ that provides compatibility with existing code
 function GenFirstBaseIntervalDZ(lambda_1, lambda_2, lambda_3, lambda_4, B, D, A, BSC, cont_count; 
@@ -950,29 +793,6 @@ subject to
   RgMin <= Pg-PgPrev <= RgMax
 end
 """
-@kwdef mutable struct GenFirstContInterval <: GenIntervals
-    rho::Float64 = 1.0 # ADMM tuning parameter
-    beta::Float64 = 1.0 # APP tuning parameter for across the dispatch intervals
-    beta_inner::Float64 = 1.0 # APP tuning parameter
-    gamma::Float64 = 1.0 # APP tuning parameter for across the dispatch intervals
-    gamma_sc::Float64 = 1.0 # APP tuning parameter
-    lambda_1_sc::Float64 = 0.0 # APP Lagrange Multiplier corresponding to the complementary slackness
-    lambda_1::Array{Float64} = Float64[]
-    lambda_2::Array{Float64} = Float64[] # APP Lagrange Multiplier corresponding to the complementary slackness
-    B::Array{Float64} = Float64[] # Disagreement between the generator output values for the previous interval by the present and the previous interval, at the previous iteration
-    D::Array{Float64} = Float64[] # Cumulative disagreement between the generator output values for the previous and next intervals by the present, next, and the previous intervals, at the previous iteration
-    BSC::Float64 = 0.0 # Cumulative disagreement between the generator output values for the previous and next intervals by the present, next, and the previous intervals, at the previous iteration
-    Pg_N_init::Float64 = 0.0 # Generator injection from last iteration for base case and contingencies
-    Pg_N_avg::Float64 = 0.0 # Net average power from last iteration for base case and contingencies
-    thetag_N_avg::Float64 = 0.0 # Net average bus voltage angle from last iteration for base case and contingencies
-    ug_N::Float64 = 0.0 # Dual variable for net power balance for base case and contingencies
-    vg_N::Float64 = 0.0 #  Dual variable for net angle balance for base case and contingencies
-    Vg_N_avg::Float64 = 0.0 # Average of dual variable for net angle balance from last to last iteration for base case and contingencies
-    Pg_nu::Float64 = 0.0 # Previous iterates of the corresponding decision variable values
-    Pg_nu_inner::Float64 = 0.0 # Previous iterates of the corresponding decision variable values
-    Pg_next_nu::Array{Float64} = Float64[] # Previous iterates of the corresponding decision variable values
-    Pg_prev::Float64 = 0.0 # Generator's output in the previous interval
-end
 
 # Simplified constructor for GenFirstContInterval that provides compatibility with existing code
 function GenFirstContInterval(lambda_1, lambda_2, B, D, BSC; 
@@ -1243,15 +1063,6 @@ function regularization_term(interval::GenLastBaseInterval, Pg, PgPrev, Thetag)
 end
 
 """
-Generator Last Contingency Interval for final dispatch interval in contingency scenarios
-"""
-@kwdef mutable struct GenLastContInterval <: GenIntervals
-    Pg::Float64 # Generator real power output
-    PgNext::Float64 # Generator's belief about its output in the next interval
-    thetag::Float64 # Generator bus angle for base case
-end
-
-"""
 mutable struct GenInterRNDInterval <: GenIntervals
     Pg::Float64 # Generator real power output
     PgNext::Float64 # Generator's belief about its output in the next interval
@@ -1458,34 +1269,6 @@ function regularization_term(interval::GenFirstContIntervalDZ, Pg, PgNext, PgPre
     add_to_expression!(reg_term, interval.rho/2, angle_consensus, angle_consensus)
     
     return reg_term
-end
-
-"""
-Generator Last Base Interval for final dispatch interval in base case scenarios
-"""
-@kwdef mutable struct GenLastBaseInterval <: GenIntervals
-    rho::Float64 = 1.0 # ADMM tuning parameter
-    beta::Float64 = 1.0 # APP tuning parameter for across the dispatch intervals
-    beta_inner::Float64 = 1.0 # APP tuning parameter
-    gamma::Float64 = 1.0 # APP tuning parameter for across the dispatch intervals
-    gamma_sc::Float64 = 1.0 # APP tuning parameter
-    lambda_3::Float64 = 0.0 # APP Lagrange Multiplier corresponding to the complementary slackness
-    lambda_4::Float64 = 0.0 # APP Lagrange Multiplier corresponding to the complementary slackness
-    lambda_1_sc::Array{Float64} = Float64[] # APP Lagrange Multiplier corresponding to the complementary slackness
-    BSC::Array{Float64} = Float64[] # Cumulative disagreement between the generator output values for the previous and next intervals
-    A::Float64 = 0.0 # Disagreement between the generator output values for the previous interval
-    B::Float64 = 0.0 # Cumulative disagreement between the generator output values
-    Pg_N_init::Float64 = 0.0 # Generator injection from last iteration for base case and contingencies
-    Pg_N_avg::Float64 = 0.0 # Net average power from last iteration for base case and contingencies
-    thetag_N_avg::Float64 = 0.0 # Net average bus voltage angle from last iteration for base case and contingencies
-    ug_N::Float64 = 0.0 # Dual variable for net power balance for base case and contingencies
-    vg_N::Float64 = 0.0 # Dual variable for net angle balance for base case and contingencies
-    Vg_N_avg::Float64 = 0.0 # Average of dual variable for net angle balance from last to last iteration
-    Pg_nu::Float64 = 0.0 # Previous iterates of the corresponding decision variable values
-    Pg_nu_inner::Float64 = 0.0 # Previous iterates of the corresponding decision variable values
-    Pg_prev_nu::Float64 = 0.0 # Previous iterates of the corresponding decision variable values
-    Pg_next::Float64 = 0.0 # Generator's belief about its output in the next interval
-    select_zero::Int = 0 # Selection parameter to include or not include the last interval for PgNext constraint
 end
 
 """
