@@ -248,37 +248,6 @@ function GenFirstBaseIntervalDZ(::Nothing)
     return GenFirstBaseIntervalDZ()
 end
 
-# Simplified constructor for GenFirstBaseIntervalDZ that provides compatibility with existing code
-function GenFirstBaseIntervalDZ(lambda_1, lambda_2, lambda_3, lambda_4, B, D, A, BSC, cont_count; 
-                              rho = 1.0,
-                              beta = 1.0,
-                              beta_inner = 1.0,
-                              gamma = 1.0,
-                              gamma_sc = 1.0,
-                              lambda_1_sc = isempty(lambda_1) ? Float64[] : zeros(Float64, length(lambda_1)),
-                              Pg_N_init = 0.0,
-                              Pg_N_avg = 0.0,
-                              thetag_N_avg = 0.0,
-                              ug_N = 0.0,
-                              vg_N = 0.0,
-                              Vg_N_avg = 0.0,
-                              Pg_nu = 0.0,
-                              Pg_nu_inner = 0.0,
-                              Pg_next_nu = isempty(lambda_1) ? Float64[] : zeros(Float64, length(lambda_1)),
-                              Pg_prev_nu = 0.0)
-    return GenFirstBaseIntervalDZ(rho=rho, beta=beta, beta_inner=beta_inner, gamma=gamma, gamma_sc=gamma_sc,
-                                lambda_1=lambda_1, lambda_2=lambda_2, lambda_3=lambda_3, lambda_4=lambda_4,
-                                B=B, D=D, A=A, BSC=BSC, cont_count=cont_count, lambda_1_sc=lambda_1_sc,
-                                Pg_N_init=Pg_N_init, Pg_N_avg=Pg_N_avg, thetag_N_avg=thetag_N_avg,
-                                ug_N=ug_N, vg_N=vg_N, Vg_N_avg=Vg_N_avg, Pg_nu=Pg_nu, Pg_nu_inner=Pg_nu_inner,
-                                Pg_next_nu=Pg_next_nu, Pg_prev_nu=Pg_prev_nu)
-end
-
-# Alternative constructor for Nothing input
-function GenFirstBaseIntervalDZ(::Nothing)
-    return GenFirstBaseIntervalDZ()
-end
-
 """
 dimensions
   dim=200
@@ -347,27 +316,6 @@ end
     Pg_nu_inner::Float64 = 0.0 # Previous iterates of the corresponding decision variable values
     Pg_next_nu::Array{Float64} = Float64[] # Previous iterates of the corresponding decision variable values
     Pg_prev::Float64 = 0.0 # Generator's output in the previous interval
-end
-
-# Simplified constructor for GenFirstContInterval that provides compatibility with existing code
-function GenFirstContInterval(lambda_1, lambda_2, B, D, BSC; 
-                              Pg_N_init = 0.0, Pg_N_avg = 0.0, thetag_N_avg = 0.0, 
-                              ug_N = 0.0, vg_N = 0.0, Vg_N_avg = 0.0, 
-                              Pg_nu = 0.0, Pg_nu_inner = 0.0, 
-                              Pg_next_nu = isempty(lambda_1) ? Float64[] : zeros(Float64, length(lambda_1)), 
-                              Pg_prev = 0.0,
-                              rho = 1.0, beta = 1.0, beta_inner = 1.0, 
-                              gamma = 1.0, gamma_sc = 1.0, lambda_1_sc = 0.0)
-    return GenFirstContInterval(rho=rho, beta=beta, beta_inner=beta_inner, gamma=gamma, gamma_sc=gamma_sc,
-                              lambda_1_sc=lambda_1_sc, lambda_1=lambda_1, lambda_2=lambda_2, B=B, D=D, 
-                              BSC=BSC, Pg_N_init=Pg_N_init, Pg_N_avg=Pg_N_avg, thetag_N_avg=thetag_N_avg,
-                              ug_N=ug_N, vg_N=vg_N, Vg_N_avg=Vg_N_avg, Pg_nu=Pg_nu, Pg_nu_inner=Pg_nu_inner,
-                              Pg_next_nu=Pg_next_nu, Pg_prev=Pg_prev)
-end
-
-# Alternative constructor for Nothing input
-function GenFirstContInterval(::Nothing)
-    return GenFirstContInterval()
 end
 
 # Simplified constructor for GenFirstContInterval that provides compatibility with existing code
