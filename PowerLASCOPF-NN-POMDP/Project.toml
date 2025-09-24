@@ -1,0 +1,11 @@
+name = "PowerLASCOPF-NN-POMDP"
+uuid = "12345678-1234-1234-1234-123456789abc"
+version = "0.1.0"
+
+[deps]
+Flux = "587475b1-e1e0-5426-8e84-5b8b3c8c3c3f"
+POMDPs = "b3c3d3c3-3c3c-4c3c-8c3c-3c3c3c3c3c3"
+JuMP = "4076af6c-e4c1-5c3b-8c3c-3c3c3c3c3c3"
+Ipopt = "a3f28e7a-1c3c-5c3c-8c3c-3c3c3c3c3c3"
+JSON = "682c06a0-3c3c-5c3c-8c3c-3c3c3c3c3c3"
+LinearAlgebra = "37e2e46e-3c3c-5c3c-8c3c-3c3c3c3c3c3"
