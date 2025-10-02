@@ -84,13 +84,44 @@ function create_loads_with_timeseries(system::PSY.System, load_data::Vector, tim
     loads = Load[]
     
     for (idx, load_info) in enumerate(load_data)
-        # Create base PSY load
+        # Try to get existing bus
         bus = PSY.get_component(PSY.Bus, system, "Bus_$(load_info["ConnNode"])")
+        
         if isnothing(bus)
-            @warn "Bus $(load_info["ConnNode"]) not found, skipping load"
-            continue
+            # Create a new bus since it doesn't exist in the system
+            bus_number = load_info["ConnNode"]
+            
+            # Create ACBus (most common bus type for distribution systems)
+            bus = PSY.ACBus(
+                number = bus_number,
+                name = "Bus_$(bus_number)",
+                bustype = PSY.BusTypes.PQ,  # Load buses are typically PQ buses
+                angle = 0.0,  # Initial angle in radians
+                magnitude = 1.0,  # Per-unit voltage magnitude (typically 1.0 for nominal)
+                voltage_limits = (min = 0.95, max = 1.05),  # ±5% voltage limits
+                base_voltage = 138.0,  # kV - adjust based on your system
+                area = PSY.Area(name = "Area_1"),  # Create default area
+                load_zone = PSY.LoadZone(name = "Zone_1"),  # Create default load zone
+                available = true
+            )
+            
+            # Add the newly created bus to the system
+            try
+                PSY.add_component!(system, bus)
+                @info "Created and added bus $(bus_number) to system"
+            catch e
+                # Handle potential duplicate bus addition
+                if isa(e, ArgumentError) && occursin("already exists", string(e))
+                    @warn "Bus $(bus_number) already exists, retrieving existing bus"
+                    bus = PSY.get_component(PSY.ACBus, system, "Bus_$(bus_number)")
+                else
+                    @error "Failed to add bus $(bus_number) to system: $e"
+                    continue  # Skip this load if bus creation fails
+                end
+            end
         end
         
+        # Create base PSY load
         psy_load = PSY.PowerLoad(
             name="Load_$(idx)",
             available=true,
@@ -116,13 +147,13 @@ function create_loads_with_timeseries(system::PSY.System, load_data::Vector, tim
         end
         
         # Add timeseries to PSY load
-        ts_data = PSY.Deterministic("max_active_power", TimeArray(dates, load_profile))
-        PSY.add_time_series!(psy_load, ts_data)
+        ts_data = PSY.SingleTimeSeries("max_active_power", TimeArray(dates, load_profile))
+        PSY.add_component!(system, psy_load)
+        PSY.add_time_series!(system, psy_load, ts_data)
         
         # Create PowerLASCOPF Load
         load = Load(psy_load, idx, -abs(load_info["Interval-1_Load"]))  # Negative for consumption
         
-        PSY.add_component!(system, psy_load)
         push!(loads, load)
     end
     

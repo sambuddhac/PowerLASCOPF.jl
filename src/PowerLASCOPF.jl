@@ -40,10 +40,10 @@ import InfrastructureModels: optimize_model!, @im_fields, nw_id_default
 import JuMP
 using Ipopt  # Added for LineSolver integration
 
-abstract type AbstractModel end
-abstract type IntervalType end
-abstract type GenIntervals <: IntervalType end
-abstract type LineIntervals <: IntervalType end
+#abstract type AbstractModel end
+#abstract type IntervalType end
+#abstract type GenIntervals <: IntervalType end
+#abstract type LineIntervals <: IntervalType end
 abstract type LoadIntervals <: IntervalType end
 
 # Type Alias From other Packages

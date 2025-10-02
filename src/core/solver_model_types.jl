@@ -143,6 +143,55 @@ function GenFirstBaseInterval(::Nothing)
 end
 
 """
+    regularization_term(interval::GenFirstBaseInterval, Pg, PgNext, Thetag)
+
+Compute regularization term for GenFirstBaseInterval based on the optimization formulation:
+(beta/2)*(square(Pg-PgNu)+sum(square(PgNext-PgNextNu)))+(betaInner/2)*(square(Pg-PgNuInner))+
+(gammaSC)*(sum(Pg*BSC))+sum(Pg*lambda_1SC)+(gamma)*(sum(Pg*B)+(PgNext)'*D)+
+sum(Pg*lambda_1)+(lambda_2)'*PgNext+(rho/2)*(square(Pg-Pg_N_init+Pg_N_avg+ug_N)+
+square(Thetag-Vg_N_avg-Thetag_N_avg+vg_N))
+"""
+function regularization_term(interval::GenFirstBaseInterval, Pg, PgNext, Thetag)
+    reg_term = AffExpr(0.0)
+    
+    # APP regularization terms
+    add_to_expression!(reg_term, interval.beta/2, (Pg - interval.Pg_nu), (Pg - interval.Pg_nu))
+    for i in eachindex(PgNext)
+        add_to_expression!(reg_term, interval.beta/2, (PgNext[i] - interval.Pg_next_nu[i]), (PgNext[i] - interval.Pg_next_nu[i]))
+    end
+    add_to_expression!(reg_term, interval.beta_inner/2, (Pg - interval.Pg_nu_inner), (Pg - interval.Pg_nu_inner))
+    
+    # APP consensus terms
+    for i in eachindex(interval.BSC)
+        add_to_expression!(reg_term, interval.gamma_sc * interval.BSC[i], Pg)
+    end
+    for i in eachindex(interval.lambda_1_sc)
+        add_to_expression!(reg_term, interval.lambda_1_sc[i], Pg)
+    end
+    for i in eachindex(interval.B)
+        add_to_expression!(reg_term, interval.gamma * interval.B[i], Pg)
+    end
+    for i in eachindex(interval.D)
+        add_to_expression!(reg_term, interval.gamma * interval.D[i], PgNext[i])
+    end
+    for i in eachindex(interval.lambda_1)
+        add_to_expression!(reg_term, interval.lambda_1[i], Pg)
+    end
+    for i in eachindex(interval.lambda_2)
+        add_to_expression!(reg_term, interval.lambda_2[i], PgNext[i])
+    end
+    
+    # ADMM consensus terms
+    power_consensus = Pg - interval.Pg_N_init + interval.Pg_N_avg + interval.ug_N
+    add_to_expression!(reg_term, interval.rho/2, power_consensus, power_consensus)
+    
+    angle_consensus = Thetag - interval.Vg_N_avg - interval.thetag_N_avg + interval.vg_N
+    add_to_expression!(reg_term, interval.rho/2, angle_consensus, angle_consensus)
+    
+    return reg_term
+end
+
+"""
 dimensions
   dim=190
 end
@@ -1037,54 +1086,6 @@ end
 
 # Regularization term functions for different GenIntervals types
 """
-"""
-    regularization_term(interval::GenFirstBaseInterval, Pg, PgNext, Thetag)
-
-Compute regularization term for GenFirstBaseInterval based on the optimization formulation:
-(beta/2)*(square(Pg-PgNu)+sum(square(PgNext-PgNextNu)))+(betaInner/2)*(square(Pg-PgNuInner))+
-(gammaSC)*(sum(Pg*BSC))+sum(Pg*lambda_1SC)+(gamma)*(sum(Pg*B)+(PgNext)'*D)+
-sum(Pg*lambda_1)+(lambda_2)'*PgNext+(rho/2)*(square(Pg-Pg_N_init+Pg_N_avg+ug_N)+
-square(Thetag-Vg_N_avg-Thetag_N_avg+vg_N))
-"""
-function regularization_term(interval::GenFirstBaseInterval, Pg, PgNext, Thetag)
-    reg_term = AffExpr(0.0)
-    
-    # APP regularization terms
-    add_to_expression!(reg_term, interval.beta/2, (Pg - interval.Pg_nu), (Pg - interval.Pg_nu))
-    for i in eachindex(PgNext)
-        add_to_expression!(reg_term, interval.beta/2, (PgNext[i] - interval.Pg_next_nu[i]), (PgNext[i] - interval.Pg_next_nu[i]))
-    end
-    add_to_expression!(reg_term, interval.beta_inner/2, (Pg - interval.Pg_nu_inner), (Pg - interval.Pg_nu_inner))
-    
-    # APP consensus terms
-    for i in eachindex(interval.BSC)
-        add_to_expression!(reg_term, interval.gamma_sc * interval.BSC[i], Pg)
-    end
-    for i in eachindex(interval.lambda_1_sc)
-        add_to_expression!(reg_term, interval.lambda_1_sc[i], Pg)
-    end
-    for i in eachindex(interval.B)
-        add_to_expression!(reg_term, interval.gamma * interval.B[i], Pg)
-    end
-    for i in eachindex(interval.D)
-        add_to_expression!(reg_term, interval.gamma * interval.D[i], PgNext[i])
-    end
-    for i in eachindex(interval.lambda_1)
-        add_to_expression!(reg_term, interval.lambda_1[i], Pg)
-    end
-    for i in eachindex(interval.lambda_2)
-        add_to_expression!(reg_term, interval.lambda_2[i], PgNext[i])
-    end
-    
-    # ADMM consensus terms
-    power_consensus = Pg - interval.Pg_N_init + interval.Pg_N_avg + interval.ug_N
-    add_to_expression!(reg_term, interval.rho/2, power_consensus, power_consensus)
-    
-    angle_consensus = Thetag - interval.Vg_N_avg - interval.thetag_N_avg + interval.vg_N
-    add_to_expression!(reg_term, interval.rho/2, angle_consensus, angle_consensus)
-    
-    return reg_term
-end
 
 """
     regularization_term(interval::GenFirstBaseIntervalDZ, Pg, PgNext, PgPrev, Thetag)
