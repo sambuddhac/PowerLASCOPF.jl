@@ -12,9 +12,9 @@ try
 catch
     # DocStringExtensions not available, ignore
 end
-const PSY = PowerSystems
+#const PSY = PowerSystems
 const PSI = PowerSimulations
-const IS = InfrastructureSystems
+#const IS = InfrastructureSystems
 
 # Include necessary modules from the codebase
 include("../../core/solver_model_types.jl")     # Core types (GenFirstBaseInterval, etc.)
@@ -598,13 +598,33 @@ function build_and_solve_gensolver_preallocated!(solver::GenSolver,
     
     # Create time steps
     time_steps = 1:time_horizon
+
+    # FIXED: Use PSI's built-in model building approach instead of manual OptimizationContainer
+    # Create a problem template first
+    template = PSI.ProblemTemplate()
+
+    # Get system resolution - handle different PSI versions
+    resolution = try
+        PSY.get_time_series_resolution(sys)
+    catch
+        # Fallback for systems without time series or older PSI versions
+        Dates.Hour(1)
+    end
+    
+    # Get system name - handle different PSY versions
+    system_name = try
+        PSY.get_name(sys)
+    catch
+        # Fallback if get_name doesn't exist
+        "LASCOPF_Generator_System"
+    end
     
     # Create optimization container
     container = PSI.OptimizationContainer(
         JuMP.Model(),
-        PSI.make_system_time_series_da_schedule(sys, time_steps),
-        PSI.get_resolution(sys),
-        PSI.get_name(sys)
+        time_steps,
+        resolution,
+        system_name
     )
     
     # Add decision variables
@@ -1020,38 +1040,6 @@ end
 Comprehensive performance testing suite
 """
 function run_performance_tests(sys::PSY.System)
-    println("🧪 LASCOPF Generator Solver Performance Test Suite")
-    println("=" * 70)
-    
-    # Test 1: Basic benchmark
-    println("\n📈 Test 1: Basic Performance Comparison")
-    basic_results = benchmark_gensolver_approaches(sys, num_runs=3)
-    
-    # Test 2: Memory usage (if BenchmarkTools available)
-    println("\n💾 Test 2: Memory Usage Analysis") 
-    memory_results = benchmark_memory_usage(sys)
-    
-    # Test 3: Scaling test with different problem sizes
-    println("\n📏 Test 3: Problem Size Scaling")
-    scaling_results = Dict()
-    for horizon in [12, 24, 48]
-        println("  Testing time horizon: $horizon hours")
-        result = benchmark_gensolver_approaches(sys, num_runs=2, time_horizon=horizon)
-        scaling_results[horizon] = result
-        
-        println("    Preallocated: $(round(result["avg_preallocated_ms"], digits=2)) ms")
-        println("    Direct: $(round(result["avg_direct_ms"], digits=2)) ms")
-        println("    Speedup: $(round(result["speedup_factor"], digits=2))x")
-    end
-    
-    println("\n✅ Performance testing complete!")
-    
-    return Dict(
-        "basic_benchmark" => basic_results,
-        "memory_benchmark" => memory_results,
-        "scaling_benchmark" => scaling_results
-    )
-end
     println("🧪 LASCOPF Generator Solver Performance Test Suite")
     println("=" * 70)
     

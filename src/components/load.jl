@@ -23,17 +23,17 @@ Contains ADMM/APP algorithm state variables and message passing functionality.
     load_id::Int
     
     # Power properties
-    Pl::Float64  # Active power demand
+    Pl::Union{Int64, Float64}  # Active power demand
     Thetal::Float64 = 0.0  # Load voltage angle
     v::Float64 = 0.0  # Lagrange multiplier for voltage angle constraint
     
     # Node connection
-    conn_node_ptr::Union{Any, Nothing} = nothing  # Will reference Node object
+    conn_node_ptr::Union{Any, Nothing, Node} = nothing  # Will reference Node object
     
     # ADMM/APP state variables
     P_avg::Float64 = 0.0  # Average power from node
     
-    function Load(load_type::T, load_id::Int, Pl::Float64) where T<:PSY.ElectricLoad
+    function Load(load_type::T, load_id::Int, Pl::Union{Int64, Float64}) where T<:PSY.ElectricLoad
         return new{T}(load_type, load_id, Pl, 0.0, 0.0, nothing, 0.0)
     end
 end
@@ -44,7 +44,7 @@ function Load(idOfLoad::Int, Load_P::Float64)
     load_sys = PSY.PowerLoad(
         name="Load_$idOfLoad",
         available=true,
-        bus=PSY.Bus(nothing),  # Will be set later
+        bus=PSY.ACBus(nothing),  # Will be set later
         active_power=Load_P,
         reactive_power=0.0,
         base_power=100.0,
