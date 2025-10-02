@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="logo.png" alt="PowerLASCOPF.jl Logo" width="150"/>
+  <img src="logo.png" alt="PowerLASCOPF.jl Logo" width="300"/>
   <h1>PowerLASCOPF.jl</h1>
 </div>
 
