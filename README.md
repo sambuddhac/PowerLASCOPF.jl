@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="logo.svg" alt="PowerLASCOPF.jl Logo" width="200"/>
+![PowerLASCOPF.jl Logo](logo.png)
 
 # PowerLASCOPF.jl
 
