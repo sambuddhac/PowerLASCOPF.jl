@@ -71,17 +71,43 @@ struct IEEESystem <: _PSYCB.SystemCategory end
 include("core/types.jl")
 include("core/constants.jl")
 include("core/settings.jl")
+include("core/constraints.jl")
+include("core/cost_utilities.jl")
+include("core/ExtendedHydroGenerationCost.jl")
+include("core/ExtendedRenewableGenerationCost.jl")
+include("core/ExtendedStorageCost.jl")
+include("core/ExtendedThermalGenerationCost.jl")
+include("core/formulations.jl")
+include("core/objective_functions.jl")
+include("core/parameters.jl")
+include("core/solver_model_types.jl")
+include("core/variables.jl")
 
 # ===== INCLUDE COMPONENT MODULES =====
 # Note: Some components may have circular dependencies, include carefully
-# include("components/node.jl")
-# include("components/load.jl")
-# include("components/transmission_line.jl")
-# include("components/network.jl")
-# include("components/supernetwork.jl")
+include("components/node.jl")
+include("components/load.jl")
+include("components/transmission_line.jl")
+include("components/network.jl")
+include("components/supernetwork.jl")
+include("components/extended_hydro.jl")
+include("components/extended_thermal_generators.jl")
+include("components/extended_storage.jl")
+include("components/ExtendedThermalGenerator.jl")
+include("components/GeneralizedGenerator.jl")
+include("components/generator_integration.jl")
+include("components/PowerLASCOPFTypes.jl")
+include("components/renewable_generator.jl")
+include("components/storage_generator.jl")
+include("components/unified_generator_framework.jl")
+include("components/load_timeseries_integration.jl")
 
 # ===== INCLUDE SOLVER MODULES =====
-# include("solvers/interfaces/solver_interface.jl")
+include("solvers/interfaces/solver_interface.jl")
+include("solvers/line_solvers/linesolver_base.jl")
+include("solvers/line_solvers/linesolver_base_dual.jl")
+include("solvers/generator_solvers/gensolver_first_base.jl")
+
 
 # ===== INCLUDE UTILITY MODULES =====
 include("utils/helpers.jl")
@@ -89,13 +115,15 @@ include("utils/validation.jl")
 include("utils/conversion.jl")
 
 # ===== INCLUDE I/O MODULES =====
-# include("io/readers/read_csv_inputs.jl")
-# include("io/readers/read_json_inputs.jl")
-# include("io/readers/read_inputs_and_parse.jl")
+include("io/readers/read_csv_inputs.jl")
+include("io/readers/read_json_inputs.jl")
+include("io/readers/read_inputs_and_parse.jl")
+include("io/readers/make_lanl_ansi_pm_compatible.jl")
+include("io/readers/make_nrel_sienna_compatible.jl")
 
 # ===== INCLUDE EXTENSION MODULES =====
-# include("extensions/powersystems_integration.jl")
-# include("extensions/extended_system.jl")
+include("extensions/powersystems_integration.jl")
+include("extensions/extended_system.jl")
 
 # ===== POWERLAS COPF PSY.SYSTEM EXTENSION =====
 # Export PSY functions for convenience
@@ -121,48 +149,6 @@ export DEFAULT_SOLVER_CHOICE, DEFAULT_CONTINGENCY_COUNT
 export validate_component, validate_system_connectivity
 export mw_to_pu, pu_to_mw, degrees_to_radians, radians_to_degrees
 
-"""
-    PowerLASCOPFSystem
-
-Extended power system that wraps PSY.System and adds PowerLASCOPF-specific components.
-Provides seamless integration between PowerSystems.jl and PowerLASCOPF.jl.
-"""
-mutable struct PowerLASCOPFSystem
-    psy_system::PSY.System
-    
-    # PowerLASCOPF components
-    nodes::Vector{Any}  # Will contain Node objects
-    lines::Vector{Any}  # Will contain transmissionLine objects  
-    generators::Vector{Any}  # Will contain ExtendedThermalGenerator objects
-    
-    # System properties
-    network_id::Int
-    contingency_count::Int
-    interval_id::Int
-    solver_choice::Int  # 1=IPOPT, 2=Gurobi, etc.
-    
-    # APMP algorithm parameters
-    consensus_tolerance::Float64
-    max_iterations::Int
-    current_iteration::Int
-    
-    function PowerLASCOPFSystem(base_power::Float64; name::String = "PowerLASCOPF_System")
-        psy_sys = PSY.System(base_power)
-        PSY.set_name!(psy_sys, name)
-        return new(psy_sys, Any[], Any[], Any[],
-                  0, 0, 0, 1, 1e-6, 100, 0)
-    end
-    
-    function PowerLASCOPFSystem(psy_system::PSY.System)
-        return new(psy_system, Any[], Any[], Any[],
-                  0, 0, 0, 1, 1e-6, 100, 0)
-    end
-end
-
-# Forward PSY.System methods for seamless integration
-PSY.get_name(sys::PowerLASCOPFSystem) = PSY.get_name(sys.psy_system)
-PSY.get_base_power(sys::PowerLASCOPFSystem) = PSY.get_base_power(sys.psy_system)
-PSY.set_name!(sys::PowerLASCOPFSystem, name::String) = PSY.set_name!(sys.psy_system, name)
 
 """
     convert_psy_system_to_power_lascopf!(psy_system::PSY.System, power_lascopf_system::PowerLASCOPFSystem)

@@ -13,9 +13,9 @@ abstract type LineIntervals end
 abstract type GenIntervals end
 
 # Import our custom types
-include("../subsystems/node.jl")
-include("../subsystems/transmission_line.jl") 
-include("../subsystems/ExtendedThermalGenerator.jl")
+include("../components/node.jl")
+include("../components/transmission_line.jl") 
+include("../components/ExtendedThermalGenerator.jl")
 
 # Define our extended system structure
 @kwdef mutable struct PowerLASCOPFSystem
@@ -23,9 +23,12 @@ include("../subsystems/ExtendedThermalGenerator.jl")
     psy_system::PSY.System
     
     # PowerLASCOPF specific extensions
-    nodes::Vector{Node}
-    transmission_lines::Vector{transmissionLine}
-    extended_thermal_generators::Vector{ExtendedThermalGenerator}
+    nodes::Vector{Node} # Will contain Node objects
+    transmission_lines::Vector{transmissionLine} # Will contain transmissionLine objects
+    extended_thermal_generators::Vector{ExtendedThermalGenerator} # Will contain Thermal Generators
+    extended_hydro_generators::Vector{ExtendedHydroGenerator}  # Placeholder for Hydroelectric Generators
+    extended_renewable_generators::Vector{ExtendedRenewableGenerator}  # Placeholder for VRE Generators
+    extended_storage_units::Vector{ExtendedStorageUnit}  # Placeholder for Storage Battery
     
     # Network properties
     network_id::Int = 0
@@ -37,7 +40,7 @@ include("../subsystems/ExtendedThermalGenerator.jl")
     outaged_line::Int = 0
     
     # Solver properties
-    solver_choice::Int = 1
+    solver_choice::Int = 1 # 1=IPOPT, 2=Gurobi, etc.
     rho_tuning::Float64 = 1.0
     accuracy::Int = 1
     dummy_zero_flag::Int = 0
@@ -110,6 +113,7 @@ PSY.get_name(sys::PowerLASCOPFSystem) = PSY.get_name(sys.psy_system)
 PSY.get_base_power(sys::PowerLASCOPFSystem) = PSY.get_base_power(sys.psy_system)
 PSY.get_frequency(sys::PowerLASCOPFSystem) = PSY.get_frequency(sys.psy_system)
 PSY.get_units_base(sys::PowerLASCOPFSystem) = PSY.get_units_base(sys.psy_system)
+PSY.set_name!(sys::PowerLASCOPFSystem, name::String) = PSY.set_name!(sys.psy_system, name)
 
 # Component access methods
 PSY.get_components(::Type{T}, sys::PowerLASCOPFSystem) where {T} = PSY.get_components(T, sys.psy_system)
