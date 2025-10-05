@@ -1,8 +1,3 @@
-using PowerSystems
-using InfrastructureSystems
-const IS = InfrastructureSystems
-const PSY = PowerSystems
-
 # Define abstract types for PowerLASCOPF hierarchy
 abstract type PowerLASCOPFComponent end
 abstract type Subsystem <: PowerLASCOPFComponent end

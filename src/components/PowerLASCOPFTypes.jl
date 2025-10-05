@@ -92,34 +92,6 @@ HVDC branch component for PowerLASCOPF
 end
 
 """
-    Node
-
-Node component for PowerLASCOPF
-"""
-@kwdef mutable struct Node
-    node_id::Int
-    name::String
-    base_voltage::Float64
-    voltage_limits::NamedTuple{(:min, :max), Tuple{Float64, Float64}}
-    bus_type::String
-    area::Union{Int, Nothing} = nothing
-    load_zone::Union{Int, Nothing} = nothing
-    angle::Float64 = 0.0
-    magnitude::Float64 = 1.0
-    
-    # LASCOPF-specific fields
-    generation_connections::Vector{Int} = Int[]
-    load_connections::Vector{Int} = Int[]
-    reference_node::Bool = false
-    
-    # APP/ADMM variables
-    voltage_angle::Float64 = 0.0
-    voltage_magnitude::Float64 = 1.0
-    lambda_angle::Float64 = 0.0
-    lambda_voltage::Float64 = 0.0
-end
-
-"""
     LASCOPFScenario
 
 Scenario definition for stochastic LASCOPF
