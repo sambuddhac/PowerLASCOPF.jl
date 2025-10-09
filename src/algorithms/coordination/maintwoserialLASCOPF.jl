@@ -14,7 +14,7 @@ using Printf
 # Include necessary PowerLASCOPF modules
 include("../../components/load.jl")
 include("../../components/ExtendedThermalGenerator.jl")
-include("../../models/solver_models/solver_model_types.jl")
+include("../../core/solver_model_types.jl")
 
 """
     SuperNetwork

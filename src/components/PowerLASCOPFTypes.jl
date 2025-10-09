@@ -1,11 +1,6 @@
 """
 Core type definitions for PowerLASCOPF.jl
 """
-
-using Dates
-using PowerSystems
-const PSY = PowerSystems
-
 """
     PowerLASCOPFSystemData
 
@@ -14,13 +9,13 @@ Main system data structure for PowerLASCOPF
 @kwdef mutable struct PowerLASCOPFSystemData
     name::String
     nodes::Vector{Node}
-    branches::Vector{Branch}
-    thermal_generators::Vector{GeneralizedGenerator}
-    renewable_generators::Vector{GeneralizedGenerator}
-    hydro_generators::Vector{GeneralizedGenerator}
-    storage_generators::Vector{GeneralizedGenerator}
-    loads::Vector{PowerLASCOPFLoad}
-    reserves::Vector{Service}
+    branches::Vector{transmissionLine}
+    thermal_generators::Vector{ExtendedThermalGenerator}
+    renewable_generators::Vector{ExtendedRenewableGenerator}
+    hydro_generators::Vector{ExtendedHydroGenerator}
+    storage_generators::Vector{ExtendedStorageGenerator}
+    loads::Vector{Load}
+    reserves::Vector{PSY.Service}
     base_power::Float64 = 100.0
     time_horizon::Vector{DateTime}
     scenarios::Vector{LASCOPFScenario}
@@ -90,35 +85,6 @@ HVDC branch component for PowerLASCOPF
     # LASCOPF-specific fields
     contingency_rating::Float64 = max(active_power_limits_from.max, active_power_limits_to.max)
 end
-
-"""
-    Node
-
-Node component for PowerLASCOPF
-"""
-@kwdef mutable struct Node
-    node_id::Int
-    name::String
-    base_voltage::Float64
-    voltage_limits::NamedTuple{(:min, :max), Tuple{Float64, Float64}}
-    bus_type::String
-    area::Union{Int, Nothing} = nothing
-    load_zone::Union{Int, Nothing} = nothing
-    angle::Float64 = 0.0
-    magnitude::Float64 = 1.0
-    
-    # LASCOPF-specific fields
-    generation_connections::Vector{Int} = Int[]
-    load_connections::Vector{Int} = Int[]
-    reference_node::Bool = false
-    
-    # APP/ADMM variables
-    voltage_angle::Float64 = 0.0
-    voltage_magnitude::Float64 = 1.0
-    lambda_angle::Float64 = 0.0
-    lambda_voltage::Float64 = 0.0
-end
-
 """
     LASCOPFScenario
 

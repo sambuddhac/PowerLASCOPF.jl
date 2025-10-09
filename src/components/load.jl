@@ -4,13 +4,6 @@ Load component for PowerLASCOPF.jl
 This module defines the Load struct and associated functions for power system loads
 in the PowerLASCOPF optimization framework.
 """
-
-using PowerSystems
-const PSY = PowerSystems
-
-# Forward declaration - Node will be defined in node.jl
-abstract type Node end
-
 """
     Load{T<:PSY.ElectricLoad}
 

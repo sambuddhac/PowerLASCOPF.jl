@@ -12,9 +12,6 @@ try
 catch
     # DocStringExtensions not available, ignore
 end
-#const PSY = PowerSystems
-const PSI = PowerSimulations
-#const IS = InfrastructureSystems
 
 # Include necessary modules from the codebase
 include("../../core/solver_model_types.jl")     # Core types (GenFirstBaseInterval, etc.)

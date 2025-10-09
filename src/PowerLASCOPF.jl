@@ -40,11 +40,17 @@ import InfrastructureModels: optimize_model!, @im_fields, nw_id_default
 import JuMP
 using Ipopt  # Added for LineSolver integration
 
-#abstract type AbstractModel end
-#abstract type IntervalType end
-#abstract type GenIntervals <: IntervalType end
-#abstract type LineIntervals <: IntervalType end
+# Define required types for PowerLASCOPF
+abstract type AbstractModel end
+abstract type IntervalType end
+abstract type GenIntervals <: IntervalType end
+abstract type LineIntervals <: IntervalType end
 abstract type LoadIntervals <: IntervalType end
+abstract type PowerLASCOPFComponent end
+abstract type Subsystem <: PowerLASCOPFComponent end
+abstract type Device <: PowerLASCOPFComponent end
+abstract type PowerGenerator <: Device end
+abstract type MockLineInterval <: LineIntervals end
 
 # Type Alias From other Packages
 const _GX = GenX

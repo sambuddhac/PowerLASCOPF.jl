@@ -4,12 +4,6 @@ using PowerSystems
 
 # Import necessary types from extended_system (for legacy compatibility)
 # Define abstract types for PowerLASCOPF hierarchy
-abstract type PowerLASCOPFComponent end
-abstract type Subsystem <: PowerLASCOPFComponent end
-abstract type Device <: PowerLASCOPFComponent end
-abstract type PowerGenerator <: Device end
-abstract type LineIntervals end
-abstract type MockLineInterval <: LineIntervals end
 
 @kwdef mutable struct transmissionLine{T<:PSY.ACBranch} <: Device
 	transl_type::T
@@ -210,7 +204,7 @@ function tpowerangle_message(transline::transmissionLine, tRho, Pprevit1, Pnetav
 		#function tpowerangleMessage ends
 end
 
-function futureMessageBase(transline::transmissionLine, lambda_TXR, ECoeff, PgNextNu, BSC, ETempCoeff, **lineTempCalc)
+function futureMessageBase(transline::transmissionLine, lambda_TXR, ECoeff, PgNextNu, BSC, ETempCoeff, lineTempCalc)
 end
 		
 function tpowerFutureMessage(transline::transmissionLine, tRho)

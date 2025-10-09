@@ -1,17 +1,6 @@
 # Extended System for PowerLASCOPF.jl
 # This module extends PowerSystems.System to support custom PowerLASCOPF types
 
-using PowerSystems
-using InfrastructureSystems
-using Dates
-
-const PSY = PowerSystems
-const IS = InfrastructureSystems
-
-# Define required types for PowerLASCOPF
-abstract type LineIntervals end
-abstract type GenIntervals end
-
 # Import our custom types
 include("../components/node.jl")
 include("../components/transmission_line.jl") 
@@ -481,12 +470,6 @@ function system_summary(sys::PowerLASCOPFSystem)
     println("   ⚙️  PSY Generators: $(length(PSY.get_components(PSY.Generator, sys.psy_system)))")
     println("=" ^ 50)
 end
-
-# ===== MOCK TYPES FOR COMPILATION =====
-# These are temporary mock types to ensure the code compiles
-# They should be replaced with actual implementations
-
-abstract type MockLineInterval <: LineIntervals end
 
 # ===== EXPORTS =====
 
