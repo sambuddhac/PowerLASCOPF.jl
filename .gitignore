@@ -32,3 +32,6 @@ logs/
 # Output files
 output/
 results/
+
+#Media files
+visualization/media/

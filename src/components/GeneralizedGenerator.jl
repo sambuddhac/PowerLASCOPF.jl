@@ -30,7 +30,7 @@ A generalized generator component that extends PowerSystems generators for LASCO
 Supports thermal, renewable, hydro, and storage generators with ADMM/APP state variables,
 timeseries handling, and stochastic scenarios.
 """
-@kwdef mutable struct GeneralizedGenerator{T<:PSY.Generator,U<:GenIntervals} <: PowerGenerator
+mutable struct GeneralizedGenerator{T<:PSY.Generator,U<:GenIntervals} <: PowerGenerator
     # Core generator properties
     generator::T # PowerSystems Generator (ThermalGen, RenewableGen, HydroGen, etc.)
     cost_function::Union{ExtendedThermalGenerationCost{U}, ExtendedRenewableGenerationCost{U}, 
@@ -55,7 +55,7 @@ timeseries handling, and stochastic scenarios.
     conn_nodeg_ptr::Node
     
     # Solver interface - now uses the proper GenSolver type
-    gen_solver::GenSolver{<:Union{ExtendedThermalGenerationCost, ExtendedRenewableGenerationCost, ExtendedHydroGenerationCost}, U}
+    gen_solver::GenSolver{<:Union{ExtendedThermalGenerationCost, ExtendedRenewableGenerationCost, ExtendedHydroGenerationCost, ExtendedStorageCost}, U}
     
     # Power variables
     P_gen_prev::Float64
@@ -65,18 +65,18 @@ timeseries handling, and stochastic scenarios.
     v::Float64
     
     # Timeseries management
-    current_time::Union{DateTime, Nothing} = nothing
-    time_series_resolution::Dates.Period = Dates.Hour(1)
-    scenarios::Vector{GeneratorScenario} = GeneratorScenario[]
-    current_scenario::Int = 1
-    stochastic_mode::Bool = false
+    current_time::Union{DateTime, Nothing}
+    time_series_resolution::Dates.Period
+    scenarios::Vector{GeneratorScenario}
+    current_scenario::Int
+    stochastic_mode::Bool
     
     # Timeseries cache for performance
-    _power_cache::Dict{DateTime, Float64} = Dict()
-    _availability_cache::Dict{DateTime, Bool} = Dict()
-    _cache_valid::Bool = false
+    _power_cache::Dict{DateTime, Float64}
+    _availability_cache::Dict{DateTime, Bool}
+    _cache_valid::Bool
 
-    # Updated constructor that creates appropriate cost model and solver
+    # Constructor for GeneralizedGenerator
     function GeneralizedGenerator(
         generator::T, 
         interval_type::U,
@@ -120,6 +120,18 @@ timeseries handling, and stochastic scenarios.
         self.cont_count_gen = countOfContingency
         self.gen_solver = gensolver
         self.gen_total = gen_total
+        
+        # Initialize timeseries fields
+        self.current_time = nothing
+        self.time_series_resolution = Dates.Hour(1)
+        self.scenarios = GeneratorScenario[]
+        self.current_scenario = 1
+        self.stochastic_mode = false
+        
+        # Initialize cache
+        self._power_cache = Dict{DateTime, Float64}()
+        self._availability_cache = Dict{DateTime, Bool}()
+        self._cache_valid = false
         
         # Initialize connection node
         set_g_conn!(self.conn_nodeg_ptr, id_of_gen)

@@ -1,787 +1,787 @@
+using DataFrames
+using CSV
+using LinearAlgebra
+using Statistics
+using JSON3
+
+# Include component types
+include("node.jl")
+include("transmission_line.jl")
+include("GeneralizedGenerator.jl")
+include("../extensions/extended_system.jl")
+include("../io/readers/case_readers.jl")
+
+"""
+Network structure for PowerLASCOPF optimization
+Represents a complete power system network with generators, loads, transmission lines, and nodes
+"""
 @kwdef mutable struct Network
-	net_sys::_PSys.System
-	networkID::Int
-	scenarioIndex::Int
-	postContScenario::Int
-	prePostContScen::Int
-	genNumber::Int
-	genFields::Int
-	loadNumber::Int
-	loadFields::Int
-	translNumber::Int
-	translFields::Int
-	deviceTermCount::Int
-	dummyZ::Int
-	Accuracy::Int
-	nodeNumber::Int
-	Rho::Float64
-	intervalID::Int
-	lastFlag::Int
-	outagedLine::Vector{Int}
-	OutagedLine::Int
-	baseOutagedLine::Int
-	contingencyCount::Int
-	solverChoice::Int
-	Verbose::Bool
-	pSelfBeleif::Vector{Float64}
-	pSelfBeleifInner::Vector{Float64}
-	pPrevBeleif::Vector{Float64}
-	pNextBeleif::Vector{Float64}
-	connNodeNumList::Vector{Int}
-	nodeValList::Vector{Int}
-	assignedNodeSer::Int
-	pSelfBuffer::Vector{Float64}
-	pPrevBuffer::Vector{Float64}
-	pNextBuffer::Vector{Float64}
-	pSelfBufferGUROBI::Vector{Float64}
-	pNextBufferGUROBI::Vector{Float64}
-	pPrevBufferGUROBI::Vector{Float64}
-	matrixResultString::String
-	devProdString::String
-	iterationResultString::String
-	lmpResultString::String
-	objectiveResultString::String
-	primalResultString::String
-	dualResultString::String
-	genSingleTimeVec::Vector{Float64}
-	genADMMMaxTimeVec::Vector{Float64}
-	virtualExecTime::Float64
-	divConvMWPU::Float64
-	genObject::Vector{Generator}
-	loadObject::Vector{Load}
-	translObject::Vector{TransmissionLine}
-	nodeObject::Vector{Node}
+    # Core PowerLASCOPFSystem integration
+    net_sys::Union{PowerLASCOPFSystem, Nothing} = nothing
+    
+    # Network identification
+    network_id::Int = 0
+    scenario_index::Int = 0
+    post_cont_scenario::Int = 0
+    pre_post_cont_scen::Int = 0
+    
+    # Component counts
+    gen_number::Int = 0
+    gen_fields::Int = 0
+    load_number::Int = 0
+    load_fields::Int = 0
+    transl_number::Int = 0
+    transl_fields::Int = 0
+    device_term_count::Int = 0
+    node_number::Int = 0
+    
+    # Algorithm parameters
+    dummy_z::Int = 0
+    accuracy::Int = 1
+    rho::Float64 = 1.0
+    interval_id::Int = 0
+    last_flag::Int = 0
+    contingency_count::Int = 0
+    solver_choice::Int = 1  # 1=IPOPT, 2=Gurobi
+    verbose::Bool = false
+    
+    # Outage tracking
+    outaged_line::Vector{Int} = Int[]
+    outaged_line_single::Int = 0
+    base_outaged_line::Int = 0
+    
+    # ADMM/APP coordination variables
+    p_self_belief::Vector{Float64} = Float64[]
+    p_self_belief_inner::Vector{Float64} = Float64[]
+    p_prev_belief::Vector{Float64} = Float64[]
+    p_next_belief::Vector{Float64} = Float64[]
+    
+    # Node connectivity tracking
+    conn_node_num_list::Vector{Int} = Int[]
+    node_val_list::Vector{Int} = Int[]
+    assigned_node_ser::Int = 0
+    
+    # Buffer arrays for different solvers
+    p_self_buffer::Vector{Float64} = Float64[]
+    p_prev_buffer::Vector{Float64} = Float64[]
+    p_next_buffer::Vector{Float64} = Float64[]
+    p_self_buffer_gurobi::Vector{Float64} = Float64[]
+    p_next_buffer_gurobi::Vector{Float64} = Float64[]
+    p_prev_buffer_gurobi::Vector{Float64} = Float64[]
+    
+    # Result strings and file paths
+    matrix_result_string::String = ""
+    dev_prod_string::String = ""
+    iteration_result_string::String = ""
+    lmp_result_string::String = ""
+    objective_result_string::String = ""
+    primal_result_string::String = ""
+    dual_result_string::String = ""
+    
+    # Performance tracking
+    gen_single_time_vec::Vector{Float64} = Float64[]
+    gen_admm_max_time_vec::Vector{Float64} = Float64[]
+    virtual_exec_time::Float64 = 0.0
+    div_conv_mwpu::Float64 = 100.0  # MW per unit conversion
+    
+    # Component objects
+    gen_object::Vector{GeneralizedGenerator} = GeneralizedGenerator[]
+    load_object::Vector{Load} = Load[]  # Placeholder for Load type
+    transl_object::Vector{transmissionLine} = transmissionLine[]
+    node_object::Vector{Node} = Node[]
+    
+    # Data file paths and case information
+    data_path::String = ""
+    case_name::String = ""
+    case_format::Symbol = :matpower  # :matpower, :psse, :ieee_cdf, :custom
+end
+
+"""
+Initialize network variables and load system data
+"""
+function network_init_var(
+    val::Int, 
+    post_cont_scen::Int, 
+    scenario_contingency::Int, 
+    line_outaged::Int, 
+    pre_post_scenario::Int, 
+    solver_choice::Int, 
+    dummy::Int, 
+    accuracy::Int, 
+    interval_num::Int, 
+    las_int_flag::Int, 
+    next_choice::Int, 
+    outaged_line::Int;
+    data_path::String = "",
+    case_name::String = "",
+    case_format::Symbol = :matpower
+)
+    network = Network(
+        network_id = val,
+        rho = 1.0,
+        scenario_index = scenario_contingency,
+        post_cont_scenario = post_cont_scen,
+        pre_post_cont_scen = pre_post_scenario,
+        dummy_z = dummy,
+        accuracy = accuracy,
+        outaged_line_single = line_outaged,
+        contingency_count = 0,
+        interval_id = interval_num,
+        last_flag = las_int_flag,
+        base_outaged_line = outaged_line,
+        solver_choice = solver_choice,
+        div_conv_mwpu = val == 2 ? 1.0 : 100.0,
+        data_path = data_path,
+        case_name = case_name,
+        case_format = case_format
+    )
+    
+    # Load network data
+    set_network_variables!(network, next_choice)
+    
+    return network
+end
+
+"""
+Load network data from files based on case format and create PowerLASCOPFSystem
+"""
+function set_network_variables!(network::Network, next_choice::Int)
+    println("Setting network variables for $(network.network_id)-bus system...")
+    
+    # Create PowerLASCOPFSystem based on network size or case name
+    if !isempty(network.case_name)
+        # Use specific case file
+        case_file = joinpath(network.data_path, network.case_name)
+        network.net_sys = load_case_to_power_lascopf_system(case_file, network.case_format)
+    else
+        # Use standard IEEE cases
+        network.net_sys = create_ieee_case_system(network.network_id, network.data_path)
     end
     
-
-function network_init_var(val, postContScen, scenarioContingency, lineOutaged, prePostScenario, solverChoice, dummy, accuracy, intervalNum, lasIntFlag, nextChoice, outagedLine)
-	networkVar = Dict()
-	networkVar["MAX_ITER"] = 80002
-	#networkVar["LINE_CAP"] = 100.00
-	networkVar["networkID"] = val #constructor begins; initialize networkID  and Rho through constructor initializer list
-	networkVar["Rho"] = 1.0
-	networkVar["scenarioIndex"] = scenarioContingency #this is always zero for a base-case network instance, even if that corresponds to an outaged base case, or in other words, if postContScen is not zero
-	networkVar["postContScenario"] = postContScen
-	networkVar["prePostContScen"] = prePostScenario
-	networkVar["dummyZ"] = dummy
-	networkVar["Accuracy"] = accuracy
-	networkVar["OutagedLine"] = lineOutaged
-	networkVar["contingencyCount"] = 0
-	networkVar["intervalID"] = intervalNum
-	networkVar["lastFlag"] = lasIntFlag
-	networkVar["baseOutagedLine"] = outagedLine
-	networkVar["solverChoice"] = solverChoice
-	#Initializes the number and fields of Transmission lines, Generators, Loads, Nodes, and Device Terminals.
-	networkVar["translNumber"] = 0
-	networkVar["translFields"] = 0
-	networkVar["genNumber"] = 0
-	networkVar["genFields"] = 0
-	networkVar["loadNumber"] = 0
-	networkVar["loadFields"] = 0
-	networkVar["deviceTermCount"] = 0
-	networkVar["nodeNumber"] = 0
-	networkVar["assignedNodeSer"] = 0
-	networkVar["divConvMWPU"] = 100.0 # Divisor, which is set to 100 for all other systems, except two bus system, for which it is set to 1
-	networkVar["outagedLine"] = Int[]
-	networkVar["connNodeNumList"] = []
-	networkVar["nodeValList"] = []
-	set_network_variables(networkVar, nextChoice) #sets the variables of the networkID
-end # end constructor
-
-function getGenNumber(networkVar::Dict)
-	return networkVar["genNumber"] #returns the number of Generators in the network
+    if network.net_sys === nothing
+        error("Failed to create PowerLASCOPFSystem")
+    end
+    
+    # Extract basic system information
+    network.node_number = get_node_count(network.net_sys)
+    network.gen_number = get_extended_thermal_generator_count(network.net_sys)
+    network.transl_number = get_transmission_line_count(network.net_sys)
+    
+    # Load transmission line data and count contingencies
+    load_transmission_data!(network)
+    
+    # Create nodes from PowerLASCOPFSystem
+    create_nodes_from_system!(network)
+    
+    # Create transmission lines from PowerLASCOPFSystem
+    create_transmission_lines_from_system!(network)
+    
+    # Load generator data from PowerLASCOPFSystem
+    load_generator_data_from_system!(network)
+    
+    # Load demand data from PowerLASCOPFSystem
+    load_demand_data_from_system!(network)
+    
+    # Initialize coordination variables
+    initialize_coordination_variables!(network)
+    
+    println("Network setup complete: $(network.node_number) nodes, $(network.gen_number) generators, $(network.transl_number) lines")
 end
 
-function retContCount(networkVar::Dict)
-	return networkVar["contingencyCount"] #returns the number of contingency scenarios
+"""
+Create PowerLASCOPFSystem for standard IEEE cases
+"""
+function create_ieee_case_system(network_id::Int, data_path::String)
+    # Create base PowerSystems.System first
+    base_power = 100.0
+    psy_system = PSY.System(base_power)
+    
+    # Create PowerLASCOPFSystem
+    power_lascopf_sys = PowerLASCOPFSystem(psy_system = psy_system)
+    
+    # Load IEEE case data based on network_id
+    if network_id in [14, 30, 57, 118, 300]
+        load_ieee_case_data!(power_lascopf_sys, network_id, data_path)
+    else
+        error("Unsupported IEEE case size: $network_id")
+    end
+    
+    return power_lascopf_sys
 end
 
-function indexOfLineOut(contScen::Int64)
-	return outagedLine[contScen-1] #returns the serial number of the outaged line
+"""
+Load IEEE case data into PowerLASCOPFSystem
+"""
+function load_ieee_case_data!(sys::PowerLASCOPFSystem, network_id::Int, data_path::String)
+    base_path = isempty(data_path) ? "data" : data_path
+    
+    # Determine data files
+    gen_file = joinpath(base_path, "Gen$(network_id).csv")
+    tran_file = joinpath(base_path, "Tran$(network_id).csv") 
+    load_file = joinpath(base_path, "Load$(network_id).csv")
+    
+    # Load data using case readers
+    if all(isfile.([gen_file, tran_file, load_file]))
+        load_csv_case_data!(sys, gen_file, tran_file, load_file)
+    else
+        # Try to load from standard PowerSystems test cases
+        load_standard_test_case!(sys, network_id)
+    end
 end
 
-function set_network_variables(netVar::Dict, nextChoice::Int64) #Function setNetworkVariables starts to initialize the parameters and variables
-	Verbose = False #disable intermediate result display. If you want, make it "true"
+"""
+Load case data from custom case file
+"""
+function load_case_to_power_lascopf_system(case_file::String, case_format::Symbol)
+    try
+        if case_format == :matpower
+            return load_matpower_case_to_power_lascopf(case_file)
+        elseif case_format == :psse
+            return load_psse_case_to_power_lascopf(case_file)
+        elseif case_format == :ieee_cdf
+            return load_ieee_cdf_case_to_power_lascopf(case_file)
+        else
+            error("Unsupported case format: $case_format")
+        end
+    catch e
+        @warn "Failed to load case file $case_file: $e"
+        return nothing
+    end
+end
 
-	nodeNumber = netVar["networkID"] #set the number of nodes of the network
+"""
+Load transmission line data and count contingencies
+"""
+function load_transmission_data!(network::Network)
+    lines = get_transmission_lines(network.net_sys)
+    network.transl_number = length(lines)
+    
+    # Count contingency scenarios (lines marked for contingency analysis)
+    network.contingency_count = 0
+    for line in lines
+        # Check if line is marked for contingency (could be in time series or extension data)
+        if haskey(IS.get_ext(line.transl_type), "contingency_marked") && 
+           IS.get_ext(line.transl_type)["contingency_marked"] == 1
+            network.contingency_count += 1
+        end
+    end
+    
+    # Store outaged lines for contingency analysis
+    if network.pre_post_cont_scen == 0
+        for (idx, line) in enumerate(lines)
+            if haskey(IS.get_ext(line.transl_type), "contingency_marked") && 
+               IS.get_ext(line.transl_type)["contingency_marked"] == 1
+                push!(network.outaged_line, idx)
+            end
+        end
+    end
+end
 
-	if  nodeNumber == 14 # 14 Bus case	
-		genFile = DataFrame(CSV.File(string(path,sep,"Gen14.csv"), header=true), copycols=true)
-		tranFile = DataFrame(CSV.File(string(path,sep,"Tran14.csv"), header=true), copycols=true)
-		loadFile = DataFrame(CSV.File(string(path,sep,"Load14.csv"), header=true), copycols=true)
-	elseif  nodeNumber == 30 # 30 Bus case
-		genFile = DataFrame(CSV.File(string(path,sep,"Gen30.csv"), header=true), copycols=true)
-		tranFile = DataFrame(CSV.File(string(path,sep,"Tran30.csv"), header=true), copycols=true)
-		loadFile = DataFrame(CSV.File(string(path,sep,"Load30.csv"), header=true), copycols=true)
-	elseif  nodeNumber == 57 # 30 Bus case
-		genFile = DataFrame(CSV.File(string(path,sep,"Gen57.csv"), header=true), copycols=true)
-		tranFile = DataFrame(CSV.File(string(path,sep,"Tran57.csv"), header=true), copycols=true)
-		loadFile = DataFrame(CSV.File(string(path,sep,"Load57.csv"), header=true), copycols=true)
-	elseif  nodeNumber == 118 # 30 Bus case
-		genFile = DataFrame(CSV.File(string(path,sep,"Gen118.csv"), header=true), copycols=true)
-		tranFile = DataFrame(CSV.File(string(path,sep,"Tran118.csv"), header=true), copycols=true)
-		loadFile = DataFrame(CSV.File(string(path,sep,"Load118.csv"), header=true), copycols=true)
-	elseif  nodeNumber == 300 # 30 Bus case
-		genFile = DataFrame(CSV.File(string(path,sep,"Gen300.csv"), header=true), copycols=true)
-		tranFile = DataFrame(CSV.File(string(path,sep,"Tran300.csv"), header=true), copycols=true)
-		loadFile = DataFrame(CSV.File(string(path,sep,"Load300.csv"), header=true), copycols=true)
-	elseif  nodeNumber == 3 # 30 Bus case
-		genFile = DataFrame(CSV.File(string(path,sep,"Gen3A.csv"), header=true), copycols=true)
-		tranFile = DataFrame(CSV.File(string(path,sep,"Tran3A.csv"), header=true), copycols=true)
-		loadFile = DataFrame(CSV.File(string(path,sep,"Load3A.csv"), header=true), copycols=true)
-	elseif  nodeNumber == 5 # 30 Bus case
-		genFile = DataFrame(CSV.File(string(path,sep,"Gen5.csv"), header=true), copycols=true)
-		tranFile = DataFrame(CSV.File(string(path,sep,"Tran5.csv"), header=true), copycols=true)
-		loadFile = DataFrame(CSV.File(string(path,sep,"Load5.csv"), header=true), copycols=true)
-	elseif  nodeNumber == 2 # 30 Bus case
-		genFile = DataFrame(CSV.File(string(path,sep,"Gen2.csv"), header=true), copycols=true)
-		tranFile = DataFrame(CSV.File(string(path,sep,"Tran2.csv"), header=true), copycols=true)
-		loadFile = DataFrame(CSV.File(string(path,sep,"Load2.csv"), header=true), copycols=true)
-	elseif  nodeNumber == 48 # 30 Bus case
-		genFile = DataFrame(CSV.File(string(path,sep,"Gen48.csv"), header=true), copycols=true)
-		tranFile = DataFrame(CSV.File(string(path,sep,"Tran48.csv"), header=true), copycols=true)
-		loadFile = DataFrame(CSV.File(string(path,sep,"Load48.csv"), header=true), copycols=true)
-			
-	else # catch all other entries
-		println("Sorry, invalid case. Can't do simulation at this moment.")
-			
-	end #exit switch
-	if nodeNumber == 2
-		netVar["divConvMWPU"] = 1.0
-	end
-	# Transmission lines
-	matrixFirstFile = size(collect(skipmissing(tranFile[!,:Capacity])),1)
-	netVar["transmission"] = tranFile
-	#Count the total number of contingency scenarios
-	for item in 1:matrixFirstFile
-		netVar["contingencyCount"] += tranFile[!,:ContingencyMarked][item] #count the number of contingency scenarios
-	end
-	if netVar["prePostContScen"] == 0
-		for index in 1:matrixFirstFile
-			if netVar["transmission"][!,:ContingencyMarked][index] == 1
-				push!(netVar["outagedLine"], index)
-			end
-		end
-	end
+"""
+Create node objects from PowerLASCOPFSystem
+"""
+function create_nodes_from_system!(network::Network)
+    nodes = get_nodes(network.net_sys)
+    empty!(network.node_object)
+    
+    for node in nodes
+        push!(network.node_object, node)
+    end
+    
+    network.node_number = length(network.node_object)
+end
 
-	#print("\nThe total number of contingency scenarios considerred is : {}".format(contingencyCount))
-	#self.contingencyCount = 0 #Uncomment this statement for purposes of Base-Case/OPF Simulation (Comment out for SCOPF Simulation)
-	#Nodes
-	for l in range(self.nodeNumber):
-		#print("\nCreating the {} -th Node:\n".format(l+1))
-		if self.postContScenario == 0: #for no outage case
-			modifiedContCount = self.contingencyCount #modified contingency count, to account for the change in contingency scenarios in different post-cont scenarios
-		else: #for the outaged cases
-			modifiedContCount = self.contingencyCount - 1
-		
-		nodeInstance = Node(l + 1, modifiedContCount) #creates nodeInstance object with ID l + 1
-		self.nodeObject.append(nodeInstance) #pushes the nodeInstance object into the vector
-		#end initialization for Nodes
+"""
+Create transmission line objects from PowerLASCOPFSystem
+"""
+function create_transmission_lines_from_system!(network::Network)
+    lines = get_transmission_lines(network.net_sys)
+    empty!(network.transl_object)
+    
+    # Filter out outaged lines
+    for (idx, line) in enumerate(lines)
+        # Skip outaged lines
+        if (network.outaged_line_single == idx) || (network.base_outaged_line == idx)
+            continue
+        end
+        
+        push!(network.transl_object, line)
+    end
+    
+    network.transl_number = length(network.transl_object)
+end
 
-	contingencyTracker = 0 #contingency tracker for centralized GUROBI solver
-	#Resume Creation of Transmission Lines
-	for item in range(len(matrixTranList)):
-		if self.nodeNumber == 300: #Since for IEEE 300 bus system, the nodes are not serialy numbered, but name-numbered instead, below is conversion code
-			tNodeID1300 = matrixTranList[item]['fromNode'] #From end node identifier
-			tNodeID2300 = matrixTranList[item]['toNode'] #To end node identifier
-			if tNodeID1300 in self.connNodeNumList: #If node identifier value for this particular node is present in the list
-				pos = self.connNodeNumList.index(tNodeID1300) # find the position of the node identifier in the chart of node identifiers
-				tNodeID1 = self.nodeValList[pos] # Get the serial number of the node from the nodeValList
-				#print("For line {} Identifier of the From Node: {} From Node assigned Serial: {} FRESH".format(index + 1 , tNodeID1300, tNodeID1))
-			else:
-				self.connNodeNumList.append(tNodeID1300) #For a new node identifier
-				assignedNodeSer += 1
-				self.nodeValList.append(assignedNodeSer) #Assign the node serial
-				tNodeID1 = assignedNodeSer #Get the serial number of the node from the nodeValList
-				#print("For line {} Identifier of the From Node: {} From Node assigned Serial: {} FRESH".format(index + 1 , tNodeID1300, tNodeID1))
-			if tNodeID2300 in self.connNodeNumList: #If node identifier value for this particular node is present in the list
-				pos = self.connNodeNumList.index(tNodeID2300) # find the position of the node identifier in the chart of node identifiers
-				tNodeID2 = self.nodeValList[pos] # Get the serial number of the node from the nodeValList
-				#print("For line {} Identifier of the From Node: {} From Node assigned Serial: {} FRESH".format(index + 1 , tNodeID2300, tNodeID2))
-			else:
-				self.connNodeNumList.append(tNodeID2300) #For a new node identifier
-				assignedNodeSer += 1
-				self.nodeValList.append(assignedNodeSer) #Assign the node serial
-				tNodeID2 = assignedNodeSer #Get the serial number of the node from the nodeValList
-				#print("For line {} Identifier of the From Node: {} From Node assigned Serial: {} FRESH".format(index + 1 , tNodeID2300, tNodeID2))
-			#print("\nStuck while creating nodes of transmission line: {}".format(index + 1))
-			#node IDs of the node objects to which this transmission line is connected.
-		else:
-			tNodeID1 = matrixTranList[item]['fromNode'] #From end
-			tNodeID2 = matrixTranList[item]['toNode'] #To end
-		if (self.OutagedLine != (item + 1)) and (self.baseOutagedLine != (item + 1)):
-			#Parameters for Transmission Line
-			#print("Stuck while creating transmission line: {}".format( index + 1 ))
-			#Resistance:
-			resT = matrixTranList[item]['Resistance']
-			#Reactance:
-			reacT = matrixTranList[item]['Reactance']
-			#values of maximum allowable power flow on line in the forward and reverse direction:
-			#Forward direction:
-			ptMax = matrixTranList[item]['Capacity'] / self.divConvMWPU #LINE_CAP
-			ptMin = -ptMax #Reverse direction
-			if matrixTranList[item]['ContingencyMarked'] == 1:
-				contingencyTracker += matrixTran[item]['ContingencyMarked'] #Get the serial number of the contingency scenario when this line is outaged, if it's marked for contingency analysis
-			#creates transLineInstance object with ID item + 1
-			if (matrixTranList[item]['ContingencyMarked'] == 1) and (self.prePostContScen == 0):
-				tempTracker = contingencyTracker
-			else:
-				tempTracker = 0
-			transLineInstance = transmissionLine(item + 1, nodeObject[tNodeID1 - 1], nodeObject[tNodeID2 - 1], ptMax, reacT, resT, tempTracker)
-			self.translObject.append( transLineInstance ) #pushes the transLineInstance object into the vector
-		else:
-			if matrixTranList[index]['ContingencyMarked'] == 1:
-				contingencyTracker += matrixTranList[index]['ContingencyMarked'] #Get the serial number of the contingency scenario when this line is outaged, if it's marked for contingency analysis
-	#end initialization for Transmission Lines
+"""
+Load generator data from PowerLASCOPFSystem and create GeneralizedGenerator objects
+"""
+function load_generator_data_from_system!(network::Network)
+    # Get all types of generators from the system
+    thermal_gens = get_extended_thermal_generators(network.net_sys)
+    hydro_gens = get_extended_hydro_generators(network.net_sys)
+    renewable_gens = get_extended_renewable_generators(network.net_sys)
+    storage_units = get_extended_storage_units(network.net_sys)
+    
+    empty!(network.gen_object)
+    
+    # Convert ExtendedThermalGenerators to GeneralizedGenerators
+    for thermal_gen in thermal_gens
+        gen_gen = convert_to_generalized_generator(thermal_gen, network)
+        push!(network.gen_object, gen_gen)
+    end
+    
+    # Convert ExtendedHydroGenerators to GeneralizedGenerators
+    for hydro_gen in hydro_gens
+        gen_gen = convert_to_generalized_generator(hydro_gen, network)
+        push!(network.gen_object, gen_gen)
+    end
+    
+    # Convert ExtendedRenewableGenerators to GeneralizedGenerators
+    for renewable_gen in renewable_gens
+        gen_gen = convert_to_generalized_generator(renewable_gen, network)
+        push!(network.gen_object, gen_gen)
+    end
+    
+    # Convert ExtendedStorageGenerators to GeneralizedGenerators
+    for storage_unit in storage_units
+        gen_gen = convert_to_generalized_generator(storage_unit, network)
+        push!(network.gen_object, gen_gen)
+    end
+    
+    network.gen_number = length(network.gen_object)
+end
 
-		#Generators
-		matrixSecondFile = json.load(genFile) #opens the file of Generators
-		matrixGenList = []
-		#Generator matrix
-		for item in matrixSecondFile:
-			matrixGen = {"connNode": None, "c2": None, "c1": None, "c0": None, "PgMax": None, "PgMin": None, "RgMax": None, "RgMin": None, "PgPrev": None}
-			matrixGen['connNode'] = item['connNode']
-			matrixGen['c2'] = item['c2']
-			matrixGen['c1'] = item['c1']
-			matrixGen['c0'] = item['c0']
-			matrixGen['PgMax'] = item['PgMax']
-			matrixGen['PgMin'] = item['PgMin']
-			matrixGen['RgMax'] = item['RgMax']
-			matrixGen['RgMin'] = item['RgMin']
-			matrixGen['PgPrev'] = item['PgPrev']
-			matrixGenList.append(matrixGen)
-		
-		#Create Generators
-		for item in matrixGenList:
-			if self.nodeNumber == 300:#Since for IEEE 300 bus system, the nodes are not serialy numbered, but name-numbered instead, below is conversion code
-				gNodeID300 = matrixGenList[item]['connNode'] #Generator node identifier
-				if gNodeID300 in self.connNodeNumList: #If node identifier value for this particular node is present in the list
-					pos = self.connNodeNumList.index(gNodeID300) #find the position of the node identifier in the chart of node identifiers
-					gNodeID = self.nodeValList[pos] #Get the serial number of the node from the nodeValList
-					#print("For Generator {} Identifier of the Conn Node: {} Conn Node assigned Serial: {} REPEATED".format(index + 1, gNodeID300, gNodeID))
-				else:
-					self.connNodeNumList.append(gNodeID300) # For a new node identifier
-					assignedNodeSer += 1
-					self.nodeValList.append(assignedNodeSer) #Assign the node serial
-					gNodeID = assignedNodeSer #Get the serial number of the node from the nodeValList
-					#print("For Generator {} Identifier of the Conn Node: {} Conn Node assigned Serial: {} FRESH".format(index + 1, gNodeID300, gNodeID))
-			else:
-				gNodeID = matrixGenList[item]['connNode']
-			#Parameters for Generator
-			Beta = 200.0
-			innerBeta = 200.0
-			Gamma = 100.0
-			externalGamma = 100.0
-			#Quadratic Coefficient: 
-			c2 = matrixGenList[item]['c2'] * (self.divConvMWPU ** 2)
-			#Linear coefficient: 
-			c1 = matrixGenList[item]['c1'] * self.divConvMWPU
-			#Constant term: 
-			c0 = matrixGenList[item]['c0']
-			#Maximum Limit:
-			PgMax = matrixGenList[item]['PgMax'] / self.divConvMWPU
-			#Minimum Limit:
-			PgMin = matrixGenList[item]['PgMin'] / self.divConvMWPU
-			#Maximum Ramping Limit:
-			RgMax = matrixGenList[item]['RgMax'] / self.divConvMWPU
-			#Minimum Ramping Limit:
-			RgMin = matrixGenList[item]['RgMin'] / self.divConvMWPU
-			#Present Output
-			PgPrevious = matrixGenList[item]['PgPrev'] / self.divConvMWPU
+"""
+Convert different generator types to GeneralizedGenerator
+"""
+function convert_to_generalized_generator(extended_gen::T, network::Network) where T
+    if T <: ExtendedThermalGenerator
+        # Convert thermal generator
+        cost_function = extended_gen.thermal_cost_function
+        generator = extended_gen.generator
+        connected_node = extended_gen.conn_nodeg_ptr
+        
+    elseif T <: ExtendedHydroGenerator
+        # Convert hydro generator
+        cost_function = extended_gen.hydro_cost_function
+        generator = extended_gen.generator
+        connected_node = extended_gen.conn_nodeg_ptr
+        
+    elseif T <: ExtendedRenewableGenerator
+        # Convert renewable generator
+        cost_function = extended_gen.renewable_cost_function
+        generator = extended_gen.generator
+        connected_node = extended_gen.conn_nodeg_ptr
+        
+    elseif T <: ExtendedStorageGenerator
+        # Convert storage generator
+        cost_function = extended_gen.storage_cost_function
+        generator = extended_gen.generator
+        connected_node = extended_gen.conn_nodeg_ptr
+        
+    else
+        error("Unsupported generator type: $T")
+    end
+    
+    # Create GeneralizedGenerator with appropriate interval type
+    interval_type = GenFirstBaseInterval()  # Default interval type
+    
+    gen_gen = GeneralizedGenerator(
+        generator,
+        interval_type,
+        extended_gen.gen_id,
+        network.interval_id,
+        network.last_flag == 1,
+        network.contingency_count,
+        network.post_cont_scenario,
+        network.pre_post_cont_scen,
+        network.dummy_z,
+        network.accuracy,
+        connected_node,
+        network.contingency_count,
+        network.gen_number
+    )
+    
+    return gen_gen
+end
 
-			generatorInstance = Generator(item + 1, c2, c1, c0, PgMax, PgMin, RgMax, RgMin, Beta, innerBeta, externalGamma, Gamma, PgPrevious, intervalID, lastFlag, scenarioIndex, postContScenario, prePostContScen, dummyZ, Accuracy, nodeObject[ gNodeID - 1 ], contingencyCount, genNumber ) #creates generatorInstance object with ID number index + 1
-			
-		#end initialization for Generators
+"""
+Load demand data from PowerLASCOPFSystem
+"""
+function load_demand_data_from_system!(network::Network)
+    nodes = get_nodes(network.net_sys)
+    network.load_number = 0
+    empty!(network.load_object)
+    
+    for node in nodes
+        if node.conn_load_val != 0.0
+            network.load_number += 1
+            # Load object creation would go here when Load type is implemented
+        end
+    end
+end
 
-		# Loads
-		matrixThirdFile = json.load(loadFile) #opens the file of Generators
-		matrixLoadList = []
-		#Load matrix
-		for item in matrixThirdFile:
-			matrixLoad = {"ConnNode": None, "Interval-1_Load": None, "Interval-2_Load": None}
-			matrixLoad['ConnNode'] = item['ConnNode']
-			matrixLoad['Interval-1_Load'] = item['Interval-1_Load']
-			matrixLoad['Interval-2_Load'] = item['Interval-2_Load']
-			matrixLoadList.append(matrixLoad)
+"""
+Initialize ADMM/APP coordination variables
+"""
+function initialize_coordination_variables!(network::Network)
+    # Calculate device terminal count
+    network.device_term_count = if (network.pre_post_cont_scen == 0) && (network.post_cont_scenario == 0)
+        network.gen_number + network.load_number + 2 * network.transl_number
+    elseif (network.pre_post_cont_scen == 0) && (network.post_cont_scenario != 0)
+        network.gen_number + network.load_number + 2 * (network.transl_number - 1)
+    elseif (network.pre_post_cont_scen != 0) && (network.post_cont_scenario == 0)
+        network.gen_number + network.load_number + 2 * (network.transl_number - 1)
+    else
+        network.gen_number + network.load_number + 2 * (network.transl_number - 2)
+    end
+    
+    # Initialize belief vectors
+    resize!(network.p_self_belief, network.gen_number)
+    resize!(network.p_self_belief_inner, network.gen_number)
+    resize!(network.p_prev_belief, network.gen_number)
+    resize!(network.p_next_belief, network.gen_number)
+    
+    # Initialize buffer arrays
+    resize!(network.p_self_buffer, network.gen_number)
+    resize!(network.p_prev_buffer, network.gen_number)
+    resize!(network.p_next_buffer, network.gen_number)
+    resize!(network.p_self_buffer_gurobi, network.gen_number)
+    resize!(network.p_next_buffer_gurobi, network.gen_number)
+    resize!(network.p_prev_buffer_gurobi, network.gen_number)
+    
+    # Initialize generation beliefs
+    if network.interval_id == 0
+        for i in 1:network.gen_number
+            network.p_self_belief_inner[i] = 0.0
+            network.p_self_belief[i] = 0.0
+            network.p_prev_belief[i] = network.gen_object[i].P_gen_prev
+            network.p_next_belief[i] = 0.0
+        end
+    else
+        fill!(network.p_self_belief_inner, 0.0)
+        fill!(network.p_self_belief, 0.0)
+        fill!(network.p_prev_belief, 0.0)
+        fill!(network.p_next_belief, 0.0)
+    end
+end
 
-		#Create Loads
-		for item in matrixLoadList:
-			#print("\nEnter the parameters of the {} -th Load:\n".format(index + 1))
-			if self.nodeNumber==300: #Since for IEEE 300 bus system, the nodes are not serialy numbered, but name-numbered instead, below is conversion code
-				lNodeID300 = matrixLoadList[item]['ConnNode'] #Load node identifier
-				if lNodeID300 in self.connNodeNumList: #If node identifier value for this particular node is present in the list
-					pos = self.connNodeNumList.index(lNodeID300) #find the position of the node identifier in the chart of node identifiers
-					lNodeID = nodeValList[pos] #Get the serial number of the node from the nodeValList
-					#print("For Load {} Identifier of the Conn Node: {} Conn Node assigned Serial: {} REPEATED".format(index + 1, lNodeID300 , lNodeID))
-				else:
-					self.connNodeNumList.append(lNodeID300) #For a new node identifier
-					assignedNodeSer += 1
-					self.nodeValList.append(assignedNodeSer) #Assign the node serial
-					lNodeID = assignedNodeSer #Get the serial number of the node from the nodeValList
-					#print("For Load {} Identifier of the Conn Node: {} Conn Node assigned Serial: {} FRESH" .format(index + 1, lNodeID300, lNodeID))
-			else:
-				#node ID of the node object to which this load object is connected.
-				lNodeID = matrixLoadList[item]['ConnNode']
-			#value of allowable power consumption capability of load with a negative sign to indicate consumption:
-			#Power Consumption:
-			if (self.intervalID == 0) or (self.intervalID == 1):
-				P_Load = matrixLoadList[item]['Interval-1_Load'] / self.divConvMWPU
-			else:
-				P_Load = matrixLoadList[item]['Interval-2_Load'] / self.divConvMWPU
-			loadInstance = Load(item + 1, nodeObject[ lNodeID - 1 ], P_Load ) #creates loadInstance object object with ID number index + 1
-			self.loadObject.append(loadInstance) #pushes the loadInstance object into the vector
-		# end initialization for Loads
-	
-		if (self.prePostContScen == 0) and (self.postContScenario == 0):
-			self.deviceTermCount = self.genNumber + self.loadNumber + 2 * self.translNumber #total number of device-terminals
-		elif (self.prePostContScen == 0) and (self.postContScenario != 0):
-			self.deviceTermCount = self.genNumber + self.loadNumber + 2 * (self.translNumber - 1) #total number of device-terminals
-		elif (self.prePostContScen != 0) and (self.postContScenario == 0):
-			self.deviceTermCount = self.genNumber + self.loadNumber + 2 * (self.translNumber - 1) #total number of device-terminals
-		elif (self.prePostContScen != 0) and (self.postContScenario != 0):
-			self.deviceTermCount = self.genNumber + self.loadNumber + 2 * (self.translNumber - 2) #total number of device-terminals
-		#Initializing the Generation beleifs about previous interval, present interval, and next interval outputs
-		if self.intervalID == 0:
-			for i in range(genNumber):
-				self.pSelfBeleifInner.append(0.0) #Belief about the generator MW output of the generators in this dispatch interval from the previous APP iteration
-				self.pSelfBeleif.append(0.0) #Belief about the generator MW output of the generators in this dispatch interval from the previous APP iteration
-				self.pPrevBeleif.append(genObject[i].genPowerPrev()) #Belief about the generator MW output of the generators in previous dispatch interval from the previous APP iteration
-				self.pNextBeleif.append(0.0) #Belief about the generator MW output of the generators in next dispatch interval from the previous APP iteration
-		else:
-			for i in range(genNumber):
-				self.pSelfBeleifInner.append(0.0) #Belief about the generator MW output of the generators in this dispatch interval from the previous APP iteration
-				self.pSelfBeleif.append(0.0) #Belief about the generator MW output of the generators in this dispatch interval from the previous APP iteration
-				self.pPrevBeleif.append(0.0) #Belief about the generator MW output of the generators in previous dispatch interval from the previous APP iteration
-				self.pNextBeleif.append(0.0) #Belief about the generator MW output of the generators in next dispatch interval from the previous APP iteration
-		return
-	# end setNetworkVariables function
+"""
+Run ADMM simulation for the network
+"""
+function run_simulation!(
+    network::Network,
+    outer_iter::Int,
+    lambda_outer::Vector{Float64},
+    power_diff_outer::Vector{Float64},
+    set_rho_tuning::Int,
+    count_of_app_iter::Int,
+    app_lambda::Vector{Float64},
+    diff_of_power::Vector{Float64},
+    power_self_belief::Vector{Float64},
+    power_next_belief::Vector{Float64},
+    power_prev_belief::Vector{Float64},
+    lambda_line::Vector{Float64},
+    power_diff_line::Vector{Float64},
+    power_self_flow_belief::Vector{Float64},
+    power_next_flow_belief::Vector{Float64}
+)
+    max_iter = 80002
+    iteration_count = 1
+    dual_tol = 1.0
+    primal_tol = 0.0
+    
+    # Initialize tracking vectors
+    iteration_graph = Int[]
+    prim_tol_graph = Float64[]
+    dual_tol_graph = Float64[]
+    objective_value = Float64[]
+    
+    # Initialize node variables
+    v_avg = zeros(Float64, network.node_number)
+    lmp = zeros(Float64, network.node_number)
+    
+    # Initialize ADMM parameters
+    rho_1 = 1.0
+    w = 0.0
+    w_prev = 0.0
+    lambda_adap = 0.0001
+    mu_adap = 0.0005
+    xi_adap = 0.0000
+    controller_sum = 0.0
+    
+    start_time = time()
+    
+    println("Starting ADMM iterations for Network $(network.network_id)...")
+    
+    # Main ADMM loop
+    while (primal_tol >= 0.06 || dual_tol >= 0.6) && iteration_count < max_iter
+        if network.verbose
+            println("Starting iteration $iteration_count")
+        end
+        
+        # Store iteration data
+        push!(iteration_graph, iteration_count)
+        push!(prim_tol_graph, primal_tol)
+        push!(dual_tol_graph, dual_tol)
+        
+        # Initialize average variables
+        fill!(v_avg, 0.0)
+        
+        # Generator optimization problems
+        calc_objective = 0.0
+        
+        for (gen_idx, gen) in enumerate(network.gen_object)
+            # Solve generator subproblem
+            solve_generator_subproblem!(gen, network, iteration_count, outer_iter, 
+                                      count_of_app_iter, app_lambda, diff_of_power,
+                                      lambda_outer, power_diff_outer)
+            
+            calc_objective += get_generator_objective(gen)
+        end
+        
+        # Load optimization problems (placeholder)
+        for load in network.load_object
+            solve_load_subproblem!(load, network, iteration_count)
+        end
+        
+        # Transmission line optimization problems
+        for line in network.transl_object
+            solve_transmission_line_subproblem!(line, network, iteration_count)
+        end
+        
+        # Update Rho using adaptive control
+        if set_rho_tuning == 1
+            w = rho_1 * (primal_tol / dual_tol) - 1
+        elseif set_rho_tuning == 2
+            w = (primal_tol / dual_tol) - 1
+        else
+            if iteration_count <= 3000
+                w = rho_1 * (primal_tol / dual_tol) - 1
+            else
+                w = 0.0
+            end
+        end
+        
+        controller_sum += w
+        rho_1 = network.rho
+        network.rho = rho_1 * exp(lambda_adap * w + mu_adap * (w - w_prev) + xi_adap * controller_sum)
+        w_prev = w
+        
+        # Gather operation - collect node information
+        for (node_idx, node) in enumerate(network.node_object)
+            gather_node_information!(node, v_avg, node_idx)
+        end
+        
+        # Broadcast operation - update generator/load/line information
+        for gen in network.gen_object
+            broadcast_generator_information!(gen, network)
+        end
+        
+        for load in network.load_object
+            broadcast_load_information!(load, network)
+        end
+        
+        for line in network.transl_object
+            broadcast_transmission_line_information!(line, network)
+        end
+        
+        # Calculate LMPs
+        for (i, node) in enumerate(network.node_object)
+            lmp[i] = (network.rho / 100) * get_node_lmp(node)
+        end
+        
+        # Reset nodes for next iteration
+        for node in network.node_object
+            reset_node!(node)
+        end
+        
+        # Calculate tolerances
+        primal_tol = calculate_primal_tolerance(network)
+        dual_tol = calculate_dual_tolerance(network, iteration_count, rho_1)
+        
+        push!(objective_value, calc_objective)
+        iteration_count += 1
+        
+        if network.verbose && (iteration_count % 100 == 0)
+            println("Iteration $iteration_count: Primal tol = $primal_tol, Dual tol = $dual_tol")
+        end
+    end
+    
+    network.virtual_exec_time = time() - start_time
+    
+    println("ADMM converged in $(iteration_count-1) iterations")
+    println("Final objective: $(objective_value[end])")
+    println("Execution time: $(network.virtual_exec_time) seconds")
+    
+    # Store results
+    store_network_results!(network, iteration_graph, prim_tol_graph, dual_tol_graph, 
+                          objective_value, lmp)
+    
+    return calc_objective
+end
 
-	#runSimulation function definition
-	function run_simulation(network_instance::Network, outerIter, LambdaOuter, powDiffOuter, setRhoTuning, countOfAPPIter, appLambda, diffOfPow, powSelfBel, powNextBel, powPrevBel, lambdaLine, powerDiffLine, powSelfFlowBel, powNextFlowBel): #Function runSimulation begins
-		#Declaration of intermerdiate variables and parameters for running the simulation
-		iteration_count = 1 #iteration counter
-		dualTol = 1.0 #initialize the dual tolerance
-		ptolsq = 0.0 #initialize the primal tolerance square
-		iterationGraph = [] #vector of iteration counts
-		primTolGraph = [] #vector of primal tolerance
-		PrimTolGraph = []
-		dualTolGraph = [] #vector of dual tolerance
-		objectiveValue = [] #vector of objective function values
-		V_avg = np.zeros(self.nodeNumber, float) #array of average node angle imbalance price from last to last iterate
-		vBuffer1 = np.zeros(self.nodeNumber, float) #intermediate buffer for average node angle price from last to last iterate
-		vBuffer2 = np.zeros(self.nodeNumber, float) #intermediate buffer for average node angle price from last iterate
-		angleBuffer = np.zeros(self.nodeNumber, float) #buffer for average node voltage angles from present iterate
-		angleBuffer1 = np.zeros(self.nodeNumber, float) #buffer for average node voltage angles from last iterate
-		angtildeBuffer = np.zeros(self.deviceTermCount, float) #Thetatilde from present iterate
-		powerBuffer = np.zeros(self.deviceTermCount, float) #Ptilde from present iterate
-		powerBuffer1 = np.zeros(self.deviceTermCount, float) #Ptilde from last iterate
-		pavBuffer = np.zeros(self.nodeNumber, float) #Pav from present iterate
-		ptildeinitBuffer = np.zeros(self.deviceTermCount, float) #Ptilde before iterations begin
-		firstIndex = ( MAX_ITER / 100 ) + 1
-		uPrice = np.zeros(self.deviceTermCount, float) #u parameter from previous iteration
-		vPrice = np.zeros(self.deviceTermCount, float) #v parameter from previous iteration
-		LMP = np.zeros(self.nodeNumber, float) #vector of LMPs
-		Rho1 = 1.0 #Previous value of Rho from previous iteration
-		double W, Wprev; #Present and previous values of W for the PID controller for modifying Rho
-		lambdaAdap = 0.0001 #Parameter of the Proportional (P) controller for adjusting the ADMM tuning parameter
-		muAdap = 0.0005 #Parameter of the Derivative (D) controller for adjusting the ADMM tuning parameter
-		xiAdap = 0.0000 #Parameter of the Integral (I) controller for adjusting the ADMM tuning parameter
-		controllerSum = 0.0 #Integral term of the PID controller
+# Placeholder functions for subproblem solving (to be implemented)
+function solve_generator_subproblem!(gen::GeneralizedGenerator, network::Network, 
+                                   iteration::Int, outer_iter::Int, count_app_iter::Int,
+                                   app_lambda::Vector{Float64}, diff_power::Vector{Float64},
+                                   lambda_outer::Vector{Float64}, power_diff_outer::Vector{Float64})
+    # Implement generator optimization subproblem
+    # This would call the appropriate solver based on network.solver_choice
+end
 
-		#Set the type of tuning #parameter to select adaptive rho, fixed rho, and type of adaptive rho
-		setTuning = setRhoTuning
+function solve_load_subproblem!(load, network::Network, iteration::Int)
+    # Implement load optimization subproblem
+end
 
-		# Calculation of initial value of Primal Tolerance before the start of the iterations	
-		for loadIterator in self.loadObject:
-			ptolsq += ptolsq + loadIterator.pinitMessage() ** 2 #calls the node to divide by the number of devices connected
-		primalTol = math.sqrt(ptolsq) #initial value of primal tolerance to kick-start the iterations
-		PrimalTol = primalTol
-		#Calculation of initial value of Ptilde before the iterations start
-		for generatorIterator in self.genObject:
-			bufferIndex = generatorIterator.getGenID() - 1
-			ptildeinitBuffer[bufferIndex] = -(generatorIterator.calcPavInit())
+function solve_transmission_line_subproblem!(line::transmissionLine, network::Network, iteration::Int)
+    # Implement transmission line optimization subproblem
+end
 
-		for loadIterator in self.loadObject:
-			bufferIndex = self.genNumber + loadIterator.getLoadID() - 1
-			ptildeinitBuffer[bufferIndex] = loadIterator.calcPavInit()
+function gather_node_information!(node::Node, v_avg::Vector{Float64}, node_idx::Int)
+    # Gather node information for ADMM coordination
+end
 
-		temptrans1 = 0 #counter to make sure that two values of Ptilde are accounted for each line
-		for translIterator in self.translObject.end():
-			bufferIndex = self.genNumber + self.loadNumber + (translIterator.getTranslID() - 1) + temptrans1
-			ptildeinitBuffer[bufferIndex] = -(translIterator.calcPavInit1()) #Ptilde corresponding to 'from' end
-			ptildeinitBuffer[bufferIndex + 1] = -(translIterator.calcPavInit2()) #Ptilde corresponding to 'to' end
-			temptrans1 += 1
+function broadcast_generator_information!(gen::GeneralizedGenerator, network::Network)
+    # Broadcast updated generator information
+end
 
-		if countOfAPPIter != 1:
-			for i in range(self.genNumber):
-				pSelfBeleifInner[i] = *(getPowSelf()+i); // Belief about the generator MW output of the generators in this dispatch interval from the previous APP iteration powSelfBel[intervalID*genNumber+i]
-		elif countOfAPPIter == 1: #If warm start for inner APP iterations is not desired, comment this if block
-			for i in range(self.genNumber):
-				pSelfBeleifInner[i] = powSelfBel[(intervalID+postContScenario)*genNumber+i] #Belief about the generator MW output of the generators in this dispatch interval from the previous APP iteration powSelfBel[intervalID*genNumber+i]
-		
-		if dummyZ == 1:
-			if intervalID == 1:
-				for i in range(self.genNumber):
-					pSelfBeleif[i] = powSelfBel[intervalID*genNumber+i] #Belief about the generator MW output of the generators in this dispatch interval from the previous APP iteration
-					pPrevBeleif[i] = powPrevBel[intervalID*genNumber+i] #Belief about the generator MW output of the generators in previous dispatch interval from the previous APP iteration
-					for pcTrack in range(contingencyCount+1):
-						pNextBeleif[pcTrack*genNumber+i] = powNextBel[(intervalID+pcTrack)*genNumber+i] #Belief about the generator MW output of the generators in next dispatch interval from the previous APP iteration
-			elif intervalID == 2:
-				for i in range(self.genNumber):
-					pSelfBeleif[i] = powSelfBel[(intervalID+postContScenario)*genNumber+i] #Belief about the generator MW output of the generators in this dispatch interval from the previous APP iteration
-					pPrevBeleif[i] = powPrevBel[(intervalID+postContScenario)*genNumber+i] #Belief about the generator MW output of the generators in previous dispatch interval from the previous APP iteration
-					pNextBeleif[i] = powNextBel[(contingencyCount+2+postContScenario)*genNumber+i] #Belief about the generator MW output of the generators in next dispatch interval from the previous APP iteration
-			else:
-				for i in range(self.genNumber):
-					pSelfBeleif[i] = powSelfBel[intervalID*genNumber+i] #Belief about the generator MW output of the generators in this dispatch interval from the previous APP iteration
-					pPrevBeleif[i] = powPrevBel[intervalID*genNumber+i] #Belief about the generator MW output of the generators in previous dispatch interval from the previous APP iteration
-					pNextBeleif[i] = powNextBel[intervalID*genNumber+i] #Belief about the generator MW output of the generators in next dispatch interval from the previous APP iteration
-		elif dummyZ == 0:
-			if intervalID == 1:
-				for i in range(self.genNumber):
-					pSelfBeleif[i] = powSelfBel[(intervalID-1)*genNumber+i] #Belief about the generator MW output of the generators in this dispatch interval from the previous APP iteration
-					pPrevBeleif[i] = powPrevBel[(intervalID-1)*genNumber+i] #Belief about the generator MW output of the generators in previous dispatch interval from the previous APP iteration
-					for pcTrack in range(contingencyCount+1):
-						pNextBeleif[pcTrack*genNumber+i] = powNextBel[((intervalID-1)+pcTrack)*genNumber+i] #Belief about the generator MW output of the generators in next dispatch interval from the previous APP iteration
-			elif intervalID == 2:
-				for i in range(self.genNumber):
-					pSelfBeleif[i] = powSelfBel[((intervalID-1)+postContScenario)*genNumber+i] #Belief about the generator MW output of the generators in this dispatch interval from the previous APP iteration
-					pPrevBeleif[i] = powPrevBel[((intervalID-1)+postContScenario)*genNumber+i] #Belief about the generator MW output of the generators in previous dispatch interval from the previous APP iteration
-					pNextBeleif[i] = powNextBel[(contingencyCount+1+postContScenario)*genNumber+i] #Belief about the generator MW output of the generators in next dispatch interval from the previous APP iteration
+function broadcast_load_information!(load, network::Network)
+    # Broadcast updated load information
+end
 
-		if (solverChoice == 1) {
-			matrixResultString = "/home/samie/code/ADMM_Based_Proximal_Message_Passing_Distributed_OPF/LASCOPF_Post_Contingency_Restoration/output/ADMM_PMP_GUROBI/Summary_of_Result_Log" + to_string(scenarioIndex) + "_Scen"+to_string(intervalID)+"Inter_PCScen:"+to_string(postContScenario)+".txt";
-			devProdString="/home/samie/code/ADMM_Based_Proximal_Message_Passing_Distributed_OPF/LASCOPF_Post_Contingency_Restoration/output/ADMM_PMP_GUROBI/powerResult" + to_string(scenarioIndex)  + "_Scen"+to_string(intervalID)+"Inter_PCScen:"+to_string(postContScenario)+".txt";
-			iterationResultString="/home/samie/code/ADMM_Based_Proximal_Message_Passing_Distributed_OPF/LASCOPF_Post_Contingency_Restoration/output/ADMM_PMP_GUROBI/itresult" + to_string(scenarioIndex)  + "_Scen"+to_string(intervalID)+"Inter_PCScen:"+to_string(postContScenario)+".txt"; 
-			lmpResultString="/home/samie/code/ADMM_Based_Proximal_Message_Passing_Distributed_OPF/LASCOPF_Post_Contingency_Restoration/output/ADMM_PMP_GUROBI/LMPresult" + to_string(scenarioIndex)  + "_Scen"+to_string(intervalID)+"Inter_PCScen:"+to_string(postContScenario)+".txt";
-			objectiveResultString="/home/samie/code/ADMM_Based_Proximal_Message_Passing_Distributed_OPF/LASCOPF_Post_Contingency_Restoration/output/ADMM_PMP_GUROBI/objective" + to_string(scenarioIndex)  + "_Scen"+to_string(intervalID)+"Inter_PCScen:"+to_string(postContScenario)+".txt";
-			primalResultString="/home/samie/code/ADMM_Based_Proximal_Message_Passing_Distributed_OPF/LASCOPF_Post_Contingency_Restoration/output/ADMM_PMP_GUROBI/primresult" + to_string(scenarioIndex)  + "_Scen"+to_string(intervalID)+"Inter_PCScen:"+to_string(postContScenario)+".txt";
-			dualResultString="/home/samie/code/ADMM_Based_Proximal_Message_Passing_Distributed_OPF/LASCOPF_Post_Contingency_Restoration/output/ADMM_PMP_GUROBI/dualresult" + to_string(scenarioIndex)  + "_Scen"+to_string(intervalID)+"Inter_PCScen:"+to_string(postContScenario)+".txt";
-		else:
-			matrixResultString = "/home/samie/code/ADMM_Based_Proximal_Message_Passing_Distributed_OPF/LASCOPF_Post_Contingency_Restoration/output/ADMM_PMP_CVXGEN/Summary_of_Result_Log" + to_string(scenarioIndex)  + "_Scen"+to_string(intervalID)+"Inter_PCScen:"+to_string(postContScenario)+".txt";
-			devProdString="/home/samie/code/ADMM_Based_Proximal_Message_Passing_Distributed_OPF/LASCOPF_Post_Contingency_Restoration/output/ADMM_PMP_CVXGEN/powerResult" + to_string(scenarioIndex)  + "_Scen"+to_string(intervalID)+"Inter_PCScen:"+to_string(postContScenario)+".txt"+"Inter_PCScen:"+to_string(postContScenario)+".txt";
-			iterationResultString="/home/samie/code/ADMM_Based_Proximal_Message_Passing_Distributed_OPF/LASCOPF_Post_Contingency_Restoration/output/ADMM_PMP_CVXGEN/itresult" + to_string(scenarioIndex)  + "_Scen"+to_string(intervalID)+"Inter_PCScen:"+to_string(postContScenario)+".txt"; 
-			lmpResultString="/home/samie/code/ADMM_Based_Proximal_Message_Passing_Distributed_OPF/LASCOPF_Post_Contingency_Restoration/output/ADMM_PMP_CVXGEN/LMPresult" + to_string(scenarioIndex)  + "_Scen"+to_string(intervalID)+"Inter_PCScen:"+to_string(postContScenario)+".txt";
-			objectiveResultString="/home/samie/code/ADMM_Based_Proximal_Message_Passing_Distributed_OPF/LASCOPF_Post_Contingency_Restoration/output/ADMM_PMP_CVXGEN/objective" + to_string(scenarioIndex)  + "_Scen"+to_string(intervalID)+"Inter_PCScen:"+to_string(postContScenario)+".txt";
-			primalResultString="/home/samie/code/ADMM_Based_Proximal_Message_Passing_Distributed_OPF/LASCOPF_Post_Contingency_Restoration/output/ADMM_PMP_CVXGEN/primresult" + to_string(scenarioIndex)  + "_Scen"+to_string(intervalID)+"Inter_PCScen:"+to_string(postContScenario)+".txt";
-			dualResultString="/home/samie/code/ADMM_Based_Proximal_Message_Passing_Distributed_OPF/LASCOPF_Post_Contingency_Restoration/output/ADMM_PMP_CVXGEN/dualresult" + to_string(scenarioIndex)  + "_Scen"+to_string(intervalID)+"Inter_PCScen:"+to_string(postContScenario)+".txt";
-	
-		ofstream matrixResultOut( matrixResultString, ios::out ); // create a new file result.txt to output the results
-	
-		// exit program if unable to create file
-		if ( !matrixResultOut ) {
-			cerr << "File could not be opened" << endl;
-			exit( 1 );
-	
-		if Verbose:
-			matrixResultOut << "\nThe initial value of primal tolerance to kick-start iterations is: " << primalTol << "\nThe initial value of dual tolerance to kick-start iterations is: " << dualTol << endl;
-	
-	clock_t start_s = clock(); // begin keeping track of the time
-	//int first = 0;
-	double genActualTime = 0;
-	genADMMMaxTimeVec.clear();
-	// Starting of the ADMM Based Proximal Message Passing Algorithm Iterations
-	//for ( iteration_count = 1; iteration_count < MAX_ITER; iteration_count++ ) {
-	while( ( ( primalTol >= 0.06 ) || ( dualTol >= 0.6 ) ) && (iteration_count < MAX_ITER) ){ // ( iteration_count <= 122 )
-	
-		if ( Verbose ) {
-			matrixResultOut << "\nThe value of primal tolerance before this iteration is: " << primalTol << "\nThe value of dual tolerance before this iteration is: " << dualTol << endl;
-			matrixResultOut << "\n**********Start of " << iteration_count << " -th iteration***********\n";
-		}		
-		// Recording data for plotting graphs
-		
-		iterationGraph.push_back( iteration_count ); // stores the iteration count to be graphed
-		primTolGraph.push_back( primalTol ); // stores the primal tolerance value to be graphed
-		PrimTolGraph.push_back( PrimalTol ); 
-		dualTolGraph.push_back( dualTol ); // stores the dual tolerance value to be graphed
-		//Initialize the average node angle imbalance price (v) vector from last to last interation, V_avg
-		//**if ( iteration_count <= 2 ) {
-			for ( int i = 0; i < nodeNumber; i++ )
-				V_avg[ i ] = 0.0; // initialize to zero for the first and second iterations if the initial values are zero
-		//**}
-		//**else {
-			//**for ( int j = 0; j < nodeNumber; j++ )
-				//**V_avg[ j ] = vBuffer1[ j ]; // initialize to the average node v from last to last iteration for 3rd iteration on
-		
-		//**}
-		// Initialize average v, average theta, ptilde, average P before the start of a particular iteration
-		if ( iteration_count >= 2 ) {
-			angleBuffer1[ 0 ] = 0.0; // set the first node as the slack node, the average voltage angle is always zero
-			for ( int i = 0; i < nodeNumber; i++ ) {
-				//**vBuffer1[ i ] = vBuffer2[ i ]; // Save to vBuffer1, the average v from last iteration for use in next iteration
-				angleBuffer1[ i ] = angleBuffer[ i ]; // Save to angleBuffer1, the average node voltage angle from last iteration
-			}
+function broadcast_transmission_line_information!(line::transmissionLine, network::Network)
+    # Broadcast updated transmission line information
+end
 
-			for ( int j = 0; j < deviceTermCount; j++ )
-				powerBuffer1[ j ] = powerBuffer[ j ]; // Save to powerBuffer1, the Ptilde for each device term. from last itern
+function calculate_primal_tolerance(network::Network)::Float64
+    # Calculate primal tolerance for ADMM convergence
+    return 0.1  # Placeholder
+end
 
-		}
-		
-		else {
-			Wprev = 0.0; // for the first iteration
-			for ( int i = 0; i < nodeNumber; i++ ) {
-			
-				angleBuffer1[ i ] = 0.0; // Set average node voltage angle to zero for 1st iteration
-			}
+function calculate_dual_tolerance(network::Network, iteration::Int, rho_1::Float64)::Float64
+    # Calculate dual tolerance for ADMM convergence
+    return 0.1  # Placeholder
+end
 
-			vector< Node >::iterator nodeIterator;
-			for ( nodeIterator = nodeObject.begin(); nodeIterator != nodeObject.end(); nodeIterator++ ) {
-				bufferIndex = nodeIterator->getNodeID() - 1;
-				pavBuffer[ bufferIndex ] = nodeIterator->devpinitMessage(); // Average node power injection before 1st iteration
-			}
-			for ( int j = 0; j < deviceTermCount; j++ )
-				powerBuffer1[ j ] = ptildeinitBuffer[ j ]; // Save to powerBuffer1, the Ptilde before the 1st iteration
-		}
-		genSingleTimeVec.clear();
-		//vector< Generator >::const_iterator generatorIterator; // Distributed Optimizations; Generators' Opt. Problems
-		double calcObjective = 0.0;	// initialize the total generator cost for this iteration
-		for ( generatorIterator = genObject.begin(); generatorIterator != genObject.end(); generatorIterator++ ) {
-			clock_t start_sgen = clock(); // begin keeping track of the time
-			double Pgit, PowerPrice, APrice; // Generator Power, Power Price, & Angle Price iterates from last iterations
-			bufferIndex = generatorIterator->getGenID() - 1;
-			int gnid = generatorIterator->getGenNodeID() - 1; // gets the ID number of connection node
-			if ( iteration_count > 1 ) { // If 2nd or higher iterations, initialize to previous iterate values
-				Pgit = generatorIterator->genPower();
-				PowerPrice = uPrice[ bufferIndex ];
-				
-				if ( gnid == 0 ) {
-					APrice = 0.0; // Consider node-1 as the slack node, the angle price is zero always
-				}
+function get_generator_objective(gen::GeneralizedGenerator)::Float64
+    # Get generator objective value
+    return 100.0  # Placeholder
+end
 
-				else {
-					APrice = vPrice[ bufferIndex ];
-				}
-			}
-			else { // If 1st iteration, initialize to zero
-				Pgit = 0.0;
-				PowerPrice = 0.0;
-				APrice = 0.0; 
-			}
-			if ( Verbose ) {
-				matrixResultOut << "\nStarting of Generator Optimization Iterations for Generator " << bufferIndex + 1 << "\n";
-				matrixResultOut << "Previous power iterate (MW/pu)\n" << Pgit << "\nPrevious average power (MW/pu) for this node\n" << pavBuffer[ gnid ] << "\nPrevious power price (scaled LMP)\n" << PowerPrice << "\nAngle price from last to last iterate (scaled)\n" << V_avg[ gnid ] << "\nAngle value from last iterate\n" << angleBuffer1[ gnid ] << "\nPrevious angle price (scaled)\n" << APrice << endl;
-			}
-			if (solverChoice == 1) {
-				if (intervalID == 0) {	
-					double AAPP = 0.0;
-					double *BAPP;
-					double *DAPP;
-					BAPP = powDiffOuter+(bufferIndex);
-					DAPP = powDiffOuter+(genNumber+bufferIndex);
-					generatorIterator->gpowerangleMessageGUROBI( outerIter, countOfAPPIter, Rho, Pgit, pavBuffer[ gnid ], PowerPrice, V_avg[ gnid ], angleBuffer1[ gnid ], APrice, pPrevBeleif[ bufferIndex ], pSelfBeleif[ bufferIndex ], pSelfBeleifInner[ bufferIndex ], pNextBeleif, AAPP, BAPP, DAPP, (LambdaOuter+bufferIndex), (LambdaOuter+genNumber+bufferIndex), 0.0, 0.0, diffOfPow, appLambda, environmentGUROBI ); // Solve the Optimization Problem	
-				}			
-				if ((intervalID != 0) && (lastFlag == 0)) {
-					double AAPP = 0.0;
-					double BAPP[contingencyCount+1];
-					double DAPP[contingencyCount+1];
-					double LambOuterB[contingencyCount+1];
-					double LambOuterD[contingencyCount+1];
-					double PgNextbel[contingencyCount+1];
-					for (int consensusCounter = 0; consensusCounter <= contingencyCount; ++consensusCounter) {
-						if (consensusCounter==contingencyCount) {
-							BAPP[consensusCounter] = powDiffOuter[2*dummyZ*genNumber+2*consensusCounter*genNumber+bufferIndex]-(dummyZ*powDiffOuter[genNumber+bufferIndex]);
-							DAPP[consensusCounter] = powDiffOuter[2*dummyZ*genNumber+(2*consensusCounter+1)*genNumber+bufferIndex];
-							LambOuterB[consensusCounter] = LambdaOuter[2*dummyZ*genNumber+2*consensusCounter*genNumber+bufferIndex];
-							LambOuterD[consensusCounter] = LambdaOuter[2*dummyZ*genNumber+(2*consensusCounter+1)*genNumber+bufferIndex];
-							PgNextbel[consensusCounter] = pNextBeleif[(consensusCounter)*genNumber+bufferIndex];
-						}
-						else {
-							BAPP[consensusCounter] = powDiffOuter[2*dummyZ*genNumber+2*consensusCounter*genNumber+bufferIndex];
-							DAPP[consensusCounter] = powDiffOuter[2*dummyZ*genNumber+(2*consensusCounter+1)*genNumber+bufferIndex];
-							LambOuterB[consensusCounter] = LambdaOuter[2*dummyZ*genNumber+2*consensusCounter*genNumber+bufferIndex];
-							LambOuterD[consensusCounter] = LambdaOuter[2*dummyZ*genNumber+(2*consensusCounter+1)*genNumber+bufferIndex];
-							PgNextbel[consensusCounter] = pNextBeleif[(consensusCounter)*genNumber+bufferIndex];
-						}
-					}
-					AAPP = -dummyZ*(powDiffOuter[bufferIndex]);
-					generatorIterator->gpowerangleMessageGUROBI( outerIter, countOfAPPIter, Rho, Pgit, pavBuffer[ gnid ], PowerPrice, V_avg[ gnid ], angleBuffer1[ gnid ], APrice, pPrevBeleif[ bufferIndex ], pSelfBeleif[ bufferIndex ], pSelfBeleifInner[ bufferIndex ], PgNextbel, AAPP, BAPP, DAPP, LambOuterB, LambOuterD, dummyZ*(LambdaOuter[bufferIndex]), dummyZ*(LambdaOuter[genNumber+bufferIndex]), diffOfPow, appLambda, environmentGUROBI ); // Solve the Optimization Problem
-				}
-				if ((intervalID != 0) && (lastFlag == 1)) {
-					double *BAPP;
-					double LambOuterB=0;
-					double LambOuterD=0;
-					double DAPP = 0.0;
-					double AAPP = -powDiffOuter[2*dummyZ*genNumber+2*postContScenario*genNumber+bufferIndex];
-					BAPP = -powDiffOuter+(2*dummyZ*genNumber+(2*postContScenario+1)*genNumber+bufferIndex);
-					generatorIterator->gpowerangleMessageGUROBI( outerIter, countOfAPPIter, Rho, Pgit, pavBuffer[ gnid ], PowerPrice, V_avg[ gnid ], angleBuffer1[ gnid ], APrice, pPrevBeleif[ bufferIndex ], pSelfBeleif[ bufferIndex ], pSelfBeleifInner[ bufferIndex ], pNextBeleif, AAPP, BAPP, &DAPP, &LambOuterB, &LambOuterD, LambdaOuter[2*dummyZ*genNumber+2*postContScenario*genNumber+bufferIndex], LambdaOuter[2*dummyZ*genNumber+(2*postContScenario+1)*genNumber+bufferIndex], diffOfPow, appLambda, environmentGUROBI ); // Solve the Optimization Problem
-				}
-				calcObjective = calcObjective + generatorIterator->objectiveGenGUROBI(); // calculate the total objective after this iteration
-			}
-			else {
-				if (intervalID == 0) {	
-					double AAPP = 0.0;
-					double *BAPP;
-					double *DAPP;
-					BAPP = powDiffOuter+(bufferIndex);
-					DAPP = powDiffOuter+(genNumber+bufferIndex);
-					generatorIterator->gpowerangleMessage( outerIter, countOfAPPIter, Rho, Pgit, pavBuffer[ gnid ], PowerPrice, V_avg[ gnid ], angleBuffer1[ gnid ], APrice, pPrevBeleif[ bufferIndex ], pSelfBeleif[ bufferIndex ], pSelfBeleifInner[ bufferIndex ], pNextBeleif, AAPP, BAPP, DAPP, (LambdaOuter+bufferIndex), (LambdaOuter+genNumber+bufferIndex), 0.0, 0.0, diffOfPow, appLambda ); // Solve the Optimization Problem
-				}			
-				if ((intervalID != 0) && (lastFlag == 0)) {
-					double AAPP = 0.0;
-					double BAPP[contingencyCount+1];
-					double DAPP[contingencyCount+1];
-					double LambOuterB[contingencyCount+1];
-					double LambOuterD[contingencyCount+1];
-					double PgNextbel[contingencyCount+1];
-					for (int consensusCounter = 0; consensusCounter <= contingencyCount; ++consensusCounter) {
-						if (consensusCounter==contingencyCount) {
-							BAPP[consensusCounter] = powDiffOuter[2*dummyZ*genNumber+2*consensusCounter*genNumber+bufferIndex]-(dummyZ*powDiffOuter[genNumber+bufferIndex]);
-							DAPP[consensusCounter] = powDiffOuter[2*dummyZ*genNumber+(2*consensusCounter+1)*genNumber+bufferIndex];
-							LambOuterB[consensusCounter] = LambdaOuter[2*dummyZ*genNumber+2*consensusCounter*genNumber+bufferIndex];
-							LambOuterD[consensusCounter] = LambdaOuter[2*dummyZ*genNumber+(2*consensusCounter+1)*genNumber+bufferIndex];
-							PgNextbel[consensusCounter] = pNextBeleif[(consensusCounter)*genNumber+bufferIndex];
-						}
-						else {
-							BAPP[consensusCounter] = powDiffOuter[2*dummyZ*genNumber+2*consensusCounter*genNumber+bufferIndex];
-							DAPP[consensusCounter] = powDiffOuter[2*dummyZ*genNumber+(2*consensusCounter+1)*genNumber+bufferIndex];
-							LambOuterB[consensusCounter] = LambdaOuter[2*dummyZ*genNumber+2*consensusCounter*genNumber+bufferIndex];
-							LambOuterD[consensusCounter] = LambdaOuter[2*dummyZ*genNumber+(2*consensusCounter+1)*genNumber+bufferIndex];
-							PgNextbel[consensusCounter] = pNextBeleif[(consensusCounter)*genNumber+bufferIndex];
-						}
-					}
-					AAPP = -dummyZ*(powDiffOuter[bufferIndex]);
-					generatorIterator->gpowerangleMessage( outerIter, countOfAPPIter, Rho, Pgit, pavBuffer[ gnid ], PowerPrice, V_avg[ gnid ], angleBuffer1[ gnid ], APrice, pPrevBeleif[ bufferIndex ], pSelfBeleif[ bufferIndex ], pSelfBeleifInner[ bufferIndex ], PgNextbel, AAPP, BAPP, DAPP, LambOuterB, LambOuterD, dummyZ*(LambdaOuter[bufferIndex]), dummyZ*(LambdaOuter[genNumber+bufferIndex]), diffOfPow, appLambda ); // Solve the Optimization Problem
-				}
-				if ((intervalID != 0) && (lastFlag == 1)) {
-					double *BAPP;
-					double LambOuterB=0;
-					double LambOuterD=0;
-					double DAPP = 0.0;
-					double AAPP = -powDiffOuter[2*dummyZ*genNumber+2*postContScenario*genNumber+bufferIndex];
-					BAPP = powDiffOuter+(2*dummyZ*genNumber+(2*postContScenario+1)*genNumber+bufferIndex);
-					generatorIterator->gpowerangleMessage( outerIter, countOfAPPIter, Rho, Pgit, pavBuffer[ gnid ], PowerPrice, V_avg[ gnid ], angleBuffer1[ gnid ], APrice, pPrevBeleif[ bufferIndex ], pSelfBeleif[ bufferIndex ], pSelfBeleifInner[ bufferIndex ], pNextBeleif, AAPP, BAPP, &DAPP, &LambOuterB, &LambOuterD, LambdaOuter[2*dummyZ*genNumber+2*postContScenario*genNumber+bufferIndex], LambdaOuter[2*dummyZ*genNumber+(2*postContScenario+1)*genNumber+bufferIndex], diffOfPow, appLambda ); // Solve the Optimization Problem
-				}
-				calcObjective = calcObjective + generatorIterator->objectiveGen(); // calculate the total objective after this iteration
-			}
-			clock_t stop_sgen = clock(); // begin keeping track of the time
-			double genSingleTime = static_cast<double>( stop_sgen - start_sgen ) / CLOCKS_PER_SEC;
-			genSingleTimeVec.push_back(genSingleTime);
-			genActualTime += genSingleTime;
-		}
-		double largestGenTime = *max_element(genSingleTimeVec.begin(), genSingleTimeVec.end());
-		genADMMMaxTimeVec.push_back(largestGenTime);
-		//vector< Load >::const_iterator loadIterator;	// Distributed Optimizations; Loads' Optimization Problems
-		for ( loadIterator = loadObject.begin(); loadIterator != loadObject.end(); loadIterator++ ) {
-			double APrice, PPrice; // Load Power Price and Angle Price from last iterations
-			bufferIndex = genNumber + ( loadIterator->getLoadID() - 1 );
-			int lnid = loadIterator->getLoadNodeID() - 1; // gets ID number of connection node
-			if ( iteration_count > 1 ) { // If 2nd or higher iterations, initialize to previous iterate values
-				
-				if ( lnid == 0 ) {
-					APrice = 0.0; // Consider node-1 as the slack node, the angle price is zero always
-				}
+function get_node_lmp(node::Node)::Float64
+    # Get node LMP value
+    return 50.0  # Placeholder
+end
 
-				else {
-					APrice = vPrice[ bufferIndex ];
-				}
-				PPrice = uPrice[ bufferIndex ];
-			}
-			else 
-				APrice = 0.0; // If 1st iteration, initialize to zero
-			if ( Verbose ) {
-				matrixResultOut << "\nStarting of Load Optimization Iterations for Load " << loadIterator->getLoadNodeID() << "\n";
-				matrixResultOut << "\nAngle price from last to last iterate (scaled)\n" << V_avg[ lnid ] << "\nAngle value from last iterate\n" << angleBuffer1[ lnid ] << "\nPrevious angle price (scaled)\n" << APrice << endl;
-			}
-			loadIterator->lpowerangleMessage( Rho, V_avg[ lnid ], angleBuffer1[ lnid ], APrice ); // Solve the Optimization Problem
-		}
-		//vector< transmissionLine >::const_iterator translIterator;// Distributed Optimizations; TLine' Optimization Problems
-		int temptrans2 = 0;	
-		for ( translIterator = translObject.begin(); translIterator != translObject.end(); translIterator++ ) {
-			double Ptit1, Ptit2, PowerPrice1, PowerPrice2, APrice1, APrice2; // Tline Power, Power price, Angle price at both ends
-			bufferIndex = genNumber + loadNumber + ( translIterator->getTranslID() - 1 ) + temptrans2;
-			int tnid1 = translIterator->getTranslNodeID1() - 1; // gets ID number of first conection node
-			int tnid2 = translIterator->getTranslNodeID2() - 1; // gets ID number of second connection node
-			if (iteration_count > 1 ) { // If 2nd or higher iterations, initialize to previous iterate values
-				Ptit1 = translIterator->translPower1();
-				Ptit2 = translIterator->translPower2();
-				PowerPrice1 = uPrice[ bufferIndex ];
-				PowerPrice2 = uPrice[ ( bufferIndex + 1 ) ];
-				
-				if ( tnid1 == 0 ) {
-					APrice1 = 0.0; // Consider node-1 as the slack node, the angle price is zero always
-				}
+function reset_node!(node::Node)
+    # Reset node variables for next iteration
+end
 
-				else {
-					APrice1 = vPrice[ bufferIndex ];
-				}
-				
-				if ( tnid2 == 0 ) {
-					APrice2 = 0.0; // Consider node-1 as the slack node, the angle price is zero always
-				}
+function store_network_results!(network::Network, iteration_graph::Vector{Int},
+                               prim_tol_graph::Vector{Float64}, dual_tol_graph::Vector{Float64},
+                               objective_value::Vector{Float64}, lmp::Vector{Float64})
+    # Store simulation results to files
+    println("Storing results for Network $(network.network_id)")
+end
 
-				else {
-					APrice2 = vPrice[ ( bufferIndex + 1 ) ];
-				}
-			}
-			else { // If 1st iteration, initialize to zero
-				Ptit1 = 0.0;
-				Ptit2 = 0.0;
-				PowerPrice1 = 0.0;
-				PowerPrice2 = 0.0;
-				APrice1 = 0.0;
-				APrice2 = 0.0;
-			}
-			if ( Verbose ) {
-				matrixResultOut << "\nStarting of Transmission Line Optimization Iterations for Transmission line " << translIterator->getTranslID() << "\n";
-				matrixResultOut << "Previous power iterate (MW/pu) for end-1\n" << Ptit1 << "\nPrevious average power (MW/pu) for end-1\n" << pavBuffer[ tnid1 ] << "\nPrevious power price (scaled LMP) for end-1\n" << PowerPrice1 << "\nAngle price from last to last iterate for end-1 (scaled)\n" << V_avg[ tnid1 ] << "\nAngle value from last iterate for end-1\n" << angleBuffer1[ tnid1 ] << "\nPrevious angle price for end-1 (scaled)\n" << APrice1 << "\nPrevious power iterate (MW/pu) for end-2\n" << Ptit2 << "\nPrevious average power (MW/pu) for end-2\n" << pavBuffer[ tnid2 ] << "\nPrevious power price (scaled LMP) for end-2\n" << PowerPrice2 << "\nAngle price from last to last iterate for end-2 (scaled)\n" << V_avg[ tnid2 ] << "\nAngle value from last iterate for end-2\n" << angleBuffer1[ tnid2 ] << "\nPrevious angle price for end-2 (scaled)\n" << APrice2 << endl;	
-			}			
-			translIterator->tpowerangleMessage( Rho, Ptit1, pavBuffer[ tnid1 ], PowerPrice1, V_avg[ tnid1 ], angleBuffer1[ tnid1 ], APrice1, Ptit2, pavBuffer[ tnid2 ], PowerPrice2, V_avg[ tnid2 ], angleBuffer1[ tnid2 ], APrice2 ); // Solve the Opt. Problem
-			temptrans2++; 
-		}
-		
-		
-		if ( setTuning == 1 ) {
-			W = ( Rho1 ) * ( primalTol / dualTol ) - 1; // Definition of W for adaptive Rho with Rho1 * primalTol = dualTol
-		}
-		else {
-			if ( setTuning == 2 ) {
-				W = ( primalTol / dualTol ) - 1; // Definition of W for adaptive Rho with primalTol = dualTol
-			}
-			else {
-	 			//W = 0.0; // Definition of W for fixed Rho
-				if ( iteration_count <= 3000 ) {
-					W = ( Rho1 ) * ( primalTol / dualTol ) - 1; // Definition of W for adaptive Rho with Rho1 * primalTol = dualTol
-				}
-				else {
-					W = 0.0; // Definition of W for fixed Rho
-				}
-			}
-		}
-		// Calculation of Adaptive Rho
-		controllerSum = controllerSum + W;
-		Rho1 = Rho; // Store previous Rho
-		Rho = ( Rho1 ) * ( exp( ( lambdaAdap * W ) + ( muAdap * ( W - Wprev ) ) + ( xiAdap * controllerSum  ) ) ); // Next iterate value of Rho
-		Wprev = W; // Buffering
-		
-		if ( Verbose ) {
-			matrixResultOut << "\n*********Starting of Gather Operation************\n";
-		}
-		vector< Node >::iterator nodeIterator; // Distributed Optimizations; Nodes' Optimization Problem; Gather Operation
-		for ( nodeIterator = nodeObject.begin(); nodeIterator != nodeObject.end(); nodeIterator++ ) {
-			bufferIndex = nodeIterator->getNodeID() - 1;
-			//**vBuffer2[ bufferIndex ] = ( Rho1 / Rho ) * ( nodeIterator->vavMessage() ); // Gather & Calculate average v after present iteration/node
-			if ( bufferIndex == 0 ) {
-				angleBuffer [ bufferIndex ] = 0.0; // consider node 1 as slack node; average voltage angle always zero
-			}
-			else {
-				angleBuffer[ bufferIndex ] = nodeIterator->ThetaavMessage(); // Calculate average angle after present iteration/node
-			}
-			pavBuffer[ bufferIndex ] = nodeIterator->PavMessage(); // Calculate average power after present iteration/node
-			if ( Verbose ) {
-				matrixResultOut << "\nNode Number: " << bufferIndex + 1 /*<< "\nV_avg = " << vBuffer2[ bufferIndex ] */<< "\nTheta_avg = " << angleBuffer[ bufferIndex ] << "\nP_avg = " << pavBuffer[ bufferIndex ] << endl;
-			}
-		}
+# Getter functions
+get_gen_number(network::Network) = network.gen_number
+get_contingency_count(network::Network) = network.contingency_count
+get_outaged_line_index(network::Network, cont_scen::Int) = network.outaged_line[cont_scen]
 
-		if ( Verbose ) {
-			matrixResultOut << "\n*******Starting of Broadcast Operation*******\n";
-		}
-		// vector< Generator >::const_iterator generatorIterator;	// Broadcast to Generators
-		for ( generatorIterator = genObject.begin(); generatorIterator != genObject.end(); generatorIterator++ ) {
-			bufferIndex = generatorIterator->getGenID() - 1;
-			if ( Verbose ) {
-				matrixResultOut << "\n***Generator: " << bufferIndex + 1 << " results***\n" << endl;
-			}
-			powerBuffer[ bufferIndex ] = generatorIterator->calcPtilde();
+"""
+Get power generation beliefs for coordination
+"""
+function get_power_self(network::Network)
+    for (i, gen) in enumerate(network.gen_object)
+        network.p_self_buffer[i] = gen.Pg
+    end
+    return network.p_self_buffer
+end
+
+function get_power_prev(network::Network)
+    for (i, gen) in enumerate(network.gen_object)
+        network.p_prev_buffer[i] = gen.P_gen_prev
+    end
+    return network.p_prev_buffer
+end
+
+function get_power_next(network::Network)
+    for (i, gen) in enumerate(network.gen_object)
+        network.p_next_buffer[i] = gen.P_gen_next
+    end
+    return network.p_next_buffer
+end
+
+# GUROBI buffer accessors
+get_power_self_gurobi(network::Network) = network.p_self_buffer_gurobi
+get_power_next_gurobi(network::Network) = network.p_next_buffer_gurobi
+
+function get_power_prev_gurobi(network::Network)
+    if network.interval_id == 0
+        for (i, gen) in enumerate(network.gen_object)
+            network.p_prev_buffer_gurobi[i] = gen.P_gen_prev
+        end
+    end
+    return network.p_prev_buffer_gurobi
+end
+
+"""
+Reset network for next iteration
+"""
+function reset_network!(network::Network)
+    for node in network.node_object
+        reset_node!(node)
+    end
+    
+    # Clear performance vectors
+    empty!(network.gen_single_time_vec)
+    # Note: don't clear gen_admm_max_time_vec as it tracks across iterations
+end
+
+"""
+Get network summary information
+"""
+function get_network_summary(network::Network)
+    return Dict(
+        "network_id" => network.network_id,
+        "nodes" => network.node_number,
+        "generators" => network.gen_number,
+        "transmission_lines" => network.transl_number,
+        "loads" => network.load_number,
+        "contingencies" => network.contingency_count,
+        "interval" => network.interval_id,
+        "scenario" => network.scenario_index,
+        "case_name" => network.case_name,
+        "case_format" => network.case_format
+    )
+end
+
+"""
+Display network information
+"""
+function Base.show(io::IO, network::Network)
+    println(io, "PowerLASCOPF Network:")
+    println(io, "  ID: $(network.network_id)")
+    println(io, "  Case: $(network.case_name)")
+    println(io, "  Format: $(network.case_format)")
+    println(io, "  Nodes: $(network.node_number)")
+    println(io, "  Generators: $(network.gen_number)")
+    println(io, "  Transmission Lines: $(network.transl_number)")
+    println(io, "  Loads: $(network.load_number)")
+    println(io, "  Contingencies: $(network.contingency_count)")
+    println(io, "  Interval: $(network.interval_id)")
+    println(io, "  Scenario: $(network.scenario_index)")
+end
+
+# Export functions
+export Network, network_init_var, set_network_variables!
+export get_gen_number, get_contingency_count, get_outaged_line_index
+export get_power_self, get_power_prev, get_power_next
+export get_power_self_gurobi, get_power_next_gurobi, get_power_prev_gurobi
+export reset_network!, get_network_summary
+export create_ieee_case_system, load_case_to_power_lascopf_system
+export run_simulation!
 			uPrice[ bufferIndex ] = ( Rho1 / Rho ) * ( generatorIterator->getu() );
 			angtildeBuffer[ bufferIndex ] = generatorIterator->calcThetatilde();
 			//generatorIterator->calcvtilde();

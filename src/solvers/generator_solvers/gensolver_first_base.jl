@@ -28,8 +28,8 @@ include("../../core/cost_utilities.jl")
 end
 
 @kwdef mutable struct GenSolver{T<:Union{ExtendedThermalGenerationCost,
-    ExtendedRenewableGenerationCost,
-    ExtendedHydroGenerationCost}, U<:GenIntervals}<:AbstractModel
+    ExtendedRenewableGenerationCost, ExtendedStorageCost,
+    ExtendedHydroGenerationCost}, U<:GenIntervals} <: AbstractModel
     interval_type::U # Interval type
     cost_curve::T
     model::Union{JuMP.Model, Nothing} = nothing
