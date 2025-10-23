@@ -1,0 +1,8 @@
+# This file is used internally by FFMPEG.
+file 'file:/Users/sc87/code/OPF_LASCOPF_Staple/PowerLASCOPF/visualization/media/videos/neural_networks/1080p60/partial_movie_files/TrainingVsInference/3529212410_3165093517_223132457.mp4'
+file 'file:/Users/sc87/code/OPF_LASCOPF_Staple/PowerLASCOPF/visualization/media/videos/neural_networks/1080p60/partial_movie_files/TrainingVsInference/3040924799_2534651500_1944481063.mp4'
+file 'file:/Users/sc87/code/OPF_LASCOPF_Staple/PowerLASCOPF/visualization/media/videos/neural_networks/1080p60/partial_movie_files/TrainingVsInference/3040924799_2834709167_3659478722.mp4'
+file 'file:/Users/sc87/code/OPF_LASCOPF_Staple/PowerLASCOPF/visualization/media/videos/neural_networks/1080p60/partial_movie_files/TrainingVsInference/3040924799_1539486071_826524436.mp4'
+file 'file:/Users/sc87/code/OPF_LASCOPF_Staple/PowerLASCOPF/visualization/media/videos/neural_networks/1080p60/partial_movie_files/TrainingVsInference/3040924799_3726270912_1805016427.mp4'
+file 'file:/Users/sc87/code/OPF_LASCOPF_Staple/PowerLASCOPF/visualization/media/videos/neural_networks/1080p60/partial_movie_files/TrainingVsInference/3040924799_346825190_823559607.mp4'
+file 'file:/Users/sc87/code/OPF_LASCOPF_Staple/PowerLASCOPF/visualization/media/videos/neural_networks/1080p60/partial_movie_files/TrainingVsInference/3040924799_2552855209_1253552080.mp4'

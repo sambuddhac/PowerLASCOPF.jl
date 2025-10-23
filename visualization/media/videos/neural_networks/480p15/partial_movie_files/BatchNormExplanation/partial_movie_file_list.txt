@@ -1,0 +1,6 @@
+# This file is used internally by FFMPEG.
+file 'file:/Users/sc87/code/OPF_LASCOPF_Staple/PowerLASCOPF/visualization/media/videos/neural_networks/480p15/partial_movie_files/BatchNormExplanation/1185818338_882983354_223132457.mp4'
+file 'file:/Users/sc87/code/OPF_LASCOPF_Staple/PowerLASCOPF/visualization/media/videos/neural_networks/480p15/partial_movie_files/BatchNormExplanation/624642324_1447641016_1985686004.mp4'
+file 'file:/Users/sc87/code/OPF_LASCOPF_Staple/PowerLASCOPF/visualization/media/videos/neural_networks/480p15/partial_movie_files/BatchNormExplanation/624642324_2834709167_1504607950.mp4'
+file 'file:/Users/sc87/code/OPF_LASCOPF_Staple/PowerLASCOPF/visualization/media/videos/neural_networks/480p15/partial_movie_files/BatchNormExplanation/624642324_150784714_1747191397.mp4'
+file 'file:/Users/sc87/code/OPF_LASCOPF_Staple/PowerLASCOPF/visualization/media/videos/neural_networks/480p15/partial_movie_files/BatchNormExplanation/624642324_2844360058_370760317.mp4'

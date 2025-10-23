@@ -1,0 +1,4 @@
+# This file is used internally by FFMPEG.
+file 'file:/Users/sc87/code/OPF_LASCOPF_Staple/PowerLASCOPF/visualization/media/videos/neural_networks/1080p60/partial_movie_files/RAGApplicationHint/3529212410_3442051873_223132457.mp4'
+file 'file:/Users/sc87/code/OPF_LASCOPF_Staple/PowerLASCOPF/visualization/media/videos/neural_networks/1080p60/partial_movie_files/RAGApplicationHint/3040924799_2491556466_2973806294.mp4'
+file 'file:/Users/sc87/code/OPF_LASCOPF_Staple/PowerLASCOPF/visualization/media/videos/neural_networks/1080p60/partial_movie_files/RAGApplicationHint/3040924799_2552855209_3255147395.mp4'
