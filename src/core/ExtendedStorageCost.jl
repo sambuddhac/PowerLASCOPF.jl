@@ -10,7 +10,7 @@
 """
 
 @kwdef mutable struct ExtendedStorageCost{T<:GenIntervals}<:AbstractModel
-    storage_cost_core::PSY.StorageManagementCost # Core storage cost
+    storage_cost_core::PSY.StorageCost # Core storage cost
     regularization_term::Union{T, Float64} # Regularization Term
     charge_cost::Float64 = 0.0 # Cost of charging storage
     discharge_cost::Float64 = 0.0 # Cost of discharging storage
@@ -22,7 +22,7 @@ ExtendedStorageCost(storage_cost_core, regularization_term) = ExtendedStorageCos
 # It now explicitly states that it's a constructor for ExtendedStorageCost{T}
 # where T is any subtype of GenIntervals.
 function ExtendedStorageCost{T}(::Nothing) where {T<:GenIntervals}
-    ExtendedStorageCost{T}(; storage_cost_core=PSY.StorageManagementCost(), regularization_term=0.0)
+    ExtendedStorageCost{T}(; storage_cost_core=PSY.StorageCost(), regularization_term=0.0)
 end
 
 # Getter functions

@@ -80,7 +80,7 @@ Build the complete thermal cost expression including variable, fixed, startup, s
 """
 function build_thermal_cost_expression(cost::ExtendedThermalGenerationCost, Pg, commitment_var, args...)
     # Core thermal cost (quadratic + linear + fixed)
-    variable_cost = PSY.get_variable(cost.thermal_cost_core)
+    variable_cost = get_variable(cost)
     if isa(variable_cost, PSY.QuadraticCurve)
         core_cost = variable_cost.quadratic_term * Pg^2 + variable_cost.linear_term * Pg + variable_cost.constant_term
     else

@@ -13,11 +13,16 @@ catch
     # DocStringExtensions not available, ignore
 end
 
+const  PSY = PowerSystems
+const IS = InfrastructureSystems
+const PSI = PowerSimulations
+
 # Include necessary modules from the codebase
-include("../../core/solver_model_types.jl")     # Core types (GenFirstBaseInterval, etc.)
+include("../../core/solver_model_types.jl") # Core types (GenFirstBaseInterval, etc.)
 include("../../core/ExtendedThermalGenerationCost.jl")
 include("../../core/ExtendedRenewableGenerationCost.jl") 
 include("../../core/ExtendedHydroGenerationCost.jl")
+include("../../core/ExtendedStorageCost.jl")
 include("../../core/cost_utilities.jl")
 
 # Configuration for preallocation vs non-preallocation
@@ -316,7 +321,7 @@ function set_objective_direct!(model::JuMP.Model, solver::GenSolver, devices, ti
     end
     
     # Initialize objective expression
-    objective_expr = JuMP.AffExpr(0.0)
+    objective_expr = JuMP.QuadExpr()
     
     for device in devices, t in time_steps
         name = PSY.get_name(device)
@@ -886,7 +891,7 @@ end
 """
 Example usage of the integrated LASCOPF generator solver with approach selection
 """
-function example_lascopf_generator_solve(sys::PSY.System; use_preallocation=true)
+function example_lascopf_generator_solve(sys::PSY.System; use_preallocation=false)
     # Create interval data with ADMM/APP parameters
     interval_data = GenFirstBaseInterval(
         lambda_1 = rand(5),      # Example array parameters
@@ -901,6 +906,12 @@ function example_lascopf_generator_solve(sys::PSY.System; use_preallocation=true
         gamma = 1.0,            # APP parameter
         gamma_sc = 1.0,         # Security constraint parameter
         lambda_1_sc = rand(5),  # Security constraint multipliers
+        Pg_N_init = 1.0, 
+        Pg_N_avg = 1.0, 
+        thetag_N_avg = 0.5, 
+        ug_N = 0.2, 
+        vg_N = 1.2, 
+        Vg_N_avg = 1.0,
         Pg_nu = 100.0,          # Previous iteration values
         Pg_nu_inner = 100.0,
         Pg_next_nu = rand(5),
@@ -908,7 +919,7 @@ function example_lascopf_generator_solve(sys::PSY.System; use_preallocation=true
     )
     
     # Create cost structure - example for thermal generation
-    thermal_cost = ThermalGenerationCost(nothing)  # You'll need to define this
+    thermal_cost = PSY.ThermalGenerationCost(nothing)  # You'll need to define this
     extended_cost = ExtendedThermalGenerationCost(thermal_cost, interval_data)
     
     # Create solver with configuration
@@ -930,7 +941,7 @@ function example_lascopf_generator_solve(sys::PSY.System; use_preallocation=true
     results = build_and_solve_gensolver!(
         solver, 
         sys;
-        optimizer_factory = HiGHS.Optimizer,  # Or your preferred optimizer
+        optimizer_factory = Ipopt.Optimizer,  # Or your preferred optimizer
         solve_options = Dict("time_limit" => 300.0),
         time_horizon = 24
     )
