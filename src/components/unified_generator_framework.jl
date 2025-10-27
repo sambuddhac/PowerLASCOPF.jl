@@ -10,10 +10,9 @@ include("extended_hydro.jl")
 include("extended_storage.jl") 
 include("renewable_generator.jl")
 include("storage_generator.jl")
-include("extended_thermal_generators.jl")
-
 # Import the common messaging framework
 include("ExtendedThermalGenerator.jl")
+include("GeneralizedGenerator.jl")
 
 # Define abstract type for unified generator interface
 abstract type UnifiedGenerator end

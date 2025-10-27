@@ -5,9 +5,60 @@ This script demonstrates how to run a complete PowerLASCOPF simulation
 on the 5-bus test system with ADMM/APP algorithm.
 """
 
-using Pkg
-Pkg.activate(".")
+"""
+5-Bus PowerLASCOPF Simulation Runner
 
+This script demonstrates how to run a complete PowerLASCOPF simulation
+on the 5-bus test system with ADMM/APP algorithm.
+"""
+
+using Pkg;
+# Use relative paths from this file's location
+project_dir = abspath(joinpath(@__DIR__, "..")) # repository/project root containing Project.toml
+println("Activating project at: $project_dir")
+
+# Reset and reinstantiate the environment
+Pkg.activate(project_dir);
+#=FOR FIRST TIME USE OR TROUBLESHOOTING=
+# Clear any problematic manifest and reinstantiate
+println("Checking and fixing environment...")
+try
+    # Remove the problematic Manifest.toml if it exists
+    manifest_path = joinpath(project_dir, "Manifest.toml")
+    if isfile(manifest_path)
+        println("Removing outdated Manifest.toml...")
+        rm(manifest_path)
+    end
+    
+    # Reinstantiate the project
+    println("Reinstantiating project...")
+    Pkg.instantiate()
+    
+    # Update packages to latest compatible versions
+    println("Updating packages...")
+    Pkg.update()
+    
+catch e
+    println("Environment setup failed: $e")
+    println("Trying alternative approach...")
+    
+    # Alternative: Create a minimal environment
+    Pkg.activate(temp=true)  # Use temporary environment
+    
+    # Add only essential packages
+    Pkg.add([
+        "PowerSystems", 
+        "TimeSeries", 
+        "Dates", 
+        "LinearAlgebra", 
+        "JuMP", 
+        "Ipopt", 
+        "JSON"
+    ])
+end
+FOR FIRST TIME USE OR TROUBLESHOOTING==#
+
+# ...existing code...
 # Load necessary packages
 using PowerSystems
 using TimeSeries
@@ -17,6 +68,8 @@ using JuMP
 using Ipopt
 using JSON
 using Printf
+
+include("../src/PowerLASCOPF.jl")
 
 # Load test case directly
 include("../example_cases/data_5bus_pu.jl")

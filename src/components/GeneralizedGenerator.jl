@@ -14,7 +14,8 @@ using TimeSeries
 #const IS = InfrastructureSystems
 
 # Include necessary modules from the codebase
-include("Node.jl")
+include("GeneratorScenario.jl")
+include("node.jl")
 include("transmission_line.jl")
 include("../core/solver_model_types.jl")
 include("../core/ExtendedThermalGenerationCost.jl")

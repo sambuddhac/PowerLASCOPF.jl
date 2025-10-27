@@ -92,7 +92,7 @@ PowerSystems.get_load_zone(node::Node) = PowerSystems.get_load_zone(node.node_ty
 # Extend InfrastructureSystems.Component interface
 IS.get_uuid(node::Node) = IS.get_uuid(node.node_type)
 IS.get_ext(node::Node) = IS.get_ext(node.node_type)
-IS.get_time_series_container(node::Node) = IS.get_time_series_container(node.node_type)
+#IS.get_time_series_container(node::Node) = IS.get_time_series_container(node.node_type)
 
 # Core getter functions
 get_node_id(node::Node) = node.node_id

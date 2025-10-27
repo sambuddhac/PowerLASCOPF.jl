@@ -7,6 +7,7 @@ using PowerSimulations
 using InfrastructureSystems
 using JuMP
 using Dates
+using BenchmarkTools
 try
     using DocStringExtensions
 catch
@@ -850,8 +851,6 @@ Compare memory usage between approaches (requires BenchmarkTools.jl)
 """
 function benchmark_memory_usage(sys::PSY.System; time_horizon=24)
     try
-        using BenchmarkTools
-        
         # Create test data
         interval_data = GenFirstBaseInterval(
             lambda_1 = rand(5), lambda_2 = rand(5), B = rand(5), D = rand(5), BSC = rand(5),

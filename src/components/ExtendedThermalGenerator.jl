@@ -116,7 +116,7 @@ and enhanced thermal cost modeling with ADMM/APP state variables.
         countOfContingency::Int64,
         gen_total::Int64;
         config::GenSolverConfig = GenSolverConfig()
-    ) where {U<:GenIntervals}
+    ) where {T<:PSY.ThermalGen, U<:GenIntervals}
         
         # Create solver with thermal cost model
         gensolver = GenSolver(
@@ -125,7 +125,8 @@ and enhanced thermal cost modeling with ADMM/APP state variables.
             config = config
         )
         
-        self = new{U}()
+        # Fix: Specify both type parameters
+        self = new{T,U}()  # Changed from new{U}() to new{T,U}()
         self.generator = generator
         self.thermal_cost_function = thermal_cost_function
         self.gen_id = id_of_gen

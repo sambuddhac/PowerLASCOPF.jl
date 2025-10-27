@@ -1,3 +1,4 @@
+using Revise
 using TimeSeries
 using Dates
 using Random
@@ -5,17 +6,17 @@ Random.seed!(123)
 using PowerSystems
 const PSY = PowerSystems
 
-# Include PowerLASCOPF components
+#=# Include PowerLASCOPF components
 include("../src/components/GeneralizedGenerator.jl")
 include("../src/components/Node.jl")
 include("../src/components/transmission_line.jl")
-include("../src/models/solver_models/solver_model_types.jl")
+include("../src/core/solver_model_types.jl")
 
 # Include POMDP components
 include("../src/pomdp/PowerLASCOPFPOMDP.jl")
 include("../src/pomdp/belief_updater.jl")
 include("../src/pomdp/policy_interface.jl")
-include("../src/pomdp/utils.jl")
+include("../src/pomdp/utils.jl")=#
 
 DayAhead = collect(
     DateTime("1/1/2024  0:00:00", "d/m/y  H:M:S"):Hour(1):DateTime(
@@ -57,7 +58,7 @@ branches5_dc(nodes5) = [
         (min = -3000.0, max = 3000.0),
         (l0 = 0.0, l1 = 0.01),
     ),
-    Line(
+    PSY.Line(
         "3",
         true,
         0.0,
@@ -69,7 +70,7 @@ branches5_dc(nodes5) = [
         18.8120,
         (min = -0.7, max = 0.7),
     ),
-    Line(
+    PSY.Line(
         "4",
         true,
         0.0,
@@ -81,7 +82,7 @@ branches5_dc(nodes5) = [
         11.1480,
         (min = -0.7, max = 0.7),
     ),
-    Line(
+    PSY.Line(
         "5",
         true,
         0.0,
@@ -93,7 +94,7 @@ branches5_dc(nodes5) = [
         40.530,
         (min = -0.7, max = 0.7),
     ),
-    Line(
+    PSY.Line(
         "6",
         true,
         0.0,
@@ -132,7 +133,7 @@ branches5(nodes5) = [
         2.0,
         (min = -0.7, max = 0.7),
     ),
-    Line(
+    PSY.Line(
         "3",
         true,
         0.0,
@@ -144,7 +145,7 @@ branches5(nodes5) = [
         18.8120,
         (min = -0.7, max = 0.7),
     ),
-    Line(
+    PSY.Line(
         "4",
         true,
         0.0,
@@ -156,7 +157,7 @@ branches5(nodes5) = [
         11.1480,
         (min = -0.7, max = 0.7),
     ),
-    Line(
+    PSY.Line(
         "5",
         true,
         0.0,
@@ -168,7 +169,7 @@ branches5(nodes5) = [
         40.530,
         (min = -0.7, max = 0.7),
     ),
-    Line(
+    PSY.Line(
         "6",
         true,
         0.0,
@@ -183,7 +184,7 @@ branches5(nodes5) = [
 ];
 
 branches5_ml(nodes5) = [
-    MonitoredLine(
+    PSY.MonitoredLine(
         "1",
         true,
         0.0,
@@ -196,7 +197,7 @@ branches5_ml(nodes5) = [
         2.0,
         (min = -0.7, max = 0.7),
     ),
-    Line(
+    PSY.Line(
         "2",
         true,
         0.0,
@@ -208,7 +209,7 @@ branches5_ml(nodes5) = [
         2.0,
         (min = -0.7, max = 0.7),
     ),
-    Line(
+    PSY.Line(
         "3",
         true,
         0.0,
@@ -220,7 +221,7 @@ branches5_ml(nodes5) = [
         18.8120,
         (min = -0.7, max = 0.7),
     ),
-    Line(
+    PSY.Line(
         "4",
         true,
         0.0,
@@ -232,7 +233,7 @@ branches5_ml(nodes5) = [
         11.1480,
         (min = -0.7, max = 0.7),
     ),
-    Line(
+    PSY.Line(
         "5",
         true,
         0.0,
@@ -244,7 +245,7 @@ branches5_ml(nodes5) = [
         40.530,
         (min = -0.7, max = 0.7),
     ),
-    Line(
+    PSY.Line(
         "6",
         true,
         0.0,
@@ -478,7 +479,7 @@ thermal_generators5_pwl_nonconvex(nodes5) = [
 ];
 
 thermal_pglib_generators5(nodes5) = [
-    ThermalMultiStart(
+    PSY.ThermalMultiStart(
         "115_STEAM_1",
         true,
         true,
@@ -504,7 +505,7 @@ thermal_pglib_generators5(nodes5) = [
         ),
         100.0,
     ),
-    ThermalMultiStart(
+    PSY.ThermalMultiStart(
         "101_CT_1",
         true,
         true,
@@ -622,7 +623,7 @@ thermal_generators5_uc_testing(nodes) = [
 
 
 renewable_generators5(nodes5) = [
-    RenewableDispatch(
+    PSY.RenewableDispatch(
         "WindBusA",
         true,
         nodes5[5],
@@ -635,7 +636,7 @@ renewable_generators5(nodes5) = [
         TwoPartCost(0.220, 0.0),
         100.0,
     ),
-    RenewableDispatch(
+    PSY.RenewableDispatch(
         "WindBusB",
         true,
         nodes5[4],
@@ -648,7 +649,7 @@ renewable_generators5(nodes5) = [
         TwoPartCost(0.220, 0.0),
         100.0,
     ),
-    RenewableDispatch(
+    PSY.RenewableDispatch(
         "WindBusC",
         true,
         nodes5[3],
@@ -1113,23 +1114,23 @@ Create PowerLASCOPF Nodes from PSY Buses
 """
 function powerlascopf_nodes5()
     psy_buses = nodes5()
-    nodes = Node{PSY.Bus}[]
+    nodes = PowerLASCOPF.Node{PSY.Bus}[]
     
     for (i, bus) in enumerate(psy_buses)
-        # Create Node parameterized on PSY.Bus
-        node = Node{PSY.Bus}(bus, i, 0,)
+        # Create PowerLASCOPF.Node parameterized on PSY.Bus
+        node = PowerLASCOPF.Node{PSY.Bus}(bus, i, 0,)
         push!(nodes, node)
     end
-    
+    println("Created $(length(nodes)) PowerLASCOPF Nodes from PSY Buses.")
     return nodes
 end
 
 """
 Create PowerLASCOPF transmission lines from PSY Branches
 """
-function powerlascopf_branches5(nodes::Vector{Node{PSY.Bus}})
+function powerlascopf_branches5(nodes::Vector{PowerLASCOPF.Node{PSY.Bus}})
     psy_branches = branches5(nodes5())
-    transmission_lines = transmissionLine[]
+    transmission_lines = PowerLASCOPF.transmissionLine[]
     
     for (i, branch) in enumerate(psy_branches)
         if isa(branch, PSY.Line)
@@ -1137,11 +1138,11 @@ function powerlascopf_branches5(nodes::Vector{Node{PSY.Bus}})
             from_bus_name = PSY.get_name(PSY.get_from(PSY.get_arc(branch)))
             to_bus_name = PSY.get_name(PSY.get_to(PSY.get_arc(branch)))
             
-            from_node = findfirst(n -> PSY.get_name(n.bus_data) == from_bus_name, nodes)
-            to_node = findfirst(n -> PSY.get_name(n.bus_data) == to_bus_name, nodes)
-            
-            # Create LineSolverBase for the line
-            solver_base = LineSolverBase(
+            from_node = findfirst(n -> PSY.get_name(n.node_type) == from_bus_name, nodes)
+            to_node = findfirst(n -> PSY.get_name(n.node_type) == to_bus_name, nodes)
+
+            # Create PowerLASCOPF.LineSolverBase for the line
+            solver_base = PowerLASCOPF.LineSolverBase(
                 lambda_txr = randn(cont_count * (RND_int-1)),
                 interval_type = LineBaseInterval(),
                 E_coeff = [0.9^i for i in 1:RND_int],
@@ -1160,8 +1161,8 @@ function powerlascopf_branches5(nodes::Vector{Node{PSY.Bus}})
                 cont_count = 1
             )
             
-            # Create transmissionLine parameterized on PSY.Line
-            trans_line = transmissionLine{PSY.Line}(
+            # Create PowerLASCOPF.transmissionLine parameterized on PSY.Line
+            trans_line = PowerLASCOPF.transmissionLine{PSY.Line}(
                 transl_type = branch,
                 solver_line_base = solver_base,
                 transl_id = i,
@@ -1189,7 +1190,7 @@ function powerlascopf_branches5(nodes::Vector{Node{PSY.Bus}})
             from_node = findfirst(n -> PSY.get_name(n.bus_data) == from_bus_name, nodes)
             to_node = findfirst(n -> PSY.get_name(n.bus_data) == to_bus_name, nodes)
             
-            solver_base = LineSolverBase(
+            solver_base = PowerLASCOPF.LineSolverBase(
                 lambda_txr = [0.0],
                 interval_type = MockLineInterval(),
                 E_coeff = [1.0],
@@ -1200,8 +1201,8 @@ function powerlascopf_branches5(nodes::Vector{Node{PSY.Bus}})
                 cont_count = 1
             )
             
-            # Create transmissionLine parameterized on PSY.HVDCLine
-            trans_line = transmissionLine{PSY.HVDCLine}(
+            # Create PowerLASCOPF.transmissionLine parameterized on PSY.HVDCLine
+            trans_line = PowerLASCOPF.transmissionLine{PSY.HVDCLine}(
                 transl_type = branch,
                 solver_line_base = solver_base,
                 transl_id = i,
@@ -1220,6 +1221,8 @@ function powerlascopf_branches5(nodes::Vector{Node{PSY.Bus}})
             push!(transmission_lines, trans_line)
         end
     end
+
+    println("Created $(length(transmission_lines)) PowerLASCOPF Transmission Lines from PSY Branches.")
     
     return transmission_lines
 end
@@ -1227,7 +1230,7 @@ end
 """
 Create PowerLASCOPF GeneralizedGenerators from PSY Thermal Generators
 """
-function powerlascopf_thermal_generators5(nodes::Vector{Node{PSY.Bus}})
+function powerlascopf_thermal_generators5(nodes::Vector{PowerLASCOPF.Node{PSY.Bus}})
     psy_gens = thermal_generators5(nodes5())
     generators = GeneralizedGenerator[]
     
@@ -1279,7 +1282,7 @@ end
 """
 Create PowerLASCOPF GeneralizedGenerators from PSY Renewable Generators
 """
-function powerlascopf_renewable_generators5(nodes::Vector{Node{PSY.Bus}})
+function powerlascopf_renewable_generators5(nodes::Vector{PowerLASCOPF.Node{PSY.Bus}})
     psy_gens = renewable_generators5(nodes5())
     generators = GeneralizedGenerator[]
     
@@ -1338,7 +1341,7 @@ end
 """
 Create PowerLASCOPF GeneralizedGenerators from PSY Hydro Generators
 """
-function powerlascopf_hydro_generators5(nodes::Vector{Node{PSY.Bus}})
+function powerlascopf_hydro_generators5(nodes::Vector{PowerLASCOPF.Node{PSY.Bus}})
     psy_gens = hydro_generators5(nodes5())
     generators = GeneralizedGenerator[]
     
@@ -1486,32 +1489,32 @@ function create_scenarios()
 end
 
 """
-Helper functions for Node operations (needed for ADMM/APP)
+Helper functions for PowerLASCOPF.Node operations (needed for ADMM/APP)
 """
 
 # Add these helper functions to support the simulation
-function p_avg_message(node::Node{PSY.Bus})
+function p_avg_message(node::PowerLASCOPF.Node{PSY.Bus})
     return node.P_net  # Simplified - in full implementation would average connected devices
 end
 
-function theta_avg_message(node::Node{PSY.Bus})
+function theta_avg_message(node::PowerLASCOPF.Node{PSY.Bus})
     return node.theta_node
 end
 
-function v_avg_message(node::Node{PSY.Bus})
+function v_avg_message(node::PowerLASCOPF.Node{PSY.Bus})
     return node.v_node
 end
 
-function u_message!(node::Node{PSY.Bus})
+function u_message!(node::PowerLASCOPF.Node{PSY.Bus})
     return node.u
 end
 
-function get_power_balance(node::Node{PSY.Bus})
+function get_power_balance(node::PowerLASCOPF.Node{PSY.Bus})
     # Calculate power balance at node (simplified)
     return node.P_net  # In full implementation: generation - load - transmission flows
 end
 
-function update_node_averages!(node::Node{PSY.Bus})
+function update_node_averages!(node::PowerLASCOPF.Node{PSY.Bus})
     # Update node average variables from connected devices
     # This is a simplified version - full implementation would average all connected devices
     node.P_net = 0.0  # Placeholder
@@ -1519,7 +1522,7 @@ function update_node_averages!(node::Node{PSY.Bus})
     return node.P_net  # In full implementation: generation - load - transmission flows
 end
 
-function update_node_averages!(node::Node{PSY.Bus})
+function update_node_averages!(node::PowerLASCOPF.Node{PSY.Bus})
     # Update node average variables from connected devices
     # This is a simplified version - full implementation would average all connected devices
     node.P_net = 0.0  # Placeholder
@@ -1585,8 +1588,8 @@ function run_pomdp_simulation(n_steps::Int = 24)
         [0.8, 0.6],       # Renewable forecasts
         ones(length(pomdp.transmission_lines)),  # Line capacities
         zeros(length(pomdp.generators)),  # Generator outputs
-        ones(length(pomdp.nodes)),       # Node voltages
-        zeros(length(pomdp.nodes)),      # Node angles
+        ones(length(pomdp.nodes)),       # PowerLASCOPF.Node voltages
+        zeros(length(pomdp.nodes)),      # PowerLASCOPF.Node angles
         1, 1,  # Time step, scenario
         Dict{String, Distribution}()
     )

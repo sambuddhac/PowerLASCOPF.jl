@@ -5,7 +5,7 @@ using Dates
 using Printf
 
 # Include necessary PowerLASCOPF components
-include("../system_extensions/extended_system.jl")
+include("../extensions/extended_system.jl")
 include("network.jl")
 
 @kwdef mutable struct SuperNetwork

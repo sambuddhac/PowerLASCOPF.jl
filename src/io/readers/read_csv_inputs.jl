@@ -16,13 +16,14 @@ function read_csv_files(folder_path)
 end
 
 # Usage
-folder_path = "example_cases/IEEE_Test_Cases/"
+folder_path = "example_cases/IEEE_Test_Cases/IEEE_300_Bus/"
 data_dict = read_csv_files(folder_path)
 
 # Accessing the data
-file_name = "example.csv"
+file_name = "Gen300.csv"
 data = data_dict[file_name]
 
+#=
 data_directory = "./1_three_zones";
 
 # read in relevant CSV files
@@ -54,4 +55,4 @@ fuel_prices = Dict{String, Union{Float64, Missing}}()
 for col in columns_to_read
     average = mean(fuels_df[2:end, Symbol(col)])  # Ignore the first row
     fuel_prices[String(col)] = average
-end
+end=#

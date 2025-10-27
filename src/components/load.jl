@@ -3,8 +3,6 @@ Load component for PowerLASCOPF.jl
 
 This module defines the Load struct and associated functions for power system loads
 in the PowerLASCOPF optimization framework.
-"""
-"""
     Load{T<:PSY.ElectricLoad}
 
 A load component that extends PowerSystems.ElectricLoad for LASCOPF optimization.

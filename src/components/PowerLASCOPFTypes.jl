@@ -1,11 +1,44 @@
 """
 Core type definitions for PowerLASCOPF.jl
-"""
-"""
     PowerLASCOPFSystemData
 
-Main system data structure for PowerLASCOPF
+    Contingency
+
+Contingency definition for LASCOPF
 """
+@kwdef mutable struct Contingency
+    id::Int
+    name::String
+    component_type::String  # "Line", "Generator", "Transformer"
+    component_id::Int
+    outage_probability::Float64 = 1.0
+    duration::Float64 = 1.0  # hours
+    severity::String = "N-1"  # "N-1", "N-2", etc.
+end
+
+"""
+Main system data structure for PowerLASCOPF
+
+    LASCOPFScenario
+
+Scenario definition for stochastic LASCOPF
+"""
+@kwdef mutable struct LASCOPFScenario
+    scenario_id::Int
+    name::String
+    probability::Float64
+    contingencies::Vector{Contingency}
+    renewable_forecasts::Dict{String, Vector{Float64}}
+    load_forecasts::Dict{String, Vector{Float64}}
+    hydro_inflows::Vector{Float64}
+end
+
+#="""
+    Service
+
+Generic service type for reserves, regulation, etc.
+"""
+abstract type Service end=#
 @kwdef mutable struct PowerLASCOPFSystemData
     name::String
     nodes::Vector{Node}
@@ -72,7 +105,7 @@ end
 
 HVDC branch component for PowerLASCOPF
 """
-@kwdef mutable struct HVDCBranch <: Branch
+@kwdef mutable struct HVDCBranch <: PSY.ACBranch
     branch_id::Int
     name::String
     from_node::Int
@@ -85,42 +118,6 @@ HVDC branch component for PowerLASCOPF
     # LASCOPF-specific fields
     contingency_rating::Float64 = max(active_power_limits_from.max, active_power_limits_to.max)
 end
-"""
-    LASCOPFScenario
-
-Scenario definition for stochastic LASCOPF
-"""
-@kwdef mutable struct LASCOPFScenario
-    scenario_id::Int
-    name::String
-    probability::Float64
-    contingencies::Vector{Contingency}
-    renewable_forecasts::Dict{String, Vector{Float64}}
-    load_forecasts::Dict{String, Vector{Float64}}
-    hydro_inflows::Vector{Float64}
-end
-
-"""
-    Contingency
-
-Contingency definition for LASCOPF
-"""
-@kwdef mutable struct Contingency
-    id::Int
-    name::String
-    component_type::String  # "Line", "Generator", "Transformer"
-    component_id::Int
-    outage_probability::Float64 = 1.0
-    duration::Float64 = 1.0  # hours
-    severity::String = "N-1"  # "N-1", "N-2", etc.
-end
-
-"""
-    Service
-
-Generic service type for reserves, regulation, etc.
-"""
-abstract type Service end
 
 """
 Helper function to set generator connection on node

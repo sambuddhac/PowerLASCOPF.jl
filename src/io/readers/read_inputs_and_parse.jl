@@ -4,6 +4,7 @@ using JSON
 using YAML
 using Dates
 using TimeSeries
+using PowerModels
 
 # Include other input reader modules
 include("read_csv_inputs.jl")
@@ -194,7 +195,6 @@ function read_powermodels_format(data_path::AbstractString; kwargs...)
     
     # Use PowerModels to parse
     try
-        using PowerModels
         pm_data = PowerModels.parse_file(data_file)
         return convert_powermodels_to_powerlascopf(pm_data)
     catch e

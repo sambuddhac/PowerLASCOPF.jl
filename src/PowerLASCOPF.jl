@@ -2,12 +2,12 @@
 #Sahar's branch modified by SamChakra
 module PowerLASCOPF
 
-using DocStringExtensions
+#=using DocStringExtensions
 
 @template (FUNCTIONS, METHODS) = """
                                  $(TYPEDSIGNATURES)
                                  $(DOCSTRING)
-                                 """
+                                 """=#
 
 using PowerModels
 using PowerSystems
@@ -24,25 +24,30 @@ using DataFrames
 using TimeSeries
 using Dates
 using Statistics
+using PowerNetworkMatrices
+using MathOptInterface
+using MathOptInterface.Utilities
 import GenX
-import PowerData
+#import PowerData
 import LazyArtifacts
 import PowerSystemCaseBuilder: SystemCategory
 import PowerSystems as PSY # For System and components
 import PowerSystems: get_variable, get_fixed, get_start_up, get_shut_down
 import PowerSystems: set_variable!, set_fixed!, set_start_up!, set_shut_down!
+#=
 import PowerSimulations: PSI, OptimizationContainer, DecisionModel, build_model
 import PowerModels
 import PowerModels: solve_ac_opf, solve_dc_opf, solve_opf, @im_fields, nw_id_default #Need to work further
 import InfrastructureSystems
 import InfrastructureModels
-import InfrastructureModels: optimize_model!, @im_fields, nw_id_default
+import InfrastructureModels: optimize_model!, @im_fields, nw_id_default=#
 import JuMP
 using Ipopt  # Added for LineSolver integration
 
 # Define required types for PowerLASCOPF
 abstract type AbstractModel end
 abstract type IntervalType end
+abstract type PowerFlowConstraint end
 abstract type GenIntervals <: IntervalType end
 abstract type LineIntervals <: IntervalType end
 abstract type LoadIntervals <: IntervalType end
@@ -62,7 +67,7 @@ const _PA = PowerAnalytics
 const _SSim = StorageSystemsSimulations
 const _Plots = Plots
 const IS = InfrastructureSystems
-const _IM = InfrastructureModels
+#const _IM = InfrastructureModels
 const MOI = MathOptInterface
 const MOIU = MathOptInterface.Utilities
 const MOPFM = MOI.FileFormats.Model
@@ -77,17 +82,24 @@ struct IEEESystem <: _PSYCB.SystemCategory end
 include("core/types.jl")
 include("core/constants.jl")
 include("core/settings.jl")
+include("core/formulations.jl")
 include("core/constraints.jl")
 include("core/cost_utilities.jl")
+include("core/optimizer_factory.jl")
 include("core/ExtendedHydroGenerationCost.jl")
 include("core/ExtendedRenewableGenerationCost.jl")
 include("core/ExtendedStorageCost.jl")
 include("core/ExtendedThermalGenerationCost.jl")
-include("core/formulations.jl")
 include("core/objective_functions.jl")
 include("core/parameters.jl")
 include("core/solver_model_types.jl")
 include("core/variables.jl")
+
+# ===== INCLUDE SOLVER MODULES =====
+include("solvers/line_solvers/linesolver_base.jl")
+include("solvers/line_solvers/linesolver_base_dual.jl")
+include("solvers/generator_solvers/gensolver_first_base.jl")
+include("solvers/interfaces/solver_interface.jl")
 
 # ===== INCLUDE COMPONENT MODULES =====
 # Note: Some components may have circular dependencies, include carefully
@@ -97,9 +109,10 @@ include("components/transmission_line.jl")
 include("components/network.jl")
 include("components/supernetwork.jl")
 include("components/extended_hydro.jl")
-include("components/extended_thermal_generators.jl")
+#include("components/extended_thermal_generators.jl")
 include("components/extended_storage.jl")
 include("components/ExtendedThermalGenerator.jl")
+include("components/ExtendedHydroGenerator.jl")
 include("components/GeneralizedGenerator.jl")
 include("components/generator_integration.jl")
 include("components/PowerLASCOPFTypes.jl")
@@ -107,12 +120,6 @@ include("components/renewable_generator.jl")
 include("components/storage_generator.jl")
 include("components/unified_generator_framework.jl")
 include("components/load_timeseries_integration.jl")
-
-# ===== INCLUDE SOLVER MODULES =====
-include("solvers/interfaces/solver_interface.jl")
-include("solvers/line_solvers/linesolver_base.jl")
-include("solvers/line_solvers/linesolver_base_dual.jl")
-include("solvers/generator_solvers/gensolver_first_base.jl")
 
 
 # ===== INCLUDE UTILITY MODULES =====
@@ -135,6 +142,12 @@ include("extensions/extended_system.jl")
 # Export PSY functions for convenience
 export System, get_name, get_base_power, add_component!
 
+# Export GeneratorScenario functionality
+export GeneratorScenario
+export create_renewable_scenario, create_hydro_scenario, create_thermal_scenario
+export create_scenarios_from_psy_timeseries
+export update_scenario_at_time!, get_scenario_value_at_time
+
 # Export PowerLASCOPF types and functions
 export PowerLASCOPFComponent, Subsystem, Device, PowerGenerator
 export Node, transmissionLine, ExtendedThermalGenerator
@@ -146,6 +159,12 @@ export convert_psy_system_to_power_lascopf!, validate_power_lascopf_system
 export AbstractSolver, AbstractADMMComponent, AbstractAPPComponent
 export IntervalType, GenIntervals, LineIntervals
 export AbstractModel, AbstractCost, AbstractConstraints
+
+# Export optimizer factory functionality
+export AbstractOptimizerFactory, OptimizerFactory, FunctionOptimizerFactory
+export create_optimizer, set_optimizer!
+export ipopt_optimizer_factory, highs_optimizer_factory, gurobi_optimizer_factory
+export build_lascopf_model
 
 # Export constants
 export DEFAULT_MAX_ITERATIONS, DEFAULT_TOLERANCE, DEFAULT_RHO

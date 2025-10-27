@@ -6,7 +6,6 @@ and coordinate systems used in PowerLASCOPF.
 """
 
 using PowerSystems
-using ..Core: DEFAULT_BASE_POWER, DEFAULT_DIV_CONV_MWPU
 const PSY = PowerSystems
 
 """

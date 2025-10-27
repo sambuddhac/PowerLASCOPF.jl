@@ -1,5 +1,5 @@
 # PowerLASCOPF.jl/src/objective_functions.jl
-function PSI.add_objective_function!(
+function PSI.get_objective_expression(
     container::PSI.OptimizationContainer,
     ::LASCOPFGeneratorFormulation,
     device::PSY.ThermalGen,
@@ -44,7 +44,7 @@ import PowerSystems as PSY
 import JuMP # For JuMP.value (if needed for parameters)
 import LinearAlgebra # For sum, dot products
 
-function PSI.add_objective_function!(
+function PSI.get_objective_expression(
     container::PSI.OptimizationContainer,
     ::LASCOPFGeneratorFormulation,
     device::PSY.ThermalGen, # This is the device for which we are building the objective

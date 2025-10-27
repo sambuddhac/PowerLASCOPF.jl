@@ -9,7 +9,11 @@ include("node.jl")
 include("transmission_line.jl")
 include("GeneralizedGenerator.jl")
 include("../extensions/extended_system.jl")
-include("../io/readers/case_readers.jl")
+include("../io/readers/read_csv_inputs.jl")
+include("../io/readers/read_inputs_and_parse.jl")
+include("../io/readers/make_lanl_ansi_pm_compatible.jl")
+include("../io/readers/make_nrel_sienna_compatible.jl")
+include("../io/readers/read_json_inputs.jl")
 
 """
 Network structure for PowerLASCOPF optimization
@@ -782,7 +786,7 @@ export get_power_self_gurobi, get_power_next_gurobi, get_power_prev_gurobi
 export reset_network!, get_network_summary
 export create_ieee_case_system, load_case_to_power_lascopf_system
 export run_simulation!
-			uPrice[ bufferIndex ] = ( Rho1 / Rho ) * ( generatorIterator->getu() );
+		#=	uPrice[ bufferIndex ] = ( Rho1 / Rho ) * ( generatorIterator->getu() );
 			angtildeBuffer[ bufferIndex ] = generatorIterator->calcThetatilde();
 			//generatorIterator->calcvtilde();
 			vPrice[ bufferIndex ] = ( Rho1 / Rho ) * ( generatorIterator->getv() );
@@ -2465,7 +2469,7 @@ double *Network::getPowNext()
 
 def getPowFlowNext(self, continCounter, supernetCount, rndInterCount, lineCount):
 
-def getPowFlowSelf(self, lineCount):
+def getPowFlowSelf(self, lineCount):=#
 """
 double *Network::getPowSelfGUROBI()
 {

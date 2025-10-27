@@ -1,17 +1,5 @@
 # Line solver with dual-approach implementation
-# This file provides both direct JuMP and PSI preall    # Check solution status
-    status = termination_status(model)
-    if !(status in [MOI.OPTIMAL, MOI.LOCALLY_SOLVED])
-        if status == MOI.INFEASIBLE
-            error("Line solver problem is infeasible")
-        elseif status == MOI.TIME_LIMIT
-            error("Line solver timed out")
-        elseif status == MOI.INFEASIBLE_OR_UNBOUNDED
-            error("Line solver problem is infeasible or unbounded")
-        else
-            @warn "Line solver finished with status: $status"
-        end
-    # Approaches for line solver optimization
+# This file provides both direct JuMP and PSI preall
 # Author: Integrated implementation based on gensolver_first_base.jl pattern
 
 using JuMP

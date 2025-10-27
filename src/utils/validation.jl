@@ -2,11 +2,7 @@
 Validation utilities for PowerLASCOPF.jl
 
 This module provides validation functions for PowerLASCOPF systems and components.
-"""
 
-using ..Core: PowerLASCOPFComponent, Subsystem, Device, PowerGenerator
-
-"""
     validate_component(component::PowerLASCOPFComponent)
 
 Validate a PowerLASCOPF component for consistency and completeness.

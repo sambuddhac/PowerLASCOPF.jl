@@ -2,7 +2,7 @@
 
 function build_lascopf_model(sys::PSY.System, # The PowerSystems System object
                              solver_config::GenSolver, # Your custom solver configuration
-                             optimizer_config::PSI.OptimizerFactory # e.g., HiGHS.Optimizer
+                             optimizer_config::AbstractOptimizerFactory # e.g., HiGHS.Optimizer
                             )
     # Define your model options
     model_options = PSI.ModelOptions(

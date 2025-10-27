@@ -1,7 +1,7 @@
 # PowerLASCOPF.jl/src/constraints.jl
 function PSI.add_constraints!(
     container::PSI.OptimizationContainer,
-    ::Type{<:PSI.PowerFlowConstraint}, # Or a new custom constraint type like PSI.LASCOPFPowerConstraint
+    ::Type{<:PowerFlowConstraint}, # Or a new custom constraint type like PSI.LASCOPFPowerConstraint
     ::LASCOPFGeneratorFormulation,
     device::PSY.ThermalGen,
     model::PSI.DecisionModel # Pass the DecisionModel to access parameters/data

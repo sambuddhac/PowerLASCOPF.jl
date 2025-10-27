@@ -2,7 +2,7 @@
 # This module integrates the unified generator framework with the PowerLASCOPF system
 
 include("unified_generator_framework.jl")
-include("../../extended_system.jl")  # Your PSY.System extension
+include("../extensions/extended_system.jl")  # Your PSY.System extension
 
 # ===== POWERLASCOPF SYSTEM INTEGRATION =====
 

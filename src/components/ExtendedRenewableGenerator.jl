@@ -191,7 +191,13 @@ function initialize_renewable_parameters!(gen::ExtendedRenewableGenerator{T}) wh
     
     # Initialize performance metrics
     gen.performance_ratio = 0.85  # Typical performance ratio
-    gen.capacity_factor = gen.Pg / rating if rating > 0
+
+    # Fix: Complete the conditional statement properly
+    if rating > 0
+        gen.capacity_factor = gen.Pg / rating
+    else
+        gen.capacity_factor = 0.0
+    end
     
     # Initialize forecast uncertainty (percentage of rating)
     gen.forecast_std = rating * 0.1  # 10% standard deviation
@@ -293,7 +299,12 @@ function update_renewable_forecast!(gen::ExtendedRenewableGenerator{T}, current_
     
     # Update capacity factor
     rating = PSY.get_rating(gen.generator)
-    gen.capacity_factor_current = gen.Pg / rating if rating > 0
+
+    if rating > 0
+        gen.capacity_factor_current = gen.Pg / rating
+    else
+        gen.capacity_factor_current = 0.0
+    end
     
     gen._cache_valid = true
 end

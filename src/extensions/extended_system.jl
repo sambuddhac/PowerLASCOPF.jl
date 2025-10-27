@@ -5,6 +5,9 @@
 include("../components/node.jl")
 include("../components/transmission_line.jl") 
 include("../components/ExtendedThermalGenerator.jl")
+include("../components/ExtendedRenewableGenerator.jl")
+include("../components/ExtendedHydroGenerator.jl")
+include("../components/ExtendedStorageGenerator.jl")
 
 # Define our extended system structure
 @kwdef mutable struct PowerLASCOPFSystem
@@ -17,7 +20,7 @@ include("../components/ExtendedThermalGenerator.jl")
     extended_thermal_generators::Vector{ExtendedThermalGenerator} # Will contain Thermal Generators
     extended_hydro_generators::Vector{ExtendedHydroGenerator}  # Placeholder for Hydroelectric Generators
     extended_renewable_generators::Vector{ExtendedRenewableGenerator}  # Placeholder for VRE Generators
-    extended_storage_units::Vector{ExtendedStorageUnit}  # Placeholder for Storage Battery
+    extended_storage_generators::Vector{ExtendedStorageGenerator}  # Placeholder for Storage Battery
     
     # Network properties
     network_id::Int = 0
@@ -108,10 +111,32 @@ PSY.set_name!(sys::PowerLASCOPFSystem, name::String) = PSY.set_name!(sys.psy_sys
 PSY.get_components(::Type{T}, sys::PowerLASCOPFSystem) where {T} = PSY.get_components(T, sys.psy_system)
 PSY.get_component(::Type{T}, sys::PowerLASCOPFSystem, name::String) where {T} = PSY.get_component(T, sys.psy_system, name)
 
-# Time series methods
-PSY.get_time_series_resolution(sys::PowerLASCOPFSystem) = sys.time_series_resolution
+# Time series methods - Use actual PowerSystems methods
 PSY.get_forecast_horizon(sys::PowerLASCOPFSystem) = sys.forecast_horizon
 
+# Forward time series methods to the underlying PSY system
+PSY.get_time_series_keys(sys::PowerLASCOPFSystem, component) = PSY.get_time_series_keys(component)
+PSY.get_time_series(sys::PowerLASCOPFSystem, component, name) = PSY.get_time_series(component, name)
+PSY.add_time_series!(sys::PowerLASCOPFSystem, component, ts) = PSY.add_time_series!(sys.psy_system, component, ts)
+
+# Our custom time series methods
+function get_time_series_resolution(sys::PowerLASCOPFSystem)
+    return sys.time_series_resolution
+end
+
+function set_time_series_resolution!(sys::PowerLASCOPFSystem, resolution::Dates.Period)
+    sys.time_series_resolution = resolution
+    return sys
+end
+
+function get_forecast_horizon_hours(sys::PowerLASCOPFSystem)
+    return sys.forecast_horizon
+end
+
+function set_forecast_horizon!(sys::PowerLASCOPFSystem, horizon::Int)
+    sys.forecast_horizon = horizon
+    return sys
+end
 # ===== POWERLASCOPF SPECIFIC METHODS =====
 
 # Node management
@@ -480,4 +505,5 @@ export add_extended_thermal_generator!, get_extended_thermal_generators, get_ext
 export create_node_from_bus!, create_transmission_line_from_branch!, create_extended_thermal_generator_from_generator!
 export convert_psy_system_to_power_lascopf!, validate_power_lascopf_system
 export create_network_from_system, system_summary
-export MockLineInterval
+export get_time_series_resolution, set_time_series_resolution!  # Add these
+export get_forecast_horizon_hours, set_forecast_horizon!        # Add these
