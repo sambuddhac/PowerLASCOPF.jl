@@ -19,7 +19,7 @@ println("Activating project at: $project_dir")
 
 # Reset and reinstantiate the environment
 Pkg.activate(project_dir);
-#=FOR FIRST TIME USE OR TROUBLESHOOTING=
+#=#FOR FIRST TIME USE OR TROUBLESHOOTING
 # Clear any problematic manifest and reinstantiate
 println("Checking and fixing environment...")
 try
@@ -56,7 +56,7 @@ catch e
         "JSON"
     ])
 end
-FOR FIRST TIME USE OR TROUBLESHOOTING==#
+#FOR FIRST TIME USE OR TROUBLESHOOTING=#
 
 # ...existing code...
 # Load necessary packages
