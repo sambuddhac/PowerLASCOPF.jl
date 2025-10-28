@@ -254,7 +254,7 @@ function set_objective_preallocated!(container::PSI.OptimizationContainer,
     thetag = PSI.get_variable(container, ThetagVariable, PSY.ThermalGen)
     
     # Initialize objective expression
-    objective_expr = JuMP.AffExpr(0.0)
+    objective_expr = JuMP.QuadExpr()
     
     for device in devices, t in time_steps
         name = PSY.get_name(device)

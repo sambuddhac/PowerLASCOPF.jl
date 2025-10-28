@@ -154,10 +154,10 @@ sum(Pg*lambda_1)+(lambda_2)'*PgNext+(rho/2)*(square(Pg-Pg_N_init+Pg_N_avg+ug_N)+
 square(Thetag-Vg_N_avg-Thetag_N_avg+vg_N))
 """
 function regularization_term(interval::GenFirstBaseInterval, Pg, PgNext, Thetag)
-    reg_term = AffExpr(0.0)
+    reg_term = JuMP.QuadExpr()
     
     # APP regularization terms
-    add_to_expression!(reg_term, interval.beta/2, (Pg - interval.Pg_nu), (Pg - interval.Pg_nu))
+    JuMP.add_to_expression!(reg_term, interval.beta/2, (Pg - interval.Pg_nu), (Pg - interval.Pg_nu))
     for i in eachindex(PgNext)
         add_to_expression!(reg_term, interval.beta/2, (PgNext[i] - interval.Pg_next_nu[i]), (PgNext[i] - interval.Pg_next_nu[i]))
     end
@@ -698,13 +698,40 @@ mutable struct LineBaseInterval <: LineIntervals
     PgNext::Float64 # Generator's belief about its output in the next interval
     thetag::Float64 # Generator bus angle for base case
 end
+"""
 
+@kwedef mutable struct LineBaseInterval <: LineIntervals
+    rho::Float64 = 1.0 # ADMM tuning parameter
+    beta::Float64 = 1.0 # APP tuning parameter for across the dispatch intervals
+    lambda_flow::Float64 = 0.0 # APP Lagrange Multiplier corresponding to the power flow consensus
+    lambda_angle::Float64 = 0.0 # APP Lagrange Multiplier corresponding to the angle difference consensus
+    Pt_prev::Float64 = 0.0 # Power flow in the previous interval
+    theta_diff_prev::Float64 = 0.0 # Voltage angle difference in the previous interval
+    reactance::Float64 = 0.0 # Line reactance
+    restoration_factor::Float64 = 1.0 # Restoration factor for power flow during restoration
+    emergency_mode::Bool = false # Flag indicating if the line is in emergency mode
+    thermal_limit_emergency::Float64 = 0.0 # Emergency thermal limit for the line
+end
+
+"""
 mutable struct LineRNDInterval <: LineIntervals
     Pg::Float64 # Generator real power output
     PgNext::Float64 # Generator's belief about its output in the next interval
     thetag::Float64 # Generator bus angle for base case
 end
 """
+@kwdef mutable struct LineRNDInterval <: LineIntervals
+    rho::Float64 = 1.0 # ADMM tuning parameter
+    beta::Float64 = 1.0 # APP tuning parameter for across the dispatch intervals
+    lambda_flow::Float64 = 0.0 # APP Lagrange Multiplier corresponding to the power flow consensus
+    lambda_angle::Float64 = 0.0 # APP Lagrange Multiplier corresponding to the angle difference consensus
+    Pt_prev::Float64 = 0.0 # Power flow in the previous interval
+    theta_diff_prev::Float64 = 0.0 # Voltage angle difference in the previous interval
+    reactance::Float64 = 0.0 # Line reactance
+    restoration_factor::Float64 = 1.0 # Restoration factor for power flow during restoration
+    emergency_mode::Bool = false # Flag indicating if the line is in emergency mode
+    thermal_limit_emergency::Float64 = 0.0 # Emergency thermal limit for the line
+end
 
 """
     regularization_term(interval::LineBaseInterval, Pt1, Pt2, theta1, theta2)

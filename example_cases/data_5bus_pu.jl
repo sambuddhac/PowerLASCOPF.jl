@@ -1128,7 +1128,7 @@ end
 """
 Create PowerLASCOPF transmission lines from PSY Branches
 """
-function powerlascopf_branches5(nodes::Vector{PowerLASCOPF.Node{PSY.Bus}})
+function powerlascopf_branches5(nodes::Vector{PowerLASCOPF.Node{PSY.Bus}}, cont_count::Int, RND_int::Int)
     psy_branches = branches5(nodes5())
     transmission_lines = PowerLASCOPF.transmissionLine[]
     
@@ -1144,7 +1144,7 @@ function powerlascopf_branches5(nodes::Vector{PowerLASCOPF.Node{PSY.Bus}})
             # Create PowerLASCOPF.LineSolverBase for the line
             solver_base = PowerLASCOPF.LineSolverBase(
                 lambda_txr = randn(cont_count * (RND_int-1)),
-                interval_type = LineBaseInterval(),
+                interval_type = PowerLASCOPF.LineBaseInterval(),
                 E_coeff = [0.9^i for i in 1:RND_int],
                 Pt_next_nu = zeros(cont_count * (RND_int-1)),
                 BSC = 0.1 * randn(cont_count * (RND_int-1)),
@@ -1158,7 +1158,7 @@ function powerlascopf_branches5(nodes::Vector{PowerLASCOPF.Node{PSY.Bus}})
                 temp_amb = 300.0,
                 max_temp = 473.0,
                 RND_int = 1,
-                cont_count = 1
+                cont_count = cont_count
             )
             
             # Create PowerLASCOPF.transmissionLine parameterized on PSY.Line
@@ -1411,8 +1411,10 @@ Create complete PowerLASCOPF system data
 """
 function create_5bus_powerlascopf_system()
     # Create components using existing PowerLASCOPF structs
+    cont_count = 2  # Number of contingencies
+    RND_int = 4     # Number of random intervals for line modeling
     nodes = powerlascopf_nodes5()
-    branches = powerlascopf_branches5(nodes)
+    branches = powerlascopf_branches5(nodes, cont_count, RND_int)
     thermal_gens = powerlascopf_thermal_generators5(nodes)
     renewable_gens = powerlascopf_renewable_generators5(nodes)
     hydro_gens = powerlascopf_hydro_generators5(nodes)
