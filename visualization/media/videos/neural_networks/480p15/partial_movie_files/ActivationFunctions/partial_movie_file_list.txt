@@ -1,9 +1,0 @@
-# This file is used internally by FFMPEG.
-file 'file:/Users/sc87/code/OPF_LASCOPF_Staple/PowerLASCOPF/visualization/media/videos/neural_networks/480p15/partial_movie_files/ActivationFunctions/1185818338_1891580107_223132457.mp4'
-file 'file:/Users/sc87/code/OPF_LASCOPF_Staple/PowerLASCOPF/visualization/media/videos/neural_networks/480p15/partial_movie_files/ActivationFunctions/624642324_2891952077_3238151677.mp4'
-file 'file:/Users/sc87/code/OPF_LASCOPF_Staple/PowerLASCOPF/visualization/media/videos/neural_networks/480p15/partial_movie_files/ActivationFunctions/624642324_3394500337_3677686215.mp4'
-file 'file:/Users/sc87/code/OPF_LASCOPF_Staple/PowerLASCOPF/visualization/media/videos/neural_networks/480p15/partial_movie_files/ActivationFunctions/624642324_1849884797_3661957863.mp4'
-file 'file:/Users/sc87/code/OPF_LASCOPF_Staple/PowerLASCOPF/visualization/media/videos/neural_networks/480p15/partial_movie_files/ActivationFunctions/624642324_3394500337_2864537817.mp4'
-file 'file:/Users/sc87/code/OPF_LASCOPF_Staple/PowerLASCOPF/visualization/media/videos/neural_networks/480p15/partial_movie_files/ActivationFunctions/624642324_1287606604_2774558592.mp4'
-file 'file:/Users/sc87/code/OPF_LASCOPF_Staple/PowerLASCOPF/visualization/media/videos/neural_networks/480p15/partial_movie_files/ActivationFunctions/624642324_3750716034_623536084.mp4'
-file 'file:/Users/sc87/code/OPF_LASCOPF_Staple/PowerLASCOPF/visualization/media/videos/neural_networks/480p15/partial_movie_files/ActivationFunctions/624642324_2552855209_3486870372.mp4'

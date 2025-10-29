@@ -1,5 +1,4 @@
-#Sahar's working branch
-#Sahar's branch modified by SamChakra
+#Entry point module for PowerLASCOPF.jl
 module PowerLASCOPF
 
 #=using DocStringExtensions
