@@ -214,7 +214,7 @@ class FluxNetwork(Scene):
         code[3].set_color(GREEN)  # Dense
         code[4].set_color(BLUE)  # )
         
-        code_bg = SurroundingRoundedRectangle(
+        code_bg = SurroundingRectangle(
             code,
             color=GREY_D,
             fill_color=BLACK,
@@ -358,7 +358,7 @@ class PyTorchNetwork(Scene):
         code[7][0:16].set_color(GREEN)
         code[8][0:16].set_color(ORANGE)
         
-        code_bg = SurroundingRoundedRectangle(
+        code_bg = SurroundingRectangle(
             code,
             color=GREY_D,
             fill_color=BLACK,
@@ -439,7 +439,7 @@ class PyTorchNetwork(Scene):
         block = VGroup(linear, batchnorm, relu, dropout).arrange(DOWN, buff=0.05)
         
         # Add border around block
-        border = SurroundingRoundedRectangle(
+        border = SurroundingRectangle(
             block,
             color=GREY,
             buff=0.15,
@@ -518,7 +518,7 @@ class TensorFlowNetwork(Scene):
         code[7][0:8].set_color(RED)
         code[9].set_color(ORANGE)
         
-        code_bg = SurroundingRoundedRectangle(
+        code_bg = SurroundingRectangle(
             code,
             color=GREY_D,
             fill_color=BLACK,
@@ -604,7 +604,7 @@ class TensorFlowNetwork(Scene):
         block = VGroup(dense_combined, batchnorm, dropout).arrange(DOWN, buff=0.05)
         
         # Border
-        border = SurroundingRoundedRectangle(
+        border = SurroundingRectangle(
             block,
             color="#FF6F00",
             buff=0.15,
