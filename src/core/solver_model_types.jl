@@ -803,6 +803,7 @@ function regularization_term(interval::GenInterRSDInterval, Pg, PgPrev, PgNext, 
     return reg_term
 end
 
+"""
 mutable struct LineBaseInterval <: LineIntervals
     Pg::Float64 # Generator real power output
     PgNext::Float64 # Generator's belief about its output in the next interval
@@ -810,7 +811,7 @@ mutable struct LineBaseInterval <: LineIntervals
 end
 """
 
-@kwedef mutable struct LineBaseInterval <: LineIntervals
+@kwdef mutable struct LineBaseInterval <: LineIntervals
     rho::Float64 = 1.0 # ADMM tuning parameter
     beta::Float64 = 1.0 # APP tuning parameter for across the dispatch intervals
     lambda_flow::Float64 = 0.0 # APP Lagrange Multiplier corresponding to the power flow consensus
