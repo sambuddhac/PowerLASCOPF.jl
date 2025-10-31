@@ -159,37 +159,37 @@ function regularization_term(interval::GenFirstBaseInterval, Pg, PgNext, Thetag)
     # APP regularization terms
     JuMP.add_to_expression!(reg_term, interval.beta/2, (Pg - interval.Pg_nu), (Pg - interval.Pg_nu))
     for i in eachindex(PgNext)
-        add_to_expression!(reg_term, interval.beta/2, (PgNext[i] - interval.Pg_next_nu[i]), (PgNext[i] - interval.Pg_next_nu[i]))
+        JuMP.add_to_expression!(reg_term, interval.beta/2, (PgNext[i] - interval.Pg_next_nu[i]), (PgNext[i] - interval.Pg_next_nu[i]))
     end
-    add_to_expression!(reg_term, interval.beta_inner/2, (Pg - interval.Pg_nu_inner), (Pg - interval.Pg_nu_inner))
-    
+    JuMP.add_to_expression!(reg_term, interval.beta_inner/2, (Pg - interval.Pg_nu_inner), (Pg - interval.Pg_nu_inner))
+
     # APP consensus terms
     for i in eachindex(interval.BSC)
-        add_to_expression!(reg_term, interval.gamma_sc * interval.BSC[i], Pg)
+        JuMP.add_to_expression!(reg_term, interval.gamma_sc * interval.BSC[i], Pg)
     end
     for i in eachindex(interval.lambda_1_sc)
-        add_to_expression!(reg_term, interval.lambda_1_sc[i], Pg)
+        JuMP.add_to_expression!(reg_term, interval.lambda_1_sc[i], Pg)
     end
     for i in eachindex(interval.B)
-        add_to_expression!(reg_term, interval.gamma * interval.B[i], Pg)
+        JuMP.add_to_expression!(reg_term, interval.gamma * interval.B[i], Pg)
     end
     for i in eachindex(interval.D)
-        add_to_expression!(reg_term, interval.gamma * interval.D[i], PgNext[i])
+        JuMP.add_to_expression!(reg_term, interval.gamma * interval.D[i], PgNext[i])
     end
     for i in eachindex(interval.lambda_1)
-        add_to_expression!(reg_term, interval.lambda_1[i], Pg)
+        JuMP.add_to_expression!(reg_term, interval.lambda_1[i], Pg)
     end
     for i in eachindex(interval.lambda_2)
-        add_to_expression!(reg_term, interval.lambda_2[i], PgNext[i])
+        JuMP.add_to_expression!(reg_term, interval.lambda_2[i], PgNext[i])
     end
     
     # ADMM consensus terms
     power_consensus = Pg - interval.Pg_N_init + interval.Pg_N_avg + interval.ug_N
-    add_to_expression!(reg_term, interval.rho/2, power_consensus, power_consensus)
+    JuMP.add_to_expression!(reg_term, interval.rho/2, power_consensus, power_consensus)
     
     angle_consensus = Thetag - interval.Vg_N_avg - interval.thetag_N_avg + interval.vg_N
-    add_to_expression!(reg_term, interval.rho/2, angle_consensus, angle_consensus)
-    
+    JuMP.add_to_expression!(reg_term, interval.rho/2, angle_consensus, angle_consensus)
+
     return reg_term
 end
 
@@ -313,38 +313,38 @@ function regularization_term(interval::GenFirstBaseIntervalDZ, Pg, PgNext, PgPre
     for i in eachindex(PgNext)
         JuMP.add_to_expression!(reg_term, interval.beta/2, (PgNext[i] - interval.Pg_next_nu[i]), (PgNext[i] - interval.Pg_next_nu[i]))
     end
-    add_to_expression!(reg_term, interval.beta_inner/2, (Pg - interval.Pg_nu_inner), (Pg - interval.Pg_nu_inner))
+    JuMP.add_to_expression!(reg_term, interval.beta_inner/2, (Pg - interval.Pg_nu_inner), (Pg - interval.Pg_nu_inner))
     
     # APP consensus terms
     for i in eachindex(interval.BSC)
-        add_to_expression!(reg_term, interval.gamma_sc * interval.BSC[i], Pg)
+        JuMP.add_to_expression!(reg_term, interval.gamma_sc * interval.BSC[i], Pg)
     end
     for i in eachindex(interval.lambda_1_sc)
-        add_to_expression!(reg_term, interval.lambda_1_sc[i], Pg)
+        JuMP.add_to_expression!(reg_term, interval.lambda_1_sc[i], Pg)
     end
-    add_to_expression!(reg_term, interval.gamma * interval.A, PgPrev)
+    JuMP.add_to_expression!(reg_term, interval.gamma * interval.A, PgPrev)
     for i in eachindex(interval.B)
-        add_to_expression!(reg_term, interval.gamma * interval.B[i], Pg)
+        JuMP.add_to_expression!(reg_term, interval.gamma * interval.B[i], Pg)
     end
     for i in eachindex(interval.D)
-        add_to_expression!(reg_term, interval.gamma * interval.D[i], PgNext[i])
+        JuMP.add_to_expression!(reg_term, interval.gamma * interval.D[i], PgNext[i])
     end
     for i in eachindex(interval.lambda_1)
-        add_to_expression!(reg_term, interval.lambda_1[i], Pg)
+        JuMP.add_to_expression!(reg_term, interval.lambda_1[i], Pg)
     end
     for i in eachindex(interval.lambda_2)
-        add_to_expression!(reg_term, interval.lambda_2[i], PgNext[i])
+        JuMP.add_to_expression!(reg_term, interval.lambda_2[i], PgNext[i])
     end
-    add_to_expression!(reg_term, -interval.lambda_3, PgPrev)
-    add_to_expression!(reg_term, -interval.lambda_4, Pg)
-    
+    JuMP.add_to_expression!(reg_term, -interval.lambda_3, PgPrev)
+    JuMP.add_to_expression!(reg_term, -interval.lambda_4, Pg)
+
     # ADMM consensus terms
     power_consensus = Pg - interval.Pg_N_init + interval.Pg_N_avg + interval.ug_N
-    add_to_expression!(reg_term, interval.rho/2, power_consensus, power_consensus)
+    JuMP.add_to_expression!(reg_term, interval.rho/2, power_consensus, power_consensus)
     
     angle_consensus = Thetag - interval.Vg_N_avg - interval.thetag_N_avg + interval.vg_N
-    add_to_expression!(reg_term, interval.rho/2, angle_consensus, angle_consensus)
-    
+    JuMP.add_to_expression!(reg_term, interval.rho/2, angle_consensus, angle_consensus)
+
     return reg_term
 end
 
@@ -445,38 +445,38 @@ end
 Compute regularization term for GenFirstContInterval
 """
 function regularization_term(interval::GenFirstContInterval, Pg, PgNext, Thetag)
-    reg_term = AffExpr(0.0)
+    reg_term = JuMP.QuadExpr()
     
     # APP regularization terms
-    add_to_expression!(reg_term, interval.beta/2, (Pg - interval.Pg_nu), (Pg - interval.Pg_nu))
+    JuMP.add_to_expression!(reg_term, interval.beta/2, (Pg - interval.Pg_nu), (Pg - interval.Pg_nu))
     for i in eachindex(PgNext)
-        add_to_expression!(reg_term, interval.beta/2, (PgNext[i] - interval.Pg_next_nu[i]), (PgNext[i] - interval.Pg_next_nu[i]))
+        JuMP.add_to_expression!(reg_term, interval.beta/2, (PgNext[i] - interval.Pg_next_nu[i]), (PgNext[i] - interval.Pg_next_nu[i]))
     end
-    add_to_expression!(reg_term, interval.beta_inner/2, (Pg - interval.Pg_nu_inner), (Pg - interval.Pg_nu_inner))
+    JuMP.add_to_expression!(reg_term, interval.beta_inner/2, (Pg - interval.Pg_nu_inner), (Pg - interval.Pg_nu_inner))
     
     # APP consensus terms
-    add_to_expression!(reg_term, interval.gamma_sc * interval.BSC, Pg)
-    add_to_expression!(reg_term, -interval.lambda_1_sc, Pg)
+    JuMP.add_to_expression!(reg_term, interval.gamma_sc * interval.BSC, Pg)
+    JuMP.add_to_expression!(reg_term, -interval.lambda_1_sc, Pg)
     for i in eachindex(interval.B)
-        add_to_expression!(reg_term, interval.gamma * interval.B[i], Pg)
+        JuMP.add_to_expression!(reg_term, interval.gamma * interval.B[i], Pg)
     end
     for i in eachindex(interval.D)
-        add_to_expression!(reg_term, interval.gamma * interval.D[i], PgNext[i])
+        JuMP.add_to_expression!(reg_term, interval.gamma * interval.D[i], PgNext[i])
     end
     for i in eachindex(interval.lambda_1)
-        add_to_expression!(reg_term, interval.lambda_1[i], Pg)
+        JuMP.add_to_expression!(reg_term, interval.lambda_1[i], Pg)
     end
     for i in eachindex(interval.lambda_2)
-        add_to_expression!(reg_term, interval.lambda_2[i], PgNext[i])
+        JuMP.add_to_expression!(reg_term, interval.lambda_2[i], PgNext[i])
     end
     
     # ADMM consensus terms
     power_consensus = Pg - interval.Pg_N_init + interval.Pg_N_avg + interval.ug_N
-    add_to_expression!(reg_term, interval.rho/2, power_consensus, power_consensus)
+    JuMP.add_to_expression!(reg_term, interval.rho/2, power_consensus, power_consensus)
     
     angle_consensus = Thetag - interval.Vg_N_avg - interval.thetag_N_avg + interval.vg_N
-    add_to_expression!(reg_term, interval.rho/2, angle_consensus, angle_consensus)
-    
+    JuMP.add_to_expression!(reg_term, interval.rho/2, angle_consensus, angle_consensus)
+
     return reg_term
 end
 """
@@ -580,40 +580,40 @@ Compute regularization term for GenFirstContIntervalDZ
 """
 
 function regularization_term(interval::GenFirstContIntervalDZ, Pg, PgNext, PgPrev, Thetag)
-    reg_term = AffExpr(0.0)
+    reg_term = JuMP.QuadExpr()
     
     # APP regularization terms
-    add_to_expression!(reg_term, interval.beta/2, (PgPrev - interval.Pg_prev_nu), (PgPrev - interval.Pg_prev_nu))
-    add_to_expression!(reg_term, interval.beta/2, (Pg - interval.Pg_nu), (Pg - interval.Pg_nu))
+    JuMP.add_to_expression!(reg_term, interval.beta/2, (PgPrev - interval.Pg_prev_nu), (PgPrev - interval.Pg_prev_nu))
+    JuMP.add_to_expression!(reg_term, interval.beta/2, (Pg - interval.Pg_nu), (Pg - interval.Pg_nu))
     for i in eachindex(PgNext)
-        add_to_expression!(reg_term, interval.beta/2, (PgNext[i] - interval.Pg_next_nu[i]), (PgNext[i] - interval.Pg_next_nu[i]))
+        JuMP.add_to_expression!(reg_term, interval.beta/2, (PgNext[i] - interval.Pg_next_nu[i]), (PgNext[i] - interval.Pg_next_nu[i]))
     end
-    add_to_expression!(reg_term, interval.beta_inner/2, (Pg - interval.Pg_nu_inner), (Pg - interval.Pg_nu_inner))
+    JuMP.add_to_expression!(reg_term, interval.beta_inner/2, (Pg - interval.Pg_nu_inner), (Pg - interval.Pg_nu_inner))
     
     # APP consensus terms
-    add_to_expression!(reg_term, interval.gamma_sc * interval.BSC, Pg)
-    add_to_expression!(reg_term, -interval.lambda_1_sc, Pg)
-    add_to_expression!(reg_term, interval.gamma * interval.A, PgPrev)
-    add_to_expression!(reg_term, interval.gamma * interval.B, Pg)
+    JuMP.add_to_expression!(reg_term, interval.gamma_sc * interval.BSC, Pg)
+    JuMP.add_to_expression!(reg_term, -interval.lambda_1_sc, Pg)
+    JuMP.add_to_expression!(reg_term, interval.gamma * interval.A, PgPrev)
+    JuMP.add_to_expression!(reg_term, interval.gamma * interval.B, Pg)
     for i in eachindex(interval.D)
-        add_to_expression!(reg_term, interval.gamma * interval.D[i], PgNext[i])
+        JuMP.add_to_expression!(reg_term, interval.gamma * interval.D[i], PgNext[i])
     end
     for i in eachindex(interval.lambda_1)
-        add_to_expression!(reg_term, interval.lambda_1[i], Pg)
+        JuMP.add_to_expression!(reg_term, interval.lambda_1[i], Pg)
     end
     for i in eachindex(interval.lambda_2)
-        add_to_expression!(reg_term, interval.lambda_2[i], PgNext[i])
+        JuMP.add_to_expression!(reg_term, interval.lambda_2[i], PgNext[i])
     end
-    add_to_expression!(reg_term, -interval.lambda_3, PgPrev)
-    add_to_expression!(reg_term, -interval.lambda_4, Pg)
+    JuMP.add_to_expression!(reg_term, -interval.lambda_3, PgPrev)
+    JuMP.add_to_expression!(reg_term, -interval.lambda_4, Pg)
     
     # ADMM consensus terms
     power_consensus = Pg - interval.Pg_N_init + interval.Pg_N_avg + interval.ug_N
-    add_to_expression!(reg_term, interval.rho/2, power_consensus, power_consensus)
+    JuMP.add_to_expression!(reg_term, interval.rho/2, power_consensus, power_consensus)
     
     angle_consensus = Thetag - interval.Vg_N_avg - interval.thetag_N_avg + interval.vg_N
-    add_to_expression!(reg_term, interval.rho/2, angle_consensus, angle_consensus)
-    
+    JuMP.add_to_expression!(reg_term, interval.rho/2, angle_consensus, angle_consensus)
+
     return reg_term
 end
 
@@ -651,32 +651,32 @@ end
 Compute regularization term for GenLastBaseInterval
 """
 function regularization_term(interval::GenLastBaseInterval, Pg, PgPrev, Thetag)
-    reg_term = AffExpr(0.0)
+    reg_term = JuMP.QuadExpr()
     
     # APP regularization terms
-    add_to_expression!(reg_term, interval.beta/2, (PgPrev - interval.Pg_prev_nu), (PgPrev - interval.Pg_prev_nu))
-    add_to_expression!(reg_term, interval.beta/2, (Pg - interval.Pg_nu), (Pg - interval.Pg_nu))
-    add_to_expression!(reg_term, interval.beta_inner/2, (Pg - interval.Pg_nu_inner), (Pg - interval.Pg_nu_inner))
-    
+    JuMP.add_to_expression!(reg_term, interval.beta/2, (PgPrev - interval.Pg_prev_nu), (PgPrev - interval.Pg_prev_nu))
+    JuMP.add_to_expression!(reg_term, interval.beta/2, (Pg - interval.Pg_nu), (Pg - interval.Pg_nu))
+    JuMP.add_to_expression!(reg_term, interval.beta_inner/2, (Pg - interval.Pg_nu_inner), (Pg - interval.Pg_nu_inner))
+
     # APP consensus terms
     for i in eachindex(interval.BSC)
-        add_to_expression!(reg_term, interval.gamma_sc * interval.BSC[i], Pg)
+        JuMP.add_to_expression!(reg_term, interval.gamma_sc * interval.BSC[i], Pg)
     end
     for i in eachindex(interval.lambda_1_sc)
-        add_to_expression!(reg_term, interval.lambda_1_sc[i], Pg)
+        JuMP.add_to_expression!(reg_term, interval.lambda_1_sc[i], Pg)
     end
-    add_to_expression!(reg_term, interval.gamma * interval.A, PgPrev)
-    add_to_expression!(reg_term, interval.gamma * interval.B, Pg)
-    add_to_expression!(reg_term, -interval.lambda_3, PgPrev)
-    add_to_expression!(reg_term, -interval.lambda_4, Pg)
-    
+    JuMP.add_to_expression!(reg_term, interval.gamma * interval.A, PgPrev)
+    JuMP.add_to_expression!(reg_term, interval.gamma * interval.B, Pg)
+    JuMP.add_to_expression!(reg_term, -interval.lambda_3, PgPrev)
+    JuMP.add_to_expression!(reg_term, -interval.lambda_4, Pg)
+
     # ADMM consensus terms
     power_consensus = Pg - interval.Pg_N_init + interval.Pg_N_avg + interval.ug_N
-    add_to_expression!(reg_term, interval.rho/2, power_consensus, power_consensus)
-    
+    JuMP.add_to_expression!(reg_term, interval.rho/2, power_consensus, power_consensus)
+
     angle_consensus = Thetag - interval.Vg_N_avg - interval.thetag_N_avg + interval.vg_N
-    add_to_expression!(reg_term, interval.rho/2, angle_consensus, angle_consensus)
-    
+    JuMP.add_to_expression!(reg_term, interval.rho/2, angle_consensus, angle_consensus)
+
     return reg_term
 end
 
@@ -687,10 +687,120 @@ mutable struct GenInterRNDInterval <: GenIntervals
     thetag::Float64 # Generator bus angle for base case
 end
 
+
+Generator Intermediate RND Interval for ED
+"""
+@kwdef mutable struct GenInterRNDInterval <: GenIntervals
+    rho::Float64 = 1.0 # ADMM tuning parameter
+    beta::Float64 = 1.0 # APP tuning parameter for across the dispatch intervals
+    gamma::Float64 = 1.0 # APP tuning parameter for across the dispatch intervals
+    lambda_3::Float64 = 0.0 # APP Lagrange Multiplier corresponding to the complementary slackness
+    lambda_4::Float64 = 0.0 # APP Lagrange Multiplier corresponding to the complementary slackness
+    A::Float64 = 0.0 # Disagreement between the generator output values for the previous interval
+    B::Float64 = 0.0 # Cumulative disagreement between the generator output values
+    D::Float64 = 0.0 # Cumulative disagreement between the generator output values for the next interval
+    Pg_N_init::Float64 = 0.0 # Generator injection from last iteration for base case and contingencies
+    Pg_N_avg::Float64 = 0.0 # Net average power from last iteration for base case and contingencies
+    thetag_N_avg::Float64 = 0.0 # Net average bus voltage angle from last iteration for base case and contingencies
+    ug_N::Float64 = 0.0 # Dual variable for net power balance for base case and contingencies
+    vg_N::Float64 = 0.0 # Dual variable for net angle balance for base case and contingencies
+    Vg_N_avg::Float64 = 0.0 # Average of dual variable for net angle balance from last to last iteration
+    Pg_nu::Float64 = 0.0 # Previous iterates of the corresponding decision variable values
+    Pg_nu_inner::Float64 = 0.0 # Previous iterates of the corresponding decision variable values
+    Pg_prev_nu::Float64 = 0.0 # Previous iterates of the corresponding decision variable values
+    Pg_next::Float64 = 0.0 # Generator's belief about its output in the next interval
+    select_zero::Int = 0 # Selection parameter to include or not include the last interval for PgNext constraint
+end
+
+"""
+    regularization_term(interval::GenLastBaseInterval, Pg, PgPrev, Thetag)
+
+Compute regularization term for GenLastBaseInterval
+"""
+function regularization_term(interval::GenInterRNDInterval, Pg, PgPrev, PgNext, Thetag)
+    reg_term = JuMP.QuadExpr()
+    
+    # APP regularization terms
+    JuMP.add_to_expression!(reg_term, interval.beta/2, (PgPrev - interval.Pg_prev_nu), (PgPrev - interval.Pg_prev_nu))
+    JuMP.add_to_expression!(reg_term, interval.beta/2, (Pg - interval.Pg_nu), (Pg - interval.Pg_nu))
+    JuMP.add_to_expression!(reg_term, interval.beta/2, (PgNext - interval.Pg_next_nu), (PgNext - interval.Pg_next_nu))
+
+    # APP consensus terms
+    JuMP.add_to_expression!(reg_term, interval.gamma * interval.A, PgPrev)
+    JuMP.add_to_expression!(reg_term, interval.gamma * interval.B, Pg)
+    JuMP.add_to_expression!(reg_term, interval.gamma * interval.D, PgNext)
+    JuMP.add_to_expression!(reg_term, -interval.lambda_3, PgPrev)
+    JuMP.add_to_expression!(reg_term, -interval.lambda_4, Pg)
+
+    # ADMM consensus terms
+    power_consensus = Pg - interval.Pg_N_init + interval.Pg_N_avg + interval.ug_N
+    JuMP.add_to_expression!(reg_term, interval.rho/2, power_consensus, power_consensus)
+
+    angle_consensus = Thetag - interval.Vg_N_avg - interval.thetag_N_avg + interval.vg_N
+    JuMP.add_to_expression!(reg_term, interval.rho/2, angle_consensus, angle_consensus)
+
+    return reg_term
+end
+
+"""
 mutable struct GenInterRSDInterval <: GenIntervals
     Pg::Float64 # Generator real power output
     PgNext::Float64 # Generator's belief about its output in the next interval
     thetag::Float64 # Generator bus angle for base case
+end
+
+Generator Intermediate RSD Interval for OPF
+"""
+@kwdef mutable struct GenInterRSDInterval <: GenIntervals
+    rho::Float64 = 1.0 # ADMM tuning parameter
+    beta::Float64 = 1.0 # APP tuning parameter for across the dispatch intervals
+    gamma::Float64 = 1.0 # APP tuning parameter for across the dispatch intervals
+    lambda_3::Float64 = 0.0 # APP Lagrange Multiplier corresponding to the complementary slackness
+    lambda_4::Float64 = 0.0 # APP Lagrange Multiplier corresponding to the complementary slackness
+    A::Float64 = 0.0 # Disagreement between the generator output values for the previous interval
+    B::Float64 = 0.0 # Cumulative disagreement between the generator output values
+    D::Float64 = 0.0 # Cumulative disagreement between the generator output values for the next interval
+    Pg_N_init::Float64 = 0.0 # Generator injection from last iteration for base case and contingencies
+    Pg_N_avg::Float64 = 0.0 # Net average power from last iteration for base case and contingencies
+    thetag_N_avg::Float64 = 0.0 # Net average bus voltage angle from last iteration for base case and contingencies
+    ug_N::Float64 = 0.0 # Dual variable for net power balance for base case and contingencies
+    vg_N::Float64 = 0.0 # Dual variable for net angle balance for base case and contingencies
+    Vg_N_avg::Float64 = 0.0 # Average of dual variable for net angle balance from last to last iteration
+    Pg_nu::Float64 = 0.0 # Previous iterates of the corresponding decision variable values
+    Pg_nu_inner::Float64 = 0.0 # Previous iterates of the corresponding decision variable values
+    Pg_prev_nu::Float64 = 0.0 # Previous iterates of the corresponding decision variable values
+    Pg_next::Float64 = 0.0 # Generator's belief about its output in the next interval
+    select_zero::Int = 0 # Selection parameter to include or not include the last interval for PgNext constraint
+end
+
+"""
+    regularization_term(interval::GenLastBaseInterval, Pg, PgPrev, Thetag)
+
+Compute regularization term for GenLastBaseInterval
+"""
+function regularization_term(interval::GenInterRSDInterval, Pg, PgPrev, PgNext, Thetag)
+   reg_term = JuMP.QuadExpr()
+    
+    # APP regularization terms
+    JuMP.add_to_expression!(reg_term, interval.beta/2, (PgPrev - interval.Pg_prev_nu), (PgPrev - interval.Pg_prev_nu))
+    JuMP.add_to_expression!(reg_term, interval.beta/2, (Pg - interval.Pg_nu), (Pg - interval.Pg_nu))
+    JuMP.add_to_expression!(reg_term, interval.beta/2, (PgNext - interval.Pg_next_nu), (PgNext - interval.Pg_next_nu))
+
+    # APP consensus terms
+    JuMP.add_to_expression!(reg_term, interval.gamma * interval.A, PgPrev)
+    JuMP.add_to_expression!(reg_term, interval.gamma * interval.B, Pg)
+    JuMP.add_to_expression!(reg_term, interval.gamma * interval.D, PgNext)
+    JuMP.add_to_expression!(reg_term, -interval.lambda_3, PgPrev)
+    JuMP.add_to_expression!(reg_term, -interval.lambda_4, Pg)
+
+    # ADMM consensus terms
+    power_consensus = Pg - interval.Pg_N_init + interval.Pg_N_avg + interval.ug_N
+    JuMP.add_to_expression!(reg_term, interval.rho/2, power_consensus, power_consensus)
+
+    angle_consensus = Thetag - interval.Vg_N_avg - interval.thetag_N_avg + interval.vg_N
+    JuMP.add_to_expression!(reg_term, interval.rho/2, angle_consensus, angle_consensus)
+
+    return reg_term
 end
 
 mutable struct LineBaseInterval <: LineIntervals
