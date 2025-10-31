@@ -223,6 +223,11 @@ class VCGMechanism(Scene):
         )
         
         self.wait(1)
+
+        # ZOOM OUT
+        all_objects = Group(*self.mobjects)
+        self.play(all_objects.animate.scale(0.75).move_to(ORIGIN), run_time=1.5)
+        self.wait(0.5)
         
         # Fade out for next scene
         self.play(

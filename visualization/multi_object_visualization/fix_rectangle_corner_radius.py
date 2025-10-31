@@ -1,0 +1,239 @@
+#!/usr/bin/env python3
+"""
+Script to fix Manim Rectangle corner_radius issue by replacing with RoundedRectangle.
+
+This script will:
+1. Find all Python files with Rectangle calls that include corner_radius
+2. Replace Rectangle with RoundedRectangle
+3. Ensure RoundedRectangle is imported
+4. Create backups of modified files
+"""
+
+import os
+import re
+import shutil
+from pathlib import Path
+from datetime import datetime
+
+
+def has_corner_radius_in_rectangle(content):
+    """Check if file has Rectangle with corner_radius parameter."""
+    # Pattern to match RoundedRectangle( ... corner_radius ... )
+    pattern = r'Rectangle\s*\([^)]*corner_radius[^)]*\)'
+    return bool(re.search(pattern, content, re.DOTALL))
+
+
+def add_rounded_rectangle_import(content):
+    """Add RoundedRectangle to imports if not already present."""
+    # Check if RoundedRectangle is already imported
+    if 'RoundedRectangle' in content:
+        return content
+    
+    # Find manim import lines
+    manim_import_patterns = [
+        r'from manim import ([^\n]+)',
+        r'from manim\.\w+ import ([^\n]+)',
+    ]
+    
+    for pattern in manim_import_patterns:
+        match = re.search(pattern, content)
+        if match:
+            # Add RoundedRectangle to existing import
+            import_line = match.group(0)
+            imports = match.group(1)
+            
+            # Check if it's not already in the import
+            if 'RoundedRectangle' not in imports:
+                new_imports = imports.rstrip() + ', RoundedRectangle'
+                new_import_line = import_line.replace(imports, new_imports)
+                content = content.replace(import_line, new_import_line)
+                return content
+    
+    # If no manim import found, add a new import at the top after any existing imports
+    lines = content.split('\n')
+    insert_index = 0
+    
+    for i, line in enumerate(lines):
+        if line.strip().startswith('import ') or line.strip().startswith('from '):
+            insert_index = i + 1
+    
+    lines.insert(insert_index, 'from manim import RoundedRectangle')
+    return '\n'.join(lines)
+
+
+def replace_rectangle_with_rounded(content):
+    """Replace Rectangle calls that have corner_radius with RoundedRectangle."""
+    # Pattern to match Rectangle with corner_radius
+    # This is a complex pattern that handles multiline Rectangle calls
+    
+    def replacement(match):
+        full_match = match.group(0)
+        # Replace 'Rectangle' with 'RoundedRectangle'
+        return full_match.replace('RoundedRectangle(', 'RoundedRectangle(', 1)
+    
+    # Match Rectangle( ... corner_radius ... )
+    # Using a more sophisticated approach to handle nested parentheses
+    pattern = r'Rectangle\s*\('
+    
+    new_content = content
+    pos = 0
+    
+    while True:
+        match = re.search(pattern, new_content[pos:], re.DOTALL)
+        if not match:
+            break
+        
+        start = pos + match.start()
+        # Find the matching closing parenthesis
+        paren_count = 1
+        i = pos + match.end()
+        
+        while i < len(new_content) and paren_count > 0:
+            if new_content[i] == '(':
+                paren_count += 1
+            elif new_content[i] == ')':
+                paren_count -= 1
+            i += 1
+        
+        end = i
+        rectangle_call = new_content[start:end]
+        
+        # Check if this Rectangle call has corner_radius
+        if 'corner_radius' in rectangle_call:
+            # Replace Rectangle with RoundedRectangle
+            new_call = rectangle_call.replace('Rectangle(', 'RoundedRectangle(', 1)
+            new_content = new_content[:start] + new_call + new_content[end:]
+            pos = start + len(new_call)
+        else:
+            pos = end
+    
+    return new_content
+
+
+def process_file(filepath, dry_run=False):
+    """Process a single Python file."""
+    try:
+        with open(filepath, 'r', encoding='utf-8') as f:
+            content = f.read()
+        
+        if not has_corner_radius_in_rectangle(content):
+            return False, "No Rectangle with corner_radius found"
+        
+        print(f"\n{'[DRY RUN] ' if dry_run else ''}Processing: {filepath}")
+        
+        # Create backup
+        if not dry_run:
+            backup_path = str(filepath) + '.backup_' + datetime.now().strftime('%Y%m%d_%H%M%S')
+            shutil.copy2(filepath, backup_path)
+            print(f"  ✓ Backup created: {backup_path}")
+        
+        # Replace Rectangle with RoundedRectangle
+        new_content = replace_rectangle_with_rounded(content)
+        
+        # Add import if needed
+        new_content = add_rounded_rectangle_import(new_content)
+        
+        if not dry_run:
+            with open(filepath, 'w', encoding='utf-8') as f:
+                f.write(new_content)
+            print(f"  ✓ File updated successfully")
+        else:
+            print(f"  → Would replace Rectangle with RoundedRectangle")
+            print(f"  → Would add RoundedRectangle import if needed")
+        
+        return True, "Success"
+        
+    except Exception as e:
+        return False, f"Error: {str(e)}"
+
+
+def find_python_files(directory):
+    """Recursively find all Python files in directory."""
+    python_files = []
+    for root, dirs, files in os.walk(directory):
+        # Skip common directories to ignore
+        dirs[:] = [d for d in dirs if d not in ['.git', '__pycache__', 'venv', 'env', '.venv']]
+        
+        for file in files:
+            if file.endswith('.py'):
+                python_files.append(os.path.join(root, file))
+    
+    return python_files
+
+
+def main():
+    import argparse
+    
+    parser = argparse.ArgumentParser(
+        description='Fix Manim Rectangle corner_radius issue by replacing with RoundedRectangle'
+    )
+    parser.add_argument(
+        'path',
+        nargs='?',
+        default='.',
+        help='Path to file or directory to process (default: current directory)'
+    )
+    parser.add_argument(
+        '--dry-run',
+        action='store_true',
+        help='Show what would be changed without modifying files'
+    )
+    
+    args = parser.parse_args()
+    
+    path = Path(args.path)
+    
+    if not path.exists():
+        print(f"Error: Path '{path}' does not exist")
+        return 1
+    
+    # Collect files to process
+    if path.is_file():
+        if not str(path).endswith('.py'):
+            print(f"Error: '{path}' is not a Python file")
+            return 1
+        files_to_process = [path]
+    else:
+        files_to_process = [Path(f) for f in find_python_files(path)]
+    
+    if not files_to_process:
+        print(f"No Python files found in '{path}'")
+        return 0
+    
+    print(f"Found {len(files_to_process)} Python file(s) to scan")
+    print("=" * 70)
+    
+    # Process files
+    modified_count = 0
+    error_count = 0
+    
+    for filepath in files_to_process:
+        success, message = process_file(filepath, dry_run=args.dry_run)
+        if success:
+            modified_count += 1
+        elif "Error:" in message:
+            error_count += 1
+            print(f"\n✗ Error processing {filepath}: {message}")
+    
+    # Summary
+    print("\n" + "=" * 70)
+    print("SUMMARY")
+    print("=" * 70)
+    print(f"Total files scanned: {len(files_to_process)}")
+    print(f"Files modified: {modified_count}")
+    if error_count > 0:
+        print(f"Errors: {error_count}")
+    
+    if args.dry_run and modified_count > 0:
+        print("\nThis was a dry run. Run without --dry-run to apply changes.")
+    elif modified_count > 0:
+        print("\n✓ All files processed successfully!")
+        print("  Backups have been created with .backup_TIMESTAMP extension")
+    else:
+        print("\nNo files needed modification.")
+    
+    return 0
+
+
+if __name__ == '__main__':
+    exit(main())

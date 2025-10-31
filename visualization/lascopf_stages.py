@@ -208,6 +208,11 @@ class LASCOPFStages(Scene):
         )
         
         self.wait(0.5)
+
+        # ZOOM OUT
+        all_objects = Group(*self.mobjects)
+        self.play(all_objects.animate.scale(0.75).move_to(ORIGIN), run_time=1.5)
+        self.wait(0.5)
         
         # Add annotation
         annotation_box = Rectangle(

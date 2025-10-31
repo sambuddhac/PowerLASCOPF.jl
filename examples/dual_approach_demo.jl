@@ -7,7 +7,7 @@ using CSV
 using DataFrames
 
 # Include the updated solver (now with complete integration)
-include("../src/models/solver_models/gensolver_first_base.jl")
+include("../src/solvers/generator_solvers/gensolver_first_base.jl")
 
 # Include example data files
 include("../example_cases/data_5bus_pu.jl")

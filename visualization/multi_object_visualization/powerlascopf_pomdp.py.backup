@@ -1,0 +1,611 @@
+"""
+PowerLASCOPF POMDP Interface - Visualization
+============================================
+Visualizes the POMDP formulation, belief updates, and observation modeling
+
+Usage:
+    manim -pql powerlascopf_pomdp.py POMDPOverview
+    manim -pql powerlascopf_pomdp.py BeliefUpdate
+    manim -pql powerlascopf_pomdp.py ObservationModel
+"""
+
+from manim import *
+import numpy as np
+
+
+class POMDPOverview(Scene):
+    """Overview of POMDP formulation for power systems"""
+    
+    def construct(self):
+        title = Text("POMDP for Power Systems", font_size=48, color=GREEN)
+        title.to_edge(UP)
+        self.play(Write(title))
+        
+        subtitle = Text(
+            "Partially Observable Markov Decision Process",
+            font_size=20,
+            color=GREY
+        )
+        subtitle.next_to(title, DOWN)
+        self.play(FadeIn(subtitle))
+        self.wait()
+        
+        # Show POMDP tuple
+        self.show_pomdp_tuple()
+        
+        # Show state space
+        self.show_state_space()
+        
+        self.wait(3)
+    
+    def show_pomdp_tuple(self):
+        """Show the POMDP 7-tuple definition"""
+        pomdp_def = VGroup(
+            Text("POMDP = (S, A, T, R, Ω, O, γ)", font_size=32, color=YELLOW),
+            Text("", font_size=16),  # Spacer
+            self.create_definition_line("S", "States", "Power grid configurations", GREEN),
+            self.create_definition_line("A", "Actions", "Control decisions (voltage, power)", BLUE),
+            self.create_definition_line("T", "Transitions", "System dynamics P(s'|s,a)", PURPLE),
+            self.create_definition_line("R", "Rewards", "Cost/objective function", ORANGE),
+            self.create_definition_line("Ω", "Observations", "Sensor measurements", RED),
+            self.create_definition_line("O", "Obs. Model", "P(o|s',a)", PINK),
+            self.create_definition_line("γ", "Discount", "Future reward discount factor", GREY)
+        ).arrange(DOWN, aligned_edge=LEFT, buff=0.2)
+        pomdp_def.scale(0.7).shift(DOWN * 0.3)
+        
+        self.play(Write(pomdp_def[0]))  # Main definition
+        self.wait()
+        
+        for i in range(2, len(pomdp_def)):
+            self.play(FadeIn(pomdp_def[i], shift=UP), run_time=0.5)
+            self.wait(0.2)
+        
+        self.wait(2)
+        self.play(FadeOut(pomdp_def))
+    
+    def create_definition_line(self, symbol, name, description, color):
+        """Create a definition line"""
+        symbol_text = Text(f"{symbol}:", font_size=20, color=color, weight=BOLD)
+        name_text = Text(name, font_size=18, color=WHITE)
+        desc_text = Text(f"({description})", font_size=14, color=GREY)
+        
+        line = VGroup(symbol_text, name_text, desc_text)
+        line.arrange(RIGHT, buff=0.3)
+        return line
+    
+    def show_state_space(self):
+        """Show the state space for power systems"""
+        state_title = Text("State Space for Power Grid", font_size=32, color=GREEN)
+        state_title.to_edge(UP).shift(DOWN * 1.5)
+        self.play(Write(state_title))
+        
+        state_components = VGroup(
+            self.create_state_box("Voltage Magnitudes", "V_i ∈ [V_min, V_max]", GREEN),
+            self.create_state_box("Voltage Angles", "θ_i ∈ [-π, π]", BLUE),
+            self.create_state_box("Power Injections", "P_i, Q_i", PURPLE),
+            self.create_state_box("Line Flows", "P_ij, Q_ij", ORANGE),
+            self.create_state_box("Security Status", "Binary indicators", RED)
+        ).arrange(DOWN, buff=0.3)
+        state_components.scale(0.7).shift(DOWN * 0.5)
+        
+        for comp in state_components:
+            self.play(FadeIn(comp, shift=UP), run_time=0.6)
+            self.wait(0.2)
+        
+        self.wait()
+    
+    def create_state_box(self, name, description, color):
+        """Create a state component box"""
+        box = RoundedRectangle(
+            width=7,
+            height=0.8,
+            fill_color=color,
+            fill_opacity=0.2,
+            stroke_color=color,
+            stroke_width=2,
+            corner_radius=0.1
+        )
+        
+        name_text = Text(name, font_size=18, color=WHITE, weight=BOLD)
+        name_text.move_to(box.get_left() + RIGHT * 1.5)
+        
+        desc_text = Text(description, font_size=14, color=GREY)
+        desc_text.move_to(box.get_right() + LEFT * 2)
+        
+        return VGroup(box, name_text, desc_text)
+
+
+class BeliefUpdate(Scene):
+    """Visualize belief updates in POMDP"""
+    
+    def construct(self):
+        title = Text("Belief Update in POMDP", font_size=48, color=BLUE)
+        title.to_edge(UP)
+        self.play(Write(title))
+        self.wait()
+        
+        # Show belief equation
+        belief_eq = MathTex(
+            r"b'(s') = \eta \cdot O(o|s',a) \sum_{s} T(s'|s,a) \cdot b(s)",
+            font_size=36
+        )
+        belief_eq.shift(UP * 2)
+        self.play(Write(belief_eq))
+        self.wait()
+        
+        # Animate belief distribution
+        self.animate_belief_distribution()
+        
+        # Show update process
+        self.show_update_process()
+        
+        self.wait(3)
+    
+    def animate_belief_distribution(self):
+        """Animate belief as a probability distribution"""
+        axes = Axes(
+            x_range=[0, 10, 1],
+            y_range=[0, 1, 0.2],
+            x_length=8,
+            y_length=3,
+            axis_config={"include_tip": False}
+        )
+        axes.shift(DOWN * 0.5)
+        
+        # Initial belief (uniform)
+        initial_bars = VGroup(*[
+            Rectangle(
+                width=0.6,
+                height=0.5,
+                fill_color=GREEN,
+                fill_opacity=0.7,
+                stroke_width=1
+            ).move_to(axes.c2p(i + 0.5, 0.25, 0))
+            for i in range(10)
+        ])
+        
+        label_initial = Text("Initial Belief (Uniform)", font_size=18, color=GREEN)
+        label_initial.next_to(axes, UP, buff=0.5)
+        
+        self.play(
+            Create(axes),
+            *[GrowFromEdge(bar, DOWN) for bar in initial_bars],
+            Write(label_initial)
+        )
+        self.wait()
+        
+        # After observation (peaked)
+        heights = [0.1, 0.15, 0.25, 0.5, 0.8, 0.7, 0.4, 0.2, 0.1, 0.05]
+        updated_bars = VGroup(*[
+            Rectangle(
+                width=0.6,
+                height=h * 3,
+                fill_color=BLUE,
+                fill_opacity=0.7,
+                stroke_width=1
+            ).move_to(axes.c2p(i + 0.5, h / 2, 0))
+            for i, h in enumerate(heights)
+        ])
+        
+        label_updated = Text("Updated Belief (After Observation)", font_size=18, color=BLUE)
+        label_updated.move_to(label_initial.get_center())
+        
+        self.play(
+            Transform(initial_bars, updated_bars),
+            Transform(label_initial, label_updated),
+            run_time=2
+        )
+        self.wait(2)
+        
+        self.play(FadeOut(VGroup(axes, initial_bars, label_initial)))
+    
+    def show_update_process(self):
+        """Show the step-by-step belief update process"""
+        steps = VGroup(
+            self.create_process_step("1", "Previous Belief b(s)", GREEN),
+            Text("↓", font_size=30, color=WHITE),
+            self.create_process_step("4", "Apply Bayes' rule", PURPLE),
+            Text("↓", font_size=30, color=WHITE),
+            self.create_process_step("5", "New Belief b'(s')", RED)
+        ).arrange(DOWN, buff=0.2)
+        steps.scale(0.8).shift(DOWN * 0.5)
+        
+        for step in steps:
+            self.play(FadeIn(step, shift=UP), run_time=0.5)
+            self.wait(0.2)
+        
+        self.wait()
+    
+    def create_process_step(self, num, text, color):
+        """Create a process step box"""
+        circle = Circle(radius=0.25, color=color, fill_opacity=0.8)
+        num_text = Text(num, font_size=18, color=WHITE, weight=BOLD)
+        num_text.move_to(circle.get_center())
+        
+        box = Rectangle(
+            width=5,
+            height=0.7,
+            fill_color=color,
+            fill_opacity=0.2,
+            stroke_color=color,
+            stroke_width=2
+        )
+        box_text = Text(text, font_size=16, color=WHITE)
+        box_text.move_to(box.get_center())
+        
+        step = VGroup(VGroup(circle, num_text), VGroup(box, box_text))
+        step.arrange(RIGHT, buff=0.3)
+        return step
+
+
+class ObservationModel(Scene):
+    """Visualize the observation model"""
+    
+    def construct(self):
+        title = Text("Observation Model for Power Systems", font_size=42, color=ORANGE)
+        title.to_edge(UP)
+        self.play(Write(title))
+        self.wait()
+        
+        # Show what can be observed
+        self.show_observable_quantities()
+        
+        # Show partial observability
+        self.show_partial_observability()
+        
+        self.wait(3)
+    
+    def show_observable_quantities(self):
+        """Show what quantities can be observed"""
+        observable = VGroup(
+            Text("Observable Quantities:", font_size=28, color=YELLOW, weight=BOLD),
+            Text("", font_size=16),
+            self.create_obs_item("✓", "PMU measurements (voltage, current)", GREEN),
+            self.create_obs_item("✓", "SCADA data (power flows)", GREEN),
+            self.create_obs_item("✓", "Line status (open/closed)", GREEN),
+            self.create_obs_item("✗", "Generator internal states", RED),
+            self.create_obs_item("✗", "Load dynamics", RED),
+            self.create_obs_item("✗", "Exact contingency state", RED)
+        ).arrange(DOWN, aligned_edge=LEFT, buff=0.25)
+        observable.scale(0.8).shift(LEFT * 2 + DOWN * 0.3)
+        
+        for item in observable:
+            self.play(FadeIn(item, shift=RIGHT), run_time=0.5)
+            self.wait(0.2)
+        
+        self.wait(2)
+        self.play(FadeOut(observable))
+    
+    def create_obs_item(self, symbol, text, color):
+        """Create an observation item"""
+        symbol_text = Text(symbol, font_size=20, color=color, weight=BOLD)
+        item_text = Text(text, font_size=18, color=GREY_A)
+        
+        item = VGroup(symbol_text, item_text)
+        item.arrange(RIGHT, buff=0.3)
+        return item
+    
+    def show_partial_observability(self):
+        """Visualize partial observability concept"""
+        # True state (hidden)
+        true_state = Circle(radius=1.5, color=RED, fill_opacity=0.3, stroke_width=3)
+        true_label = Text("True State s", font_size=20, color=RED, weight=BOLD)
+        true_label.move_to(true_state.get_center())
+        true_group = VGroup(true_state, true_label)
+        true_group.shift(LEFT * 3)
+        
+        # Observation (visible but noisy)
+        obs_circle = Circle(radius=1.2, color=GREEN, fill_opacity=0.3, stroke_width=3)
+        obs_label = Text("Observation o", font_size=20, color=GREEN, weight=BOLD)
+        obs_label.move_to(obs_circle.get_center())
+        obs_group = VGroup(obs_circle, obs_label)
+        obs_group.shift(RIGHT * 3)
+        
+        # Partial overlap
+        arrow = Arrow(
+            true_state.get_right(),
+            obs_circle.get_left(),
+            buff=0.1,
+            color=YELLOW,
+            stroke_width=4
+        )
+        arrow_label = Text("Partial\nInformation", font_size=16, color=YELLOW)
+        arrow_label.next_to(arrow, UP)
+        
+        self.play(FadeIn(true_group))
+        self.wait(0.5)
+        self.play(GrowArrow(arrow), Write(arrow_label))
+        self.wait(0.5)
+        self.play(FadeIn(obs_group))
+        self.wait()
+        
+        # Show noise
+        noise_text = Text("+ Measurement Noise", font_size=16, color=RED)
+        noise_text.next_to(obs_group, DOWN, buff=0.5)
+        self.play(FadeIn(noise_text))
+        
+        self.wait()
+
+
+class POMDPvsFullyObservable(Scene):
+    """Compare POMDP with fully observable MDP"""
+    
+    def construct(self):
+        title = Text("POMDP vs Fully Observable MDP", font_size=42)
+        title.to_edge(UP)
+        self.play(Write(title))
+        self.wait()
+        
+        # MDP column
+        mdp_col = self.create_comparison_column(
+            "MDP (Fully Observable)",
+            GREEN,
+            [
+                "• Direct state access",
+                "• No belief needed",
+                "• Policy: r"\pi(a|s)"",
+                "• Simpler but unrealistic",
+                "• Perfect information"
+            ]
+        )
+        mdp_col.shift(LEFT * 3.5)
+        
+        # POMDP column
+        pomdp_col = self.create_comparison_column(
+            "POMDP (Partial Obs.)",
+            BLUE,
+            [
+                "• Only observations",
+                "• Maintain belief b(s)",
+                "• Policy: π(a|b)",
+                "• Complex but realistic",
+                "• Uncertain information"
+            ]
+        )
+        pomdp_col.shift(RIGHT * 3.5)
+        
+        self.play(FadeIn(mdp_col, shift=RIGHT))
+        self.wait(0.5)
+        self.play(FadeIn(pomdp_col, shift=LEFT))
+        self.wait()
+        
+        # Highlight difference
+        highlight = Text(
+            "Power systems are inherently partially observable!",
+            font_size=20,
+            color=YELLOW,
+            weight=BOLD
+        )
+        highlight.to_edge(DOWN)
+        self.play(Write(highlight))
+        
+        self.wait(3)
+    
+    def create_comparison_column(self, title, color, points):
+        """Create a comparison column"""
+        title_text = Text(title, font_size=22, color=color, weight=BOLD)
+        
+        point_list = VGroup(*[
+            Text(point, font_size=16, color=GREY_A)
+            for point in points
+        ]).arrange(DOWN, aligned_edge=LEFT, buff=0.2)
+        
+        col = VGroup(title_text, point_list).arrange(DOWN, buff=0.4)
+        
+        border = SurroundingRectangle(
+            col,
+            color=color,
+            buff=0.4,
+            stroke_width=3,
+            corner_radius=0.15
+        )
+        
+        return VGroup(border, col)
+
+
+class PolicyTypes(Scene):
+    """Show different policy types in POMDP"""
+    
+    def construct(self):
+        title = Text("Policy Types in POMDP", font_size=44, color=PURPLE)
+        title.to_edge(UP)
+        self.play(Write(title))
+        self.wait()
+        
+        # Show three policy types
+        policies = VGroup(
+            self.create_policy_box(
+                "State-Based Policy",
+                "r"\pi(a|s)"",
+                "Assumes full observability\nNot optimal for POMDP",
+                RED
+            ),
+            self.create_policy_box(
+                "Observation-Based",
+                "π(a|o)",
+                "Uses only current observation\nMemoryless, suboptimal",
+                ORANGE
+            ),
+            self.create_policy_box(
+                "Belief-Based Policy",
+                "π(a|b)",
+                "Uses full belief state\nOptimal for POMDP ✓",
+                GREEN
+            )
+        ).arrange(DOWN, buff=0.5)
+        policies.scale(0.75).shift(DOWN * 0.3)
+        
+        for policy in policies:
+            self.play(FadeIn(policy, shift=UP), run_time=0.8)
+            self.wait(0.4)
+        
+        # Highlight the optimal one
+        self.play(
+            policies[2].animate.scale(1.1).set_color(YELLOW),
+            run_time=0.5
+        )
+        self.play(
+            policies[2].animate.scale(1/1.1),
+            run_time=0.5
+        )
+        
+        self.wait(2)
+    
+    def create_policy_box(self, title, formula, description, color):
+        """Create a policy type box"""
+        box = RoundedRectangle(
+            width=10,
+            height=1.5,
+            fill_color=color,
+            fill_opacity=0.2,
+            stroke_color=color,
+            stroke_width=2,
+            corner_radius=0.1
+        )
+        
+        title_text = Text(title, font_size=20, color=color, weight=BOLD)
+        title_text.move_to(box.get_top() + DOWN * 0.3)
+        
+        formula_text = MathTex(formula, font_size=28, color=WHITE)
+        formula_text.next_to(title_text, DOWN, buff=0.15)
+        
+        desc_text = Text(description, font_size=14, color=GREY_A)
+        desc_text.next_to(formula_text, DOWN, buff=0.15)
+        
+        return VGroup(box, title_text, formula_text, desc_text)
+
+
+class BeliefMDP(Scene):
+    """Show how POMDP converts to belief MDP"""
+    
+    def construct(self):
+        title = Text("POMDP as Belief MDP", font_size=44, color=BLUE)
+        title.to_edge(UP)
+        self.play(Write(title))
+        self.wait()
+        
+        # Show transformation
+        transformation = VGroup(
+            Text("Original POMDP", font_size=24, color=RED),
+            Text("State space S (unobservable)", font_size=16, color=GREY),
+            Text("↓", font_size=30, color=WHITE),
+            Text("Transform to", font_size=20, color=YELLOW, slant=ITALIC),
+            Text("↓", font_size=30, color=WHITE),
+            Text("Belief MDP", font_size=24, color=GREEN),
+            Text("State space = Belief space Δ(S)", font_size=16, color=GREY)
+        ).arrange(DOWN, buff=0.3)
+        transformation.shift(LEFT * 3 + DOWN * 0.3)
+        
+        for item in transformation:
+            self.play(FadeIn(item, shift=UP), run_time=0.5)
+            self.wait(0.2)
+        
+        # Show key insight
+        insight = VGroup(
+            Text("Key Insight:", font_size=22, color=YELLOW, weight=BOLD),
+            Text("", font_size=14),
+            Text("The belief b is a sufficient", font_size=18, color=WHITE),
+            Text("statistic for optimal control", font_size=18, color=WHITE),
+            Text("", font_size=14),
+            MathTex(r"b(s) = P(s_t = s | o_{0:t}, a_{0:t-1})", font_size=20),
+            Text("", font_size=14),
+            Text("Now we can apply standard", font_size=16, color=GREY),
+            Text("RL algorithms on belief space!", font_size=16, color=GREY)
+        ).arrange(DOWN, aligned_edge=LEFT, buff=0.15)
+        insight.shift(RIGHT * 3 + DOWN * 0.5)
+        
+        self.play(FadeIn(insight, shift=LEFT))
+        self.wait(3)
+
+
+class POMDPForPowerSystems(Scene):
+    """Specific POMDP formulation for power systems"""
+    
+    def construct(self):
+        title = Text("POMDP for Power Grid SCOPF", font_size=40, color=ORANGE)
+        title.to_edge(UP)
+        self.play(Write(title))
+        self.wait()
+        
+        # Show specific formulation
+        formulation = VGroup(
+            self.create_formulation_item(
+                "States S:",
+                "Grid configuration (V, θ, P, Q, contingencies)",
+                GREEN
+            ),
+            self.create_formulation_item(
+                "Actions A:",
+                "Generator setpoints, reactive power control",
+                BLUE
+            ),
+            self.create_formulation_item(
+                "Observations Ω:",
+                "PMU/SCADA measurements (noisy, incomplete)",
+                PURPLE
+            ),
+            self.create_formulation_item(
+                "Reward R:",
+                "−Cost(generation) − λ·Violations",
+                ORANGE
+            ),
+            self.create_formulation_item(
+                "Transitions T:",
+                "Power flow equations + disturbances",
+                RED
+            )
+        ).arrange(DOWN, aligned_edge=LEFT, buff=0.35)
+        formulation.scale(0.75).shift(DOWN * 0.5)
+        
+        for item in formulation:
+            self.play(FadeIn(item, shift=UP), run_time=0.7)
+            self.wait(0.3)
+        
+        # Add challenge note
+        challenge = Text(
+            "Challenge: High-dimensional continuous state/action spaces!",
+            font_size=18,
+            color=YELLOW,
+            weight=BOLD
+        )
+        challenge.to_edge(DOWN)
+        self.play(Write(challenge))
+        
+        self.wait(3)
+    
+    def create_formulation_item(self, label, description, color):
+        """Create a formulation item"""
+        label_text = Text(label, font_size=20, color=color, weight=BOLD)
+        desc_text = Text(description, font_size=16, color=GREY_A)
+        
+        item = VGroup(label_text, desc_text).arrange(DOWN, aligned_edge=LEFT, buff=0.1)
+        
+        box = SurroundingRectangle(
+            item,
+            color=color,
+            buff=0.2,
+            stroke_width=2,
+            corner_radius=0.08
+        )
+        
+        return VGroup(box, item)
+
+
+if __name__ == "__main__":
+    print("PowerLASCOPF POMDP Interface Animations")
+    print("\nAvailable scenes:")
+    print("  1. POMDPOverview - POMDP formulation overview")
+    print("  2. BeliefUpdate - Belief update visualization")
+    print("  3. ObservationModel - Observation model for power systems")
+    print("  4. POMDPvsFullyObservable - Comparison with MDP")
+    print("  5. PolicyTypes - Different policy types")
+    print("  6. BeliefMDP - POMDP as belief MDP transformation")
+    print("  7. POMDPForPowerSystems - Specific formulation for SCOPF")
+    print("\nUsage:")
+    print("  manim -pql powerlascopf_pomdp.py POMDPOverview")
+    print("  manim -pqh powerlascopf_pomdp.py BeliefUpdate")
+
+    self.create_process_step("2", "Action a executed", BLUE),
+    Text("↓", font_size=30, color=WHITE),
+    self.create_process_step("3", "Observation o received", ORANGE),
+    Text("↓", font_size=30, color=WHITE),

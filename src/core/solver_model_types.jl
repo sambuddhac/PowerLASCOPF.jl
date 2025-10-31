@@ -305,13 +305,13 @@ end
 Compute regularization term for GenFirstBaseIntervalDZ with dummy zero interval
 """
 function regularization_term(interval::GenFirstBaseIntervalDZ, Pg, PgNext, PgPrev, Thetag)
-    reg_term = AffExpr(0.0)
+    reg_term = JuMP.QuadExpr()
     
     # APP regularization terms
-    add_to_expression!(reg_term, interval.beta/2, (PgPrev - interval.Pg_prev_nu), (PgPrev - interval.Pg_prev_nu))
-    add_to_expression!(reg_term, interval.beta/2, (Pg - interval.Pg_nu), (Pg - interval.Pg_nu))
+    JuMP.add_to_expression!(reg_term, interval.beta/2, (PgPrev - interval.Pg_prev_nu), (PgPrev - interval.Pg_prev_nu))
+    JuMP.add_to_expression!(reg_term, interval.beta/2, (Pg - interval.Pg_nu), (Pg - interval.Pg_nu))
     for i in eachindex(PgNext)
-        add_to_expression!(reg_term, interval.beta/2, (PgNext[i] - interval.Pg_next_nu[i]), (PgNext[i] - interval.Pg_next_nu[i]))
+        JuMP.add_to_expression!(reg_term, interval.beta/2, (PgNext[i] - interval.Pg_next_nu[i]), (PgNext[i] - interval.Pg_next_nu[i]))
     end
     add_to_expression!(reg_term, interval.beta_inner/2, (Pg - interval.Pg_nu_inner), (Pg - interval.Pg_nu_inner))
     

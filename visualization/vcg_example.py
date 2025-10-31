@@ -203,6 +203,11 @@ class VCGExample(Scene):
             run_time=0.8
         )
         self.play(Write(payments), run_time=1.8)
+
+        # ZOOM OUT
+        all_objects = Group(*self.mobjects)
+        self.play(all_objects.animate.scale(0.75).move_to(ORIGIN), run_time=1.5)
+        self.wait(0.5)
         
         # Highlight key insight
         insight = Text("Each pays their 'pivotal' contribution!", 
