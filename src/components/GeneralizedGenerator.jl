@@ -39,7 +39,6 @@ mutable struct GeneralizedGenerator{T<:PSY.Generator,U<:GenIntervals} <: PowerGe
     
     # Generator identification
     gen_id::Int64
-    number_of_generators::Int64
     dispatch_interval::Int64
     flag_last::Bool
     dummy_zero_int_flag::Int64
@@ -91,7 +90,6 @@ mutable struct GeneralizedGenerator{T<:PSY.Generator,U<:GenIntervals} <: PowerGe
         accuracy::Int64, 
         nodeConng::Node, 
         countOfContingency::Int64, 
-        gen_total::Int64;
         config::GenSolverConfig = GenSolverConfig()
     ) where {T<:PSY.Generator, U<:GenIntervals}
         
@@ -109,7 +107,6 @@ mutable struct GeneralizedGenerator{T<:PSY.Generator,U<:GenIntervals} <: PowerGe
         self.generator = generator
         self.cost_function = cost_function
         self.gen_id = id_of_gen
-        self.number_of_generators = gen_total
         self.dispatch_interval = interval
         self.flag_last = last_flag
         self.dummy_zero_int_flag = dummyZero
@@ -120,7 +117,6 @@ mutable struct GeneralizedGenerator{T<:PSY.Generator,U<:GenIntervals} <: PowerGe
         self.conn_nodeg_ptr = nodeConng
         self.cont_count_gen = countOfContingency
         self.gen_solver = gensolver
-        self.gen_total = gen_total
         
         # Initialize timeseries fields
         self.current_time = nothing
@@ -144,7 +140,7 @@ mutable struct GeneralizedGenerator{T<:PSY.Generator,U<:GenIntervals} <: PowerGe
         extract_timeseries_from_psy!(self)
 
         # Set generator data
-        set_gen_data!(self)
+        #set_gen_data!(self)
         
         return self
     end
@@ -192,80 +188,89 @@ function extract_timeseries_from_psy!(gen::GeneralizedGenerator)
     empty!(gen.scenarios)
     gen._cache_valid = false
     
-    # Extract available timeseries from PSY generator
-    time_series_names = PSY.get_time_series_names(psy_gen)
-    
-    if isempty(time_series_names)
-        # No timeseries available, create single deterministic scenario
-        scenario = GeneratorScenario(
-            scenario_id = 1,
-            probability = 1.0,
-            current_active_power = PSY.get_active_power(psy_gen),
-            current_reactive_power = PSY.get_reactive_power(psy_gen),
-            current_availability = PSY.get_available(psy_gen)
-        )
+    try
+        # Extract available timeseries from PSY generator
+        #time_series_container = PSY.get_time_series_container(psy_gen)
         
-        # For renewable generators, set renewable power
-        if isa(psy_gen, PSY.RenewableGen)
-            scenario.current_renewable_power = PSY.get_rating(psy_gen)
-        end
-        
-        push!(gen.scenarios, scenario)
-        return
-    end
-    
-    # Extract timeseries data
-    for (idx, ts_name) in enumerate(time_series_names)
-        try
-            ts_data = PSY.get_time_series(psy_gen, ts_name)
-            
+        if IS.has_time_series(psy_gen)
+
+            # Get all time series keys
+            ts_keys = PSY.get_time_series_keys(psy_gen)
+            # No timeseries available, create single deterministic scenario
             scenario = GeneratorScenario(
-                scenario_id = idx,
-                probability = 1.0 / length(time_series_names)  # Equal probability for now
+                scenario_id = 1,
+                probability = 1.0,
+                current_active_power = PSY.get_active_power(psy_gen),
+                current_reactive_power = PSY.get_reactive_power(psy_gen),
+                current_availability = PSY.get_available(psy_gen)
             )
             
-            # Map timeseries based on type and name
-            if occursin("ActivePower", string(ts_name)) || occursin("P", string(ts_name))
-                scenario.active_power_series = ts_data
-            elseif occursin("ReactivePower", string(ts_name)) || occursin("Q", string(ts_name))
-                scenario.reactive_power_series = ts_data
-            elseif occursin("Availability", string(ts_name)) || occursin("Available", string(ts_name))
-                scenario.availability_series = ts_data
-            elseif occursin("Renewable", string(ts_name)) || occursin("Wind", string(ts_name)) || occursin("Solar", string(ts_name))
-                scenario.renewable_power_series = ts_data
-            else
-                # Default to active power for unknown series
-                scenario.active_power_series = ts_data
-            end
-            
-            # Set initial values
-            if !isnothing(scenario.active_power_series)
-                scenario.current_active_power = first(PSY.get_data(scenario.active_power_series))
-            else
-                scenario.current_active_power = PSY.get_active_power(psy_gen)
-            end
-            
-            if !isnothing(scenario.renewable_power_series)
-                scenario.current_renewable_power = first(PSY.get_data(scenario.renewable_power_series))
-            elseif isa(psy_gen, PSY.RenewableGen)
+            # For renewable generators, set renewable power
+            if isa(psy_gen, PSY.RenewableGen)
                 scenario.current_renewable_power = PSY.get_rating(psy_gen)
             end
             
             push!(gen.scenarios, scenario)
-            
-        catch e
-            @warn "Failed to extract timeseries $ts_name for generator $(PSY.get_name(psy_gen)): $e"
+
+            # Extract timeseries data
+            for (idx, ts_name) in enumerate(ts_keys)
+                try
+                    ts_data = PSY.get_time_series(psy_gen, ts_name)
+                    
+                    scenario = GeneratorScenario(
+                        scenario_id = idx,
+                        probability = 1.0 / length(ts_data)  # Equal probability for now
+                    )
+                    
+                    # Map timeseries based on type and name
+                    if occursin("ActivePower", string(ts_name)) || occursin("P", string(ts_name))
+                        scenario.active_power_series = ts_data
+                    elseif occursin("ReactivePower", string(ts_name)) || occursin("Q", string(ts_name))
+                        scenario.reactive_power_series = ts_data
+                    elseif occursin("Availability", string(ts_name)) || occursin("Available", string(ts_name))
+                        scenario.availability_series = ts_data
+                    elseif occursin("Renewable", string(ts_name)) || occursin("Wind", string(ts_name)) || occursin("Solar", string(ts_name))
+                        scenario.renewable_power_series = ts_data
+                    else
+                        # Default to active power for unknown series
+                        scenario.active_power_series = ts_data
+                    end
+                    
+                    # Set initial values
+                    if !isnothing(scenario.active_power_series)
+                        scenario.current_active_power = first(PSY.get_data(scenario.active_power_series))
+                    else
+                        scenario.current_active_power = PSY.get_active_power(psy_gen)
+                    end
+                    
+                    if !isnothing(scenario.renewable_power_series)
+                        scenario.current_renewable_power = first(PSY.get_data(scenario.renewable_power_series))
+                    elseif isa(psy_gen, PSY.RenewableGen)
+                        scenario.current_renewable_power = PSY.get_rating(psy_gen)
+                    end
+                    
+                    push!(gen.scenarios, scenario)
+                    
+                catch e
+                    @warn "Failed to extract timeseries $ts_name for generator $(PSY.get_name(psy_gen)): $e"
+                end
+            end
+            return
         end
-    end
-    
-    # If no scenarios were created, create default
-    if isempty(gen.scenarios)
-        push!(gen.scenarios, GeneratorScenario(
-            scenario_id = 1,
-            probability = 1.0,
-            current_active_power = PSY.get_active_power(psy_gen),
-            current_availability = PSY.get_available(psy_gen)
-        ))
+        
+        
+        
+        # If no scenarios were created, create default
+        if isempty(gen.scenarios)
+            push!(gen.scenarios, GeneratorScenario(
+                scenario_id = 1,
+                probability = 1.0,
+                current_active_power = PSY.get_active_power(psy_gen),
+                current_availability = PSY.get_available(psy_gen)
+            ))
+        end
+    catch e
+        @warn "Error extracting timeseries for generator $(PSY.get_name(psy_gen)): $e"
     end
 end
 

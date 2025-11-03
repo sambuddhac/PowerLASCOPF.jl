@@ -34,7 +34,6 @@ and enhanced thermal cost modeling with ADMM/APP state variables.
     
     # Generator identification
     gen_id::Int64
-    number_of_generators::Int64
     dispatch_interval::Int64
     flag_last::Bool
     dummy_zero_int_flag::Int64
@@ -45,13 +44,11 @@ and enhanced thermal cost modeling with ADMM/APP state variables.
     post_cont_scen_count::Int64
     base_cont_scenario::Int64
     cont_count_gen::Int64
-    gen_total::Int64
-    
     # Node connection
     conn_nodeg_ptr::Node
     
     # Solver interface for thermal generators
-    gen_solver::GenSolver{ExtendedThermalGenerationCost, U}
+    gen_solver::GenSolver{ExtendedThermalGenerationCost{U}, U}
     
     # Power variables (MW)
     P_gen_prev::Float64      # Previous interval power output
@@ -102,7 +99,7 @@ and enhanced thermal cost modeling with ADMM/APP state variables.
 
     # Constructor
     function ExtendedThermalGenerator(
-        generator::PSY.ThermalGen,
+        generator::T,
         thermal_cost_function::ExtendedThermalGenerationCost{U},
         id_of_gen::Int64,
         interval::Int64,
@@ -113,8 +110,7 @@ and enhanced thermal cost modeling with ADMM/APP state variables.
         dummyZero::Int64,
         accuracy::Int64,
         nodeConng::Node,
-        countOfContingency::Int64,
-        gen_total::Int64;
+        countOfContingency::Int64;
         config::GenSolverConfig = GenSolverConfig()
     ) where {T<:PSY.ThermalGen, U<:GenIntervals}
         
@@ -130,7 +126,6 @@ and enhanced thermal cost modeling with ADMM/APP state variables.
         self.generator = generator
         self.thermal_cost_function = thermal_cost_function
         self.gen_id = id_of_gen
-        self.number_of_generators = gen_total
         self.dispatch_interval = interval
         self.flag_last = last_flag
         self.dummy_zero_int_flag = dummyZero
@@ -141,7 +136,6 @@ and enhanced thermal cost modeling with ADMM/APP state variables.
         self.conn_nodeg_ptr = nodeConng
         self.cont_count_gen = countOfContingency
         self.gen_solver = gensolver
-        self.gen_total = gen_total
         
         # Initialize connection node
         set_g_conn!(self.conn_nodeg_ptr, id_of_gen)
@@ -181,7 +175,7 @@ function initialize_thermal_parameters!(gen::ExtendedThermalGenerator)
     # Initialize heat rate and efficiency
     if isa(op_cost, PSY.ThermalGenerationCost)
         # Try to extract heat rate from cost data
-        fuel_cost = PSY.get_fuel_cost(op_cost)
+        fuel_cost = PSY.get_fuel_cost(op_cost.variable)
         if !isnothing(fuel_cost) && fuel_cost > 0.0
             # Estimate heat rate from cost structure
             var_cost = PSY.get_variable(op_cost)
@@ -221,29 +215,44 @@ function extract_thermal_timeseries!(gen::ExtendedThermalGenerator)
     psy_gen = gen.generator
     gen._cache_valid = false
     
-    # Extract available timeseries
-    time_series_names = PSY.get_time_series_names(psy_gen)
-    
-    for ts_name in time_series_names
-        try
-            ts_data = PSY.get_time_series(psy_gen, ts_name)
-            
-            # Map timeseries based on name
-            if occursin("FuelPrice", string(ts_name)) || occursin("Fuel", string(ts_name))
-                gen.fuel_price_forecast = ts_data
-            elseif occursin("EmissionPrice", string(ts_name)) || occursin("Carbon", string(ts_name))
-                gen.emission_price_forecast = ts_data
-            elseif occursin("Maintenance", string(ts_name))
-                # Parse maintenance schedule (simplified)
-                # In practice, this would parse maintenance windows
+    # Extract available timeseries - use correct PowerSystems function
+    try
+        # Get time series container
+        #ts_container = PSY.get_time_series_container(psy_gen)
+        
+        if IS.has_time_series(psy_gen)
+            # Get all time series keys
+            ts_keys = PSY.get_time_series_keys(psy_gen)
+
+            if !isempty(ts_keys)
+                for ts_key in ts_keys
+                    try
+                        # Get the time series data
+                        ts_data = PSY.get_time_series(psy_gen, ts_key)
+                        
+                        # Map timeseries based on name
+                        key_name = string(ts_key.name)
+                        if occursin("FuelPrice", key_name) || occursin("Fuel", key_name)
+                            gen.fuel_price_forecast = ts_data
+                        elseif occursin("EmissionPrice", key_name) || occursin("Carbon", key_name)
+                            gen.emission_price_forecast = ts_data
+                        elseif occursin("Maintenance", key_name)
+                            # Parse maintenance schedule (simplified)
+                            # In practice, this would parse maintenance windows
+                        end
+                        
+                    catch e
+                        @debug "Could not extract timeseries $ts_key for thermal generator $(PSY.get_name(psy_gen)): $e"
+                    end
+                end
             end
-            
-        catch e
-            @debug "Could not extract timeseries $ts_name for thermal generator $(PSY.get_name(psy_gen)): $e"
         end
+        
+    catch e
+        @debug "Could not access time series container for thermal generator $(PSY.get_name(psy_gen)): $e"
+        # If time series access fails, just continue without time series data
     end
 end
-
 """
     set_thermal_gen_data!(gen::ExtendedThermalGenerator)
 

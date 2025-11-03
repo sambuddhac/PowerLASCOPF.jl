@@ -4,7 +4,9 @@ using Dates
 using Random
 Random.seed!(123)
 using PowerSystems
+using InfrastructureSystems
 const PSY = PowerSystems
+const IS = InfrastructureSystems
 
 #=# Include PowerLASCOPF components
 include("../src/components/GeneralizedGenerator.jl")
@@ -17,6 +19,8 @@ include("../src/pomdp/PowerLASCOPFPOMDP.jl")
 include("../src/pomdp/belief_updater.jl")
 include("../src/pomdp/policy_interface.jl")
 include("../src/pomdp/utils.jl")=#
+
+import PowerSystems: VariableCost, TwoPartCost, MarketBidCost, PrimeMovers, ThermalFuels, Arc
 
 DayAhead = collect(
     DateTime("1/1/2024  0:00:00", "d/m/y  H:M:S"):Hour(1):DateTime(
@@ -349,15 +353,21 @@ thermal_generators5(nodes5) = [
         active_power = 0.40,
         reactive_power = 0.010,
         rating = 0.5,
-        prime_mover = PrimeMovers.ST,
+        prime_mover_type = PrimeMovers.ST,
         fuel = ThermalFuels.COAL,
         active_power_limits = (min = 0.0, max = 0.40),
         reactive_power_limits = (min = -0.30, max = 0.30),
         ramp_limits = nothing,
         time_limits = nothing,
-        operation_cost = ThreePartCost((0.0, 14.0), 0.0, 4.0, 2.0),
-        base_power = 100.0,
-    ),
+        operation_cost = PSY.ThermalGenerationCost(
+            variable = IS.FuelCurve(
+                value_curve = IS.QuadraticCurve(0.5, 14.0, 0.1),
+                fuel_cost = 5.0, vom_cost = IS.LinearCurve(3.55)),  # a + b*x + c*x^2
+            fixed = 4.0,
+            start_up = 0.0,
+            shut_down = 0.0),
+            base_power = 100.0,
+        ),
     PSY.ThermalStandard(
         name = "Park City",
         available = true,
@@ -366,13 +376,20 @@ thermal_generators5(nodes5) = [
         active_power = 1.70,
         reactive_power = 0.20,
         rating = 2.2125,
-        prime_mover = PrimeMovers.ST,
+        prime_mover_type = PrimeMovers.ST,
         fuel = ThermalFuels.COAL,
         active_power_limits = (min = 0.0, max = 1.70),
         reactive_power_limits = (min = -1.275, max = 1.275),
         ramp_limits = (up = 0.02 * 2.2125, down = 0.02 * 2.2125),
         time_limits = (up = 2.0, down = 1.0),
-        operation_cost = ThreePartCost((0.0, 15.0), 0.0, 1.5, 0.75),
+        operation_cost = PSY.ThermalGenerationCost(
+            variable = IS.FuelCurve(
+                value_curve = IS.QuadraticCurve(0.0, 15.0, 0.05),
+                fuel_cost = 5.0, vom_cost = IS.LinearCurve(3.55)),  # a + b*x + c*x^2
+            fixed = 1.5,
+            start_up = 0.0,
+            shut_down = 0.0
+        ),
         base_power = 100.0,
     ),
     PSY.ThermalStandard(
@@ -383,13 +400,20 @@ thermal_generators5(nodes5) = [
         active_power = 5.2,
         reactive_power = 1.00,
         rating = 5.2,
-        prime_mover = PrimeMovers.ST,
+        prime_mover_type = PrimeMovers.ST,
         fuel = ThermalFuels.COAL,
         active_power_limits = (min = 0.0, max = 5.20),
         reactive_power_limits = (min = -3.90, max = 3.90),
         ramp_limits = (up = 0.012 * 5.2, down = 0.012 * 5.2),
         time_limits = (up = 3.0, down = 2.0),
-        operation_cost = ThreePartCost((0.0, 30.0), 0.0, 3.0, 1.5),
+        operation_cost = PSY.ThermalGenerationCost(
+            variable = IS.FuelCurve(
+                value_curve = IS.QuadraticCurve(0.0, 30.0, 0.02),
+                fuel_cost = 5.0, vom_cost = IS.LinearCurve(3.55)),  # a + b*x + c*x^2
+            fixed = 3.0,
+            start_up = 0.0,
+            shut_down = 0.0
+        ),
         base_power = 100.0,
     ),
     PSY.ThermalStandard(
@@ -400,13 +424,20 @@ thermal_generators5(nodes5) = [
         active_power = 2.0,
         reactive_power = 0.40,
         rating = 2.5,
-        prime_mover = PrimeMovers.ST,
+        prime_mover_type = PrimeMovers.ST,
         fuel = ThermalFuels.COAL,
         active_power_limits = (min = 0.0, max = 2.0),
         reactive_power_limits = (min = -1.5, max = 1.5),
         ramp_limits = (up = 0.015 * 2.5, down = 0.015 * 2.5),
         time_limits = (up = 2.0, down = 1.0),
-        operation_cost = ThreePartCost((0.0, 40.0), 0.0, 4.0, 2.0),
+        operation_cost = PSY.ThermalGenerationCost(
+            variable = IS.FuelCurve(
+                value_curve = IS.QuadraticCurve(0.0, 40.0, 0.03),
+                fuel_cost = 5.0, vom_cost = IS.LinearCurve(3.55)),  # a + b*x + c*x^2
+            fixed = 4.0,
+            start_up = 0.0,
+            shut_down = 0.0
+        ),
         base_power = 100.0,
     ),
     PSY.ThermalStandard(
@@ -417,13 +448,20 @@ thermal_generators5(nodes5) = [
         active_power = 6.0,
         reactive_power = 1.50,
         rating = 0.75,
-        prime_mover = PrimeMovers.ST,
+        prime_mover_type = PrimeMovers.ST,
         fuel = ThermalFuels.COAL,
         active_power_limits = (min = 0.0, max = 6.0),
         reactive_power_limits = (min = -4.50, max = 4.50),
         ramp_limits = (up = 0.015 * 7.5, down = 0.015 * 7.5),
         time_limits = (up = 5.0, down = 3.0),
-        operation_cost = ThreePartCost((0.0, 10.0), 0.0, 1.5, 0.75),
+        operation_cost = PSY.ThermalGenerationCost(
+            variable = IS.FuelCurve(
+                value_curve = IS.QuadraticCurve(0.0, 10.0, 0.01),
+                fuel_cost = 5.0, vom_cost = IS.LinearCurve(3.55)),  # a + b*x + c*x^2
+            fixed = 1.5,
+            start_up = 0.0,
+            shut_down = 0.0
+        ),
         base_power = 100.0,
     ),
 ];
@@ -437,17 +475,19 @@ thermal_generators5_pwl(nodes5) = [
         active_power = 1.70,
         reactive_power = 0.20,
         rating = 2.2125,
-        prime_mover = PrimeMovers.ST,
+        prime_mover_type = PrimeMovers.ST,
         fuel = ThermalFuels.COAL,
         active_power_limits = (min = 0.0, max = 1.70),
         reactive_power_limits = (min = -1.275, max = 1.275),
         ramp_limits = (up = 0.02 * 2.2125, down = 0.02 * 2.2125),
         time_limits = (up = 2.0, down = 1.0),
-        operation_cost = ThreePartCost(
-            VariableCost([(0.0, 50.0), (190.1, 80.0), (582.72, 120.0), (1094.1, 170.0)]),
-            0.0,
-            1.5,
-            0.75,
+        operation_cost = PSY.ThermalGenerationCost(
+            variable = IS.FuelCurve(
+                value_curve = IS.PiecewiseIncrementalCurve([(0.0, 50.0), (190.1, 80.0), (582.72, 120.0), (1094.1, 170.0)]),
+                fuel_cost = 5.0, vom_cost = IS.LinearCurve(3.55)),  # a + b*x + c*x^2
+            fixed = 1.5,
+            start_up = 0.0,
+            shut_down = 0.0
         ),
         base_power = 100.0,
     ),
@@ -462,17 +502,213 @@ thermal_generators5_pwl_nonconvex(nodes5) = [
         active_power = 1.70,
         reactive_power = 0.20,
         rating = 2.2125,
-        prime_mover = PrimeMovers.ST,
+        prime_mover_type = PrimeMovers.ST,
         fuel = ThermalFuels.COAL,
         active_power_limits = (min = 0.0, max = 1.70),
         reactive_power_limits = (min = -1.275, max = 1.275),
         ramp_limits = (up = 0.02 * 2.2125, down = 0.02 * 2.2125),
         time_limits = (up = 2.0, down = 1.0),
-        operation_cost = ThreePartCost(
-            VariableCost([(0.0, 50.0), (190.1, 80.0), (582.72, 120.0), (825.1, 170.0)]),
-            0.0,
-            1.5,
-            0.75,
+        operation_cost = PSY.ThermalGenerationCost(
+            variable = IS.FuelCurve(
+                value_curve = PiecewiseIncrementalData([(0.0, 50.0), (190.1, 80.0), (582.72, 120.0), (825.1, 170.0)]),
+                fuel_cost = 5.0, vom_cost = IS.LinearCurve(3.55)),  # a + b*x + c*x^2
+            fixed = 1.5,
+            start_up = 0.75,
+            shut_down = 0.0
+        ),
+        base_power = 100.0,
+    ),
+];
+
+solar_ts_DA = [
+    0
+    0
+    0
+    0
+    0
+    0
+    0
+    0
+    0
+    0.351105684
+    0.632536266
+    0.99463925
+    1
+    0.944237283
+    0.396681234
+    0.366511428
+    0.155125829
+    0.040872694
+    0
+    0
+    0
+    0
+    0
+    0
+]
+
+wind_ts_DA = [
+    0.985205412
+    0.991791369
+    0.997654144
+    1
+    0.998663733
+    0.995497149
+    0.992414567
+    0.98252418
+    0.957203427
+    0.927650911
+    0.907181989
+    0.889095913
+    0.848186718
+    0.766813846
+    0.654052531
+    0.525336131
+    0.396098004
+    0.281771509
+    0.197790004
+    0.153241012
+    0.131355854
+    0.113688144
+    0.099302656
+    0.069569628
+]
+
+hydro_inflow_ts_DA = [
+    0.314300
+    0.386684
+    0.228582
+    0.226677
+    0.222867
+    0.129530
+    0.144768
+    0.365731
+    0.207628
+    0.622885
+    0.670507
+    0.676221
+    0.668602
+    0.407638
+    0.321919
+    0.369541
+    0.287632
+    0.449544
+    0.630505
+    0.731462
+    0.777178
+    0.712413
+    0.780988
+    0.190485
+];
+
+thermal_generators5_uc_testing(nodes) = [
+    PSY.ThermalStandard(
+        name = "Alta",
+        available = true,
+        status = false,
+        bus = nodes[1],
+        active_power = 0.0,
+        reactive_power = 0.0,
+        rating = 0.5,
+        prime_mover_type = PrimeMovers.ST,
+        fuel = ThermalFuels.COAL,
+        active_power_limits = (min = 0.2, max = 0.40),
+        reactive_power_limits = (min = -0.30, max = 0.30),
+        ramp_limits = (up = 0.40, down = 0.40),
+        time_limits = (up = 0.0, down = 0.0),
+        operation_cost = PSY.ThermalGenerationCost(
+            variable = IS.QuadraticCurve(0.0, 14.0, 0.1),
+            fixed = 4.0,
+            start_up = 2.0,
+            shut_down = 0.0
+        ),
+        base_power = 100.0,
+    ),
+    PSY.ThermalStandard(
+        name = "Park City",
+        available = true,
+        status = false,
+        bus = nodes[1],
+        active_power = 0.0,
+        reactive_power = 0.0,
+        rating = 2.2125,
+        prime_mover_type = PrimeMovers.ST,
+        fuel = ThermalFuels.COAL,
+        active_power_limits = (min = 0.65, max = 1.70),
+        reactive_power_limits = (min = -1.275, max = 1.275),
+        ramp_limits = (up = 0.02 * 2.2125, down = 0.02 * 2.2125),
+        time_limits = (up = 0.0, down = 0.0),
+        operation_cost = PSY.ThermalGenerationCost(
+            variable = IS.QuadraticCurve(0.0, 15.0, 0.05),
+            fixed = 1.5,
+            start_up = 0.75,
+            shut_down = 0.0
+        ),
+        base_power = 100.0,
+    ),
+    PSY.ThermalStandard(
+        name = "Solitude",
+        available = true,
+        status = true,
+        bus = nodes[3],
+        active_power = 2.7,
+        reactive_power = 0.00,
+        rating = 5.20,
+        prime_mover_type = PrimeMovers.ST,
+        fuel = ThermalFuels.COAL,
+        active_power_limits = (min = 1.0, max = 5.20),
+        reactive_power_limits = (min = -3.90, max = 3.90),
+        ramp_limits = (up = 0.0012 * 5.2, down = 0.0012 * 5.2),
+        time_limits = (up = 5.0, down = 3.0),
+        operation_cost = PSY.ThermalGenerationCost(
+            variable = IS.QuadraticCurve(0.0, 30.0, 0.02),
+            fixed = 3.0,
+            start_up = 1.5,
+            shut_down = 0.0
+        ),
+        base_power = 100.0,
+    ),
+    PSY.ThermalStandard(
+        name = "Sundance",
+        available = true,
+        status = false,
+        bus = nodes[4],
+        active_power = 0.0,
+        reactive_power = 0.00,
+        rating = 2.5,
+        prime_mover_type = PrimeMovers.ST,
+        fuel = ThermalFuels.COAL,
+        active_power_limits = (min = 1.0, max = 2.0),
+        reactive_power_limits = (min = -1.5, max = 1.5),
+        ramp_limits = (up = 0.015 * 2.5, down = 0.015 * 2.5),
+        time_limits = (up = 2.0, down = 1.0),
+        operation_cost = PSY.ThermalGenerationCost(
+            variable = IS.QuadraticCurve(0.0, 40.0, 0.03),
+            fixed = 4.0,
+            start_up = 2.0,
+            shut_down = 0.0
+        ),
+        base_power = 100.0,
+    ),
+    PSY.ThermalStandard(
+        name = "Brighton",
+        available = true,
+        status = true,
+        bus = nodes[5],
+        active_power = 6.0,
+        reactive_power = 0.0,
+        rating = 7.5,
+        prime_mover_type = PrimeMovers.ST,
+        fuel = ThermalFuels.COAL,
+        active_power_limits = (min = 3.0, max = 6.0),
+        reactive_power_limits = (min = -4.50, max = 4.50),
+        ramp_limits = (up = 0.0015 * 7.5, down = 0.0015 * 7.5),
+        time_limits = (up = 5.0, down = 3.0),
+        operation_cost = PSY.ThermalGenerationCost(
+            variable = IS.QuadraticCurve(0.0, 10.0, 0.01),
+            fixed = 1.5,
+            start_up = 0.75,
+            shut_down = 0.0
         ),
         base_power = 100.0,
     ),
@@ -496,8 +732,8 @@ thermal_pglib_generators5(nodes5) = [
         (up = 4.0, down = 2.0),
         (hot = 2.0, warm = 4.0, cold = 12.0),
         3,
-        MultiStartCost(
-            VariableCost([(0.0, 5.0), (290.1, 7.33), (582.72, 9.67), (894.1, 12.0)]),
+        PSY.MultiStartCost(
+            IS.PiecewiseLinearData([(0.0, 5.0), (290.1, 7.33), (582.72, 9.67), (894.1, 12.0)]),
             897.29,
             0.0,
             (hot = 393.28, warm = 455.37, cold = 703.76),
@@ -522,8 +758,8 @@ thermal_pglib_generators5(nodes5) = [
         (up = 1.0, down = 1.0),
         (hot = 1.0, warm = 999.0, cold = 999.0),
         1,
-        MultiStartCost(
-            VariableCost([(0.0, 8.0), (391.45, 12.0), (783.74, 16.0), (1212.28, 20.0)]),
+        PSY.MultiStartCost(
+            IS.PiecewiseLinearData([(0.0, 8.0), (391.45, 12.0), (783.74, 16.0), (1212.28, 20.0)]),
             1085.78,
             0.0,
             (hot = 51.75, warm = PSY.START_COST, cold = PSY.START_COST),
@@ -531,6 +767,87 @@ thermal_pglib_generators5(nodes5) = [
         ),
         100.0,
     ),
+];
+
+solar_ts_DA = [
+    0
+    0
+    0
+    0
+    0
+    0
+    0
+    0
+    0
+    0.351105684
+    0.632536266
+    0.99463925
+    1
+    0.944237283
+    0.396681234
+    0.366511428
+    0.155125829
+    0.040872694
+    0
+    0
+    0
+    0
+    0
+    0
+]
+
+wind_ts_DA = [
+    0.985205412
+    0.991791369
+    0.997654144
+    1
+    0.998663733
+    0.995497149
+    0.992414567
+    0.98252418
+    0.957203427
+    0.927650911
+    0.907181989
+    0.889095913
+    0.848186718
+    0.766813846
+    0.654052531
+    0.525336131
+    0.396098004
+    0.281771509
+    0.197790004
+    0.153241012
+    0.131355854
+    0.113688144
+    0.099302656
+    0.069569628
+]
+
+hydro_inflow_ts_DA = [
+    0.314300
+    0.386684
+    0.228582
+    0.226677
+    0.222867
+    0.129530
+    0.144768
+    0.365731
+    0.207628
+    0.622885
+    0.670507
+    0.676221
+    0.668602
+    0.407638
+    0.321919
+    0.369541
+    0.287632
+    0.449544
+    0.630505
+    0.731462
+    0.777178
+    0.712413
+    0.780988
+    0.190485
 ];
 
 thermal_generators5_uc_testing(nodes) = [
@@ -542,13 +859,18 @@ thermal_generators5_uc_testing(nodes) = [
         active_power = 0.0,
         reactive_power = 0.0,
         rating = 0.5,
-        prime_mover = PrimeMovers.ST,
+        prime_mover_type = PrimeMovers.ST,
         fuel = ThermalFuels.COAL,
         active_power_limits = (min = 0.2, max = 0.40),
         reactive_power_limits = (min = -0.30, max = 0.30),
         ramp_limits = (up = 0.40, down = 0.40),
         time_limits = (up = 0.0, down = 0.0),
-        operation_cost = ThreePartCost((0.0, 14.0), 0.0, 4.0, 2.0),
+        operation_cost = PSY.ThermalGenerationCost(
+            variable = IS.QuadraticCurve(0.0, 14.0, 0.1),
+            fixed = 4.0,
+            start_up = 2.0,
+            shut_down = 0.0
+        ),
         base_power = 100.0,
     ),
     PSY.ThermalStandard(
@@ -559,13 +881,18 @@ thermal_generators5_uc_testing(nodes) = [
         active_power = 0.0,
         reactive_power = 0.0,
         rating = 2.2125,
-        prime_mover = PrimeMovers.ST,
+        prime_mover_type = PrimeMovers.ST,
         fuel = ThermalFuels.COAL,
         active_power_limits = (min = 0.65, max = 1.70),
         reactive_power_limits = (min = -1.275, max = 1.275),
         ramp_limits = (up = 0.02 * 2.2125, down = 0.02 * 2.2125),
         time_limits = (up = 0.0, down = 0.0),
-        operation_cost = ThreePartCost((0.0, 15.0), 0.0, 1.5, 0.75),
+        operation_cost = PSY.ThermalGenerationCost(
+            variable = IS.QuadraticCurve(0.0, 15.0, 0.05),
+            fixed = 1.5,
+            start_up = 0.75,
+            shut_down = 0.0
+        ),
         base_power = 100.0,
     ),
     PSY.ThermalStandard(
@@ -576,13 +903,18 @@ thermal_generators5_uc_testing(nodes) = [
         active_power = 2.7,
         reactive_power = 0.00,
         rating = 5.20,
-        prime_mover = PrimeMovers.ST,
+        prime_mover_type = PrimeMovers.ST,
         fuel = ThermalFuels.COAL,
         active_power_limits = (min = 1.0, max = 5.20),
         reactive_power_limits = (min = -3.90, max = 3.90),
         ramp_limits = (up = 0.0012 * 5.2, down = 0.0012 * 5.2),
         time_limits = (up = 5.0, down = 3.0),
-        operation_cost = ThreePartCost((0.0, 30.0), 0.0, 3.0, 1.5),
+        operation_cost = PSY.ThermalGenerationCost(
+            variable = IS.QuadraticCurve(0.0, 30.0, 0.02),
+            fixed = 3.0,
+            start_up = 1.5,
+            shut_down = 0.0
+        ),
         base_power = 100.0,
     ),
     PSY.ThermalStandard(
@@ -593,13 +925,18 @@ thermal_generators5_uc_testing(nodes) = [
         active_power = 0.0,
         reactive_power = 0.00,
         rating = 2.5,
-        prime_mover = PrimeMovers.ST,
+        prime_mover_type = PrimeMovers.ST,
         fuel = ThermalFuels.COAL,
         active_power_limits = (min = 1.0, max = 2.0),
         reactive_power_limits = (min = -1.5, max = 1.5),
         ramp_limits = (up = 0.015 * 2.5, down = 0.015 * 2.5),
         time_limits = (up = 2.0, down = 1.0),
-        operation_cost = ThreePartCost((0.0, 40.0), 0.0, 4.0, 2.0),
+        operation_cost = PSY.ThermalGenerationCost(
+            variable = IS.QuadraticCurve(0.0, 40.0, 0.03),
+            fixed = 4.0,
+            start_up = 2.0,
+            shut_down = 0.0
+        ),
         base_power = 100.0,
     ),
     PSY.ThermalStandard(
@@ -610,17 +947,21 @@ thermal_generators5_uc_testing(nodes) = [
         active_power = 6.0,
         reactive_power = 0.0,
         rating = 7.5,
-        prime_mover = PrimeMovers.ST,
+        prime_mover_type = PrimeMovers.ST,
         fuel = ThermalFuels.COAL,
         active_power_limits = (min = 3.0, max = 6.0),
         reactive_power_limits = (min = -4.50, max = 4.50),
         ramp_limits = (up = 0.0015 * 7.5, down = 0.0015 * 7.5),
         time_limits = (up = 5.0, down = 3.0),
-        operation_cost = ThreePartCost((0.0, 10.0), 0.0, 1.5, 0.75),
+        operation_cost = PSY.ThermalGenerationCost(
+            variable = IS.QuadraticCurve(0.0, 10.0, 0.01),
+            fixed = 1.5,
+            start_up = 0.75,
+            shut_down = 0.0
+        ),
         base_power = 100.0,
     ),
 ];
-
 
 renewable_generators5(nodes5) = [
     PSY.RenewableDispatch(
@@ -633,7 +974,7 @@ renewable_generators5(nodes5) = [
         PrimeMovers.WT,
         (min = 0.0, max = 0.0),
         1.0,
-        TwoPartCost(0.220, 0.0),
+        PSY.TwoPartCost(0.220, 0.0),
         100.0,
     ),
     PSY.RenewableDispatch(
@@ -646,7 +987,7 @@ renewable_generators5(nodes5) = [
         PrimeMovers.WT,
         (min = 0.0, max = 0.0),
         1.0,
-        TwoPartCost(0.220, 0.0),
+        PSY.TwoPartCost(0.220, 0.0),
         100.0,
     ),
     PSY.RenewableDispatch(
@@ -659,7 +1000,7 @@ renewable_generators5(nodes5) = [
         PrimeMovers.WT,
         (min = -0.800, max = 0.800),
         1.0,
-        TwoPartCost(0.220, 0.0),
+        PSY.TwoPartCost(0.220, 0.0),
         100.0,
     ),
 ];
@@ -672,7 +1013,7 @@ hydro_generators5(nodes5) = [
         active_power = 0.0,
         reactive_power = 0.0,
         rating = 6.0,
-        prime_mover = PrimeMovers.HY,
+        prime_mover_type = PrimeMovers.HY,
         active_power_limits = (min = 0.0, max = 6.0),
         reactive_power_limits = (min = 0.0, max = 6.0),
         ramp_limits = nothing,
@@ -686,12 +1027,12 @@ hydro_generators5(nodes5) = [
         active_power = 0.0,
         reactive_power = 0.0,
         rating = 7.0,
-        prime_mover = PrimeMovers.HY,
+        prime_mover_type = PrimeMovers.HY,
         active_power_limits = (min = 0.0, max = 7.0),
         reactive_power_limits = (min = 0.0, max = 7.0),
         ramp_limits = (up = 7.0, down = 7.0),
         time_limits = nothing,
-        operation_cost = TwoPartCost(0.15, 0.0),
+        operation_cost = PSY.TwoPartCost(0.15, 0.0),
         base_power = 100.0,
         storage_capacity = 50.0,
         inflow = 4.0,
@@ -708,7 +1049,7 @@ hydro_generators5_ems(nodes5) = [
         active_power = 0.0,
         reactive_power = 0.0,
         rating = 6.0,
-        prime_mover = PrimeMovers.HY,
+        prime_mover_type = PrimeMovers.HY,
         active_power_limits = (min = 0.0, max = 6.0),
         reactive_power_limits = (min = 0.0, max = 6.0),
         ramp_limits = nothing,
@@ -722,13 +1063,13 @@ hydro_generators5_ems(nodes5) = [
         active_power = 0.0,
         reactive_power = 0.0,
         rating = 7.0,
-        prime_mover = PrimeMovers.HY,
+        prime_mover_type = PrimeMovers.HY,
         active_power_limits = (min = 0.0, max = 7.0),
         reactive_power_limits = (min = 0.0, max = 7.0),
         ramp_limits = (up = 7.0, down = 7.0),
         time_limits = nothing,
         operation_cost = PSY.StorageManagementCost(
-            variable = VariableCost(0.15),
+            variable = PSY.VariableCost(0.15),
             fixed = 0.0,
             start_up = 0.0,
             shut_down = 0.0,
@@ -752,12 +1093,12 @@ phes5(nodes5) = [
         reactive_power = 0.0,
         rating = 5.0,
         base_power = 100.0,
-        prime_mover = PrimeMovers.HY,
+        prime_mover_type = PrimeMovers.HY,
         active_power_limits = (min = 0.0, max = 5.0),
         reactive_power_limits = (min = 0.0, max = 5.0),
         ramp_limits = (up = 10.0 * 0.5, down = 10.0 * 0.5),
         time_limits = nothing,
-        operation_cost = TwoPartCost(0.15, 0.0),
+        operation_cost = PSY.TwoPartCost(0.15, 0.0),
         rating_pump = 0.2,
         active_power_limits_pump = (min = 0.0, max = 10.0),
         reactive_power_limits_pump = (min = 0.0, max = 10.0),
@@ -775,7 +1116,7 @@ phes5(nodes5) = [
 
 battery5(nodes5) = [GenericBattery(
     name = "Bat",
-    prime_mover = PrimeMovers.BA,
+    prime_mover_type = PrimeMovers.BA,
     available = true,
     bus = nodes5[1],
     initial_energy = 2.0,
@@ -793,7 +1134,7 @@ battery5(nodes5) = [GenericBattery(
 batteryems5(nodes5) = [
      PSY.BatteryEMS(;
          name = "Bat2",
-         prime_mover = PrimeMovers.BA,
+         prime_mover_type = PrimeMovers.BA,
          available = true,
          bus = nodes5[1],
          initial_energy = 5.0,
@@ -808,7 +1149,7 @@ batteryems5(nodes5) = [
          base_power = 100.0,
          storage_target=0.2,
          operation_cost = PSY.StorageManagementCost(
-            variable = VariableCost(0.0),
+            variable = PSY.VariableCost(0.0),
             fixed = 0.0,
             start_up = 0.0,
             shut_down = 0.0,
@@ -1113,6 +1454,7 @@ Iload_timeseries_DA = [
 Create PowerLASCOPF Nodes from PSY Buses
 """
 function powerlascopf_nodes5()
+    println("Creating PowerLASCOPF Nodes from PSY Buses...")
     psy_buses = nodes5()
     nodes = PowerLASCOPF.Node{PSY.Bus}[]
     
@@ -1129,6 +1471,7 @@ end
 Create PowerLASCOPF transmission lines from PSY Branches
 """
 function powerlascopf_branches5(nodes::Vector{PowerLASCOPF.Node{PSY.Bus}}, cont_count::Int, RND_int::Int)
+    println("Creating PowerLASCOPF Transmission Lines from PSY Branches...")
     psy_branches = branches5(nodes5())
     transmission_lines = PowerLASCOPF.transmissionLine[]
     
@@ -1168,7 +1511,7 @@ function powerlascopf_branches5(nodes::Vector{PowerLASCOPF.Node{PSY.Bus}}, cont_
                 transl_id = i,
                 conn_nodet1_ptr = nodes[from_node],
                 conn_nodet2_ptr = nodes[to_node],
-                cont_scen_tracker = 0.0,
+                cont_scen_tracker = 0,
                 thetat1 = 0.0,
                 thetat2 = 0.0,
                 pt1 = 0.0,
@@ -1178,7 +1521,7 @@ function powerlascopf_branches5(nodes::Vector{PowerLASCOPF.Node{PSY.Bus}}, cont_
             )
             
             # Assign connection nodes
-            assign_conn_nodes(trans_line)
+            PowerLASCOPF.assign_conn_nodes(trans_line)
             
             push!(transmission_lines, trans_line)
             
@@ -1208,7 +1551,7 @@ function powerlascopf_branches5(nodes::Vector{PowerLASCOPF.Node{PSY.Bus}}, cont_
                 transl_id = i,
                 conn_nodet1_ptr = nodes[from_node],
                 conn_nodet2_ptr = nodes[to_node],
-                cont_scen_tracker = 0.0,
+                cont_scen_tracker = 0,
                 thetat1 = 0.0,
                 thetat2 = 0.0,
                 pt1 = 0.0,
@@ -1231,51 +1574,107 @@ end
 Create PowerLASCOPF GeneralizedGenerators from PSY Thermal Generators
 """
 function powerlascopf_thermal_generators5(nodes::Vector{PowerLASCOPF.Node{PSY.Bus}})
+    println("Creating PowerLASCOPF Thermal Generators from PSY Thermal Generators...")
     psy_gens = thermal_generators5(nodes5())
-    generators = GeneralizedGenerator[]
+    generators = PowerLASCOPF.GeneralizedGenerator[]
     
     for (i, gen) in enumerate(psy_gens)
         # Find corresponding node
         bus_name = PSY.get_name(PSY.get_bus(gen))
-        node_idx = findfirst(n -> PSY.get_name(n.bus_data) == bus_name, nodes)
+        node_idx = findfirst(n -> PSY.get_name(n.node_type) == bus_name, nodes)
         
         if node_idx === nothing
             error("Could not find node for generator $(PSY.get_name(gen))")
         end
         
-        # Create thermal cost function
-        cost_function = ExtendedThermalGenerationCost{StandardGenIntervals}(
-            variable_cost = PSY.get_variable(PSY.get_operation_cost(gen)),
-            fixed_cost = PSY.get_fixed(PSY.get_operation_cost(gen)),
-            startup_cost = PSY.get_start_up(PSY.get_operation_cost(gen)),
-            shutdown_cost = PSY.get_shut_down(PSY.get_operation_cost(gen)),
-            base_power = PSY.get_base_power(gen)
+        # Create proper GenFirstBaseInterval with all required parameters
+        gen_interval = PowerLASCOPF.GenFirstBaseInterval(
+            zeros(7),    # lambda_1
+            zeros(7),    # lambda_2
+            zeros(7),    # B
+            zeros(7),    # D
+            zeros(6),    # BSC
+            6,      # cont_count
+            0.1,    # rho
+            0.1,    # beta
+            0.1,    # beta_inner
+            0.2,    # gamma
+            0.2,    # gamma_sc
+            zeros(6), # lambda_1_sc
+            0.0,    # Pg_N_init
+            0.0,    # Pg_N_avg
+            0.0,    # thetag_N_avg
+            0.0,    # ug_N
+            1.0,    # vg_N
+            1.0,    # Vg_N_avg
+            0.0,    # Pg_nu
+            0.0,    # Pg_nu_inner
+            zeros(6), # Pg_next_nu
+            0.0     # Pg_prev
         )
         
-        # Create solver
-        gen_solver = GenSolver{typeof(gen), StandardGenIntervals}()
+        # Create thermal cost function with proper interval
+        extended_cost_first_base = PowerLASCOPF.ExtendedThermalGenerationCost(
+            gen.operation_cost,
+            gen_interval
+        )
+        gensolver_first_base = PowerLASCOPF.GenSolver(gen_interval, extended_cost_first_base)
+
+        extended_cost_first_base_dz = PowerLASCOPF.ExtendedThermalGenerationCost(
+            gen.operation_cost,
+            PowerLASCOPF.GenFirstBaseIntervalDZ(nothing)
+        )
+        gensolver_first_base_dz = PowerLASCOPF.GenSolver(extended_cost_first_base_dz.regularization_term, extended_cost_first_base_dz)
+
+        extended_cost_first_cont = PowerLASCOPF.ExtendedThermalGenerationCost(
+            gen.operation_cost,
+            PowerLASCOPF.GenFirstContInterval(nothing)
+        )
+        gensolver_first_cont = PowerLASCOPF.GenSolver(extended_cost_first_cont.regularization_term, extended_cost_first_cont)
+
+        extended_cost_first_cont_dz = PowerLASCOPF.ExtendedThermalGenerationCost(
+            gen.operation_cost,
+            PowerLASCOPF.GenFirstContIntervalDZ(nothing)
+        )
+        gensolver_first_cont_dz = PowerLASCOPF.GenSolver(extended_cost_first_cont_dz.regularization_term, extended_cost_first_cont_dz)
+
+        extended_cost_last_base = PowerLASCOPF.ExtendedThermalGenerationCost(
+            gen.operation_cost,
+            PowerLASCOPF.GenLastBaseInterval(nothing)
+        )
+        gensolver_last_base = PowerLASCOPF.GenSolver(extended_cost_last_base.regularization_term, extended_cost_last_base)
+
+        extended_cost_RND = PowerLASCOPF.ExtendedThermalGenerationCost(
+            gen.operation_cost,
+            PowerLASCOPF.GenInterRNDInterval(nothing)
+        )
+        gensolver_RND = PowerLASCOPF.GenSolver(extended_cost_RND.regularization_term, extended_cost_RND)
+
+        extended_cost_RSD = PowerLASCOPF.ExtendedThermalGenerationCost(
+            gen.operation_cost,
+            PowerLASCOPF.GenInterRSDInterval(nothing)
+        )
+        gensolver_RSD = PowerLASCOPF.GenSolver(extended_cost_RSD.regularization_term, extended_cost_RSD)
+
+        extended_cost_last_cont = PowerLASCOPF.ExtendedThermalGenerationCost(
+            gen.operation_cost,
+            PowerLASCOPF.GenLastContInterval(nothing)
+        )
+        gensolver_last_cont = PowerLASCOPF.GenSolver(extended_cost_last_cont.regularization_term, extended_cost_last_cont)
+
+        extended_thermal_gen = PowerLASCOPF.ExtendedThermalGenerator(
+            gen, extended_cost_first_base, i, 1, false, 6, 7, 1, 0, 1, nodes[node_idx], 6
+        )
+        
         
         # Create GeneralizedGenerator parameterized on ThermalStandard
-        lascopf_gen = GeneralizedGenerator{typeof(gen), StandardGenIntervals}(
-            generator = gen,
-            cost_function = cost_function,
-            id_of_gen = i,
-            interval = 1,
-            last_flag = false,
-            cont_scenario_count = 2,
-            gensolver = gen_solver,
-            PC_scenario_count = 1,
-            baseCont = 0,
-            dummyZero = 0,
-            accuracy = 1,
-            nodeConng = nodes[node_idx],
-            countOfContingency = 2,
-            gen_total = length(psy_gens)
+        lascopf_gen = PowerLASCOPF.GeneralizedGenerator(
+            gen, gen_interval, i, 1, false, 6, 7, 1, 0, 1, nodes[node_idx], 6
         )
         
         push!(generators, lascopf_gen)
     end
-    
+    println("Created $(length(generators)) PowerLASCOPF Generators from PSY Thermal Generators.")
     return generators
 end
 
@@ -1283,8 +1682,9 @@ end
 Create PowerLASCOPF GeneralizedGenerators from PSY Renewable Generators
 """
 function powerlascopf_renewable_generators5(nodes::Vector{PowerLASCOPF.Node{PSY.Bus}})
+    println("Creating PowerLASCOPF Variable Renewable Energy (VRE) Generators from PSY Variable Renewable Energy (VRE) Generators...")
     psy_gens = renewable_generators5(nodes5())
-    generators = GeneralizedGenerator[]
+    generators = PowerLASCOPF.GeneralizedGenerator[]
     
     for (i, gen) in enumerate(psy_gens)
         # Find corresponding node
@@ -1296,17 +1696,17 @@ function powerlascopf_renewable_generators5(nodes::Vector{PowerLASCOPF.Node{PSY.
         end
         
         # Create renewable cost function
-        cost_function = ExtendedRenewableGenerationCost{StandardGenIntervals}(
+        cost_function = PowerLASCOPF.ExtendedRenewableGenerationCost{StandardGenIntervals}(
             variable_cost = PSY.get_variable(PSY.get_operation_cost(gen)),
             curtailment_cost = PSY.get_fixed(PSY.get_operation_cost(gen)),
             base_power = PSY.get_base_power(gen)
         )
         
         # Create solver
-        gen_solver = GenSolver{typeof(gen), StandardGenIntervals}()
+        gen_solver = PowerLASCOPF.GenSolver{typeof(gen), StandardGenIntervals}()
         
         # Create GeneralizedGenerator parameterized on RenewableDispatch
-        lascopf_gen = GeneralizedGenerator{typeof(gen), StandardGenIntervals}(
+        lascopf_gen = PowerLASCOPF.GeneralizedGenerator{typeof(gen), StandardGenIntervals}(
             generator = gen,
             cost_function = cost_function,
             id_of_gen = i,
@@ -1334,7 +1734,7 @@ function powerlascopf_renewable_generators5(nodes::Vector{PowerLASCOPF.Node{PSY.
         
         push!(generators, lascopf_gen)
     end
-    
+    println("Created $(length(generators)) PowerLASCOPF Generators from PSY Renewable Generators.")
     return generators
 end
 
@@ -1343,7 +1743,7 @@ Create PowerLASCOPF GeneralizedGenerators from PSY Hydro Generators
 """
 function powerlascopf_hydro_generators5(nodes::Vector{PowerLASCOPF.Node{PSY.Bus}})
     psy_gens = hydro_generators5(nodes5())
-    generators = GeneralizedGenerator[]
+    generators = PowerLASCOPF.GeneralizedGenerator[]
     
     for (i, gen) in enumerate(psy_gens)
         # Find corresponding node
@@ -1356,7 +1756,7 @@ function powerlascopf_hydro_generators5(nodes::Vector{PowerLASCOPF.Node{PSY.Bus}
         
         # Create hydro cost function
         if isa(gen, PSY.HydroEnergyReservoir)
-            cost_function = ExtendedHydroGenerationCost{StandardGenIntervals}(
+            cost_function = PowerLASCOPF.ExtendedHydroGenerationCost{StandardGenIntervals}(
                 variable_cost = PSY.get_variable(PSY.get_operation_cost(gen)),
                 fixed_cost = PSY.get_fixed(PSY.get_operation_cost(gen)),
                 storage_cost = 0.0,
@@ -1364,7 +1764,7 @@ function powerlascopf_hydro_generators5(nodes::Vector{PowerLASCOPF.Node{PSY.Bus}
                 base_power = PSY.get_base_power(gen)
             )
         else
-            cost_function = ExtendedHydroGenerationCost{StandardGenIntervals}(
+            cost_function = PowerLASCOPF.ExtendedHydroGenerationCost{StandardGenIntervals}(
                 variable_cost = 0.0,
                 fixed_cost = 0.0,
                 storage_cost = 0.0,
@@ -1374,10 +1774,10 @@ function powerlascopf_hydro_generators5(nodes::Vector{PowerLASCOPF.Node{PSY.Bus}
         end
         
         # Create solver
-        gen_solver = GenSolver{typeof(gen), StandardGenIntervals}()
+        gen_solver = PowerLASCOPF.GenSolver{typeof(gen), StandardGenIntervals}()
         
         # Create GeneralizedGenerator parameterized on HydroGen
-        lascopf_gen = GeneralizedGenerator{typeof(gen), StandardGenIntervals}(
+        lascopf_gen = PowerLASCOPF.GeneralizedGenerator{typeof(gen), StandardGenIntervals}(
             generator = gen,
             cost_function = cost_function,
             id_of_gen = i,
@@ -1410,6 +1810,7 @@ end
 Create complete PowerLASCOPF system data
 """
 function create_5bus_powerlascopf_system()
+    print("Creating 5-bus PowerLASCOPF system...")
     # Create components using existing PowerLASCOPF structs
     cont_count = 2  # Number of contingencies
     RND_int = 4     # Number of random intervals for line modeling
@@ -1535,6 +1936,7 @@ end
 Create POMDP-integrated 5-bus system
 """
 function create_5bus_pomdp_system()
+    print("Creating 5-bus POMDP system...")
     # Create base system
     system_data = create_5bus_powerlascopf_system()
     
@@ -1567,6 +1969,8 @@ end
 Run POMDP simulation for 5-bus system
 """
 function run_pomdp_simulation(n_steps::Int = 24)
+    println("Starting POMDP simulation for 5-bus system...")
+    pritn("Creating the system...")
     # Create system
     pomdp_system = create_5bus_pomdp_system()
     pomdp = pomdp_system["pomdp"]

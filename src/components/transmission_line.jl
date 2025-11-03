@@ -1,6 +1,7 @@
 # Member functions for class transmissionLine
 
 using PowerSystems
+include("node.jl")
 
 # Import necessary types from extended_system (for legacy compatibility)
 # Define abstract types for PowerLASCOPF hierarchy
@@ -12,7 +13,7 @@ using PowerSystems
 	conn_nodet1_ptr::Node
 	conn_nodet2_ptr::Node
 	# ADMM+APP algorithm state variables (not redundant with PSY.ACBranch)
-	cont_scen_tracker::Float64 = 0.0
+	cont_scen_tracker::Int64 = 0
 	thetat1::Float64 = 0.0
 	thetat2::Float64 = 0.0 
 	pt1::Float64 = 0.0
@@ -24,7 +25,7 @@ end
 transmissionLine(transl_type, solver_line_base, conn_nodet1_ptr, conn_nodet2_ptr) = transmissionLine(;transl_type, solver_line_base=solver_line_base, conn_nodet1_ptr=conn_nodet1_ptr, conn_nodet2_ptr=conn_nodet2_ptr)
 
 # Legacy constructor for compatibility with old calling patterns
-function transmissionLine(transl_id::Int, conn_nodet1_ptr::Node, conn_nodet2_ptr::Node, pt_max::Float64, react::Float64, rest::Float64, cont_scen_tracker::Float64)
+function transmissionLine(transl_id::Int, conn_nodet1_ptr::Node, conn_nodet2_ptr::Node, pt_max::Float64, react::Float64, rest::Float64, cont_scen_tracker::Int64)
     # Create a basic PSY.Line object from the provided parameters
     # In production code, this should be replaced with actual PSY.ACBranch objects from the system
     
