@@ -1806,6 +1806,90 @@ function powerlascopf_hydro_generators5(nodes::Vector{PowerLASCOPF.Node{PSY.Bus}
     return generators
 end
 
+"""Create PowerLASCOPF GeneralizedGenerators from PSY Storage Generators
+"""
+
+function power_lascopf_storage_generators5(nodes::Vector{PowerLASCOPF.Node{PSY.Bus}})
+    println("Creating PowerLASCOPF Storage Generators from PSY Storage Generators...")
+    psy_gens = storage_generators5(nodes5())
+    generators = PowerLASCOPF.GeneralizedGenerator[]
+    
+    for (i, gen) in enumerate(psy_gens)
+        # Find corresponding node
+        bus_name = PSY.get_name(PSY.get_bus(gen))
+        node_idx = findfirst(n -> PSY.get_name(n.bus_data) == bus_name, nodes)
+        
+        if node_idx === nothing
+            error("Could not find node for generator $(PSY.get_name(gen))")
+        end
+        
+        # Create storage cost function
+        cost_function = PowerLASCOPF.ExtendedStorageGenerationCost{StandardGenIntervals}(
+            variable_cost = PSY.get_variable(PSY.get_operation_cost(gen)),
+            fixed_cost = PSY.get_fixed(PSY.get_operation_cost(gen)),
+            base_power = PSY.get_base_power(gen)
+        )
+        
+        # Create solver
+        gen_solver = PowerLASCOPF.GenSolver{typeof(gen), StandardGenIntervals}()
+        
+        # Create GeneralizedGenerator parameterized on StorageGen
+        lascopf_gen = PowerLASCOPF.GeneralizedGenerator{typeof(gen), StandardGenIntervals}(
+            generator = gen,
+            cost_function = cost_function,
+            id_of_gen = i,
+            interval = 1,
+            last_flag = false,
+            cont_scenario_count = 2,
+            gensolver = gen_solver,
+            PC_scenario_count = 1,
+            baseCont = 0,
+            dummyZero = 0,
+            accuracy = 1,
+            nodeConng = nodes[node_idx],
+            countOfContingency = 2,
+            gen_total = length(psy_gens)
+        )
+        
+        push!(generators, lascopf_gen)
+    end
+    println("Created $(length(generators)) PowerLASCOPF Generators from PSY Storage Generators.")
+    return generators
+end
+
+"""
+Create PowerLASCOPF Loads from PSY Loads
+"""
+
+function powerlascopf_loads5(nodes::Vector{PowerLASCOPF.Node{PSY.Bus}})
+    println("Creating PowerLASCOPF Loads from PSY Loads...")
+    psy_loads = loads5(nodes5())
+    loads = PowerLASCOPF.Load[]
+    
+    for (i, load) in enumerate(psy_loads)
+        # Find corresponding node
+        bus_name = PSY.get_name(PSY.get_bus(load))
+        node_idx = findfirst(n -> PSY.get_name(n.node_type) == bus_name, nodes)
+        
+        if node_idx === nothing
+            error("Could not find node for load $(PSY.get_name(load))")
+        end
+        
+        # Create PowerLASCOPF.Load parameterized on PSY.Load
+        lascopf_load = PowerLASCOPF.Load{PSY.Load}(
+            load_type = load,
+            load_id = i,
+            conn_nodet_ptr = nodes[node_idx],
+            P_load = 0.0,
+            Q_load = 0.0
+        )
+        
+        push!(loads, lascopf_load)
+    end
+    println("Created $(length(loads)) PowerLASCOPF Loads from PSY Loads.")
+    return loads
+end
+
 """
 Create complete PowerLASCOPF system data
 """
@@ -1819,6 +1903,8 @@ function create_5bus_powerlascopf_system()
     thermal_gens = powerlascopf_thermal_generators5(nodes)
     renewable_gens = powerlascopf_renewable_generators5(nodes)
     hydro_gens = powerlascopf_hydro_generators5(nodes)
+    loads = powerlascopf_loads5(nodes)
+    storage_gens = power_lascopf_storage_generators5(nodes)  # No storage in this example
     
     # Create system data dictionary (using existing PowerLASCOPF pattern)
     system_data = Dict(

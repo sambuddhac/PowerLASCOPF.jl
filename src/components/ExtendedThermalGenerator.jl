@@ -246,6 +246,8 @@ function extract_thermal_timeseries!(gen::ExtendedThermalGenerator)
                     end
                 end
             end
+        else 
+            @info "No timeseries available for thermal generator $(PSY.get_name(psy_gen))"
         end
         
     catch e

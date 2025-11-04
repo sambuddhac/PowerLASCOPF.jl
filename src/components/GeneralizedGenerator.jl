@@ -193,24 +193,7 @@ function extract_timeseries_from_psy!(gen::GeneralizedGenerator)
         #time_series_container = PSY.get_time_series_container(psy_gen)
         
         if IS.has_time_series(psy_gen)
-
-            # Get all time series keys
-            ts_keys = PSY.get_time_series_keys(psy_gen)
-            # No timeseries available, create single deterministic scenario
-            scenario = GeneratorScenario(
-                scenario_id = 1,
-                probability = 1.0,
-                current_active_power = PSY.get_active_power(psy_gen),
-                current_reactive_power = PSY.get_reactive_power(psy_gen),
-                current_availability = PSY.get_available(psy_gen)
-            )
-            
-            # For renewable generators, set renewable power
-            if isa(psy_gen, PSY.RenewableGen)
-                scenario.current_renewable_power = PSY.get_rating(psy_gen)
-            end
-            
-            push!(gen.scenarios, scenario)
+            ts_keys = IS.get_time_series_keys(psy_gen)
 
             # Extract timeseries data
             for (idx, ts_name) in enumerate(ts_keys)
@@ -256,9 +239,22 @@ function extract_timeseries_from_psy!(gen::GeneralizedGenerator)
                 end
             end
             return
+        else
+            println("No timeseries available, create single deterministic scenario")
+            scenario = GeneratorScenario(
+                scenario_id = 1,
+                probability = 1.0,
+                current_active_power = PSY.get_active_power(psy_gen),
+                current_availability = PSY.get_available(psy_gen)
+            )
+            
+            # For renewable generators, set renewable power
+            if isa(psy_gen, PSY.RenewableGen)
+                scenario.current_renewable_power = PSY.get_rating(psy_gen)
+            end
+            
+            push!(gen.scenarios, scenario)
         end
-        
-        
         
         # If no scenarios were created, create default
         if isempty(gen.scenarios)
