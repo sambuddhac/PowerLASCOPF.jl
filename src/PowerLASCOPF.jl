@@ -59,6 +59,16 @@ struct ERCOTSystem <: _PSYCB.SystemCategory end
 
 struct IEEESystem <: _PSYCB.SystemCategory end
 
+# Include CSV readers for loading power system data
+include("io/readers/csv_reader.jl")
+
+# Export CSV reader functions
+export CSVReaderConfig, read_csv_system, detect_csv_format
+export read_buses_rts_gmlc, read_buses_csv118
+export read_branches_rts_gmlc, read_branches_csv118
+export read_generators_rts_gmlc, read_generators_csv118
+export read_loads_rts_gmlc, read_loads_csv118
+
 #=
 include("models/solver_models/gensolver_cont.jl")
 include("models/solver_models/gensolver_first_base.jl")

@@ -4,7 +4,7 @@ This directory contains data readers for converting various power system data fo
 
 ## Overview
 
-The readers provide a unified interface for loading power system data from different sources and formats, automatically detecting the format when possible and filling in missing fields with sensible defaults.
+The readers are integrated into the main PowerLASCOPF module and provide a unified interface for loading power system data from different sources and formats, automatically detecting the format when possible and filling in missing fields with sensible defaults.
 
 ## Supported Formats
 
@@ -33,8 +33,7 @@ The CSV reader (`csv_reader.jl`) supports multiple CSV-based formats:
 ### Basic Usage
 
 ```julia
-using PowerSystems
-using PowerLASCOPFReaders
+using PowerLASCOPF
 
 # Read a system from CSV directory (auto-detects format)
 system = read_csv_system("path/to/csv/directory")
@@ -43,6 +42,10 @@ system = read_csv_system("path/to/csv/directory")
 ### Advanced Usage with Configuration
 
 ```julia
+using PowerLASCOPF
+using PowerSystems
+const PSY = PowerSystems
+
 # Create custom configuration
 config = CSVReaderConfig(
     base_power = 100.0,                          # Base power in MVA
@@ -72,6 +75,8 @@ format = detect_csv_format("path/to/csv/directory")
 You can also read individual components:
 
 ```julia
+using PowerLASCOPF
+
 config = CSVReaderConfig()
 
 # Read buses
@@ -230,11 +235,13 @@ To add support for a new CSV format:
 The systems created by these readers are fully compatible with PowerLASCOPF workflows:
 
 ```julia
+using PowerLASCOPF
+
 # Read system from CSV
 system = read_csv_system("example_cases/RTS_GMLC")
 
 # Use with PowerLASCOPF
-# ... (add LASCOPF-specific setup code)
+# ... (add LASCOPF-specific setup code as needed)
 ```
 
 ## Troubleshooting
@@ -257,8 +264,10 @@ system = read_csv_system("example_cases/RTS_GMLC")
 ### Debug Tips
 
 ```julia
-# Enable detailed logging
+using PowerLASCOPF
 using Logging
+
+# Enable detailed logging
 global_logger(ConsoleLogger(stderr, Logging.Debug))
 
 # Read system with full output

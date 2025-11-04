@@ -10,11 +10,9 @@ The readers support:
 3. Other CSV formats with appropriate configuration
 """
 
-# Add the PowerLASCOPF source to the load path
-push!(LOAD_PATH, joinpath(@__DIR__, "..", "src"))
-
+using PowerLASCOPF
 using PowerSystems
-using PowerLASCOPFReaders
+const PSY = PowerSystems
 
 # Example 1: Reading RTS-GMLC format data
 function example_rts_gmlc()
