@@ -355,13 +355,13 @@ function read_generators_rts_gmlc(file_path::String, buses::Vector{PSY.Bus}, con
         variable_cost = 30.0  # Default $/MWh
         fixed_cost = 0.0
         startup_cost = 0.0
-        shutdn_cost = 0.0
+        shutdown_cost = 0.0
 
         operation_cost = PSY.ThreePartCost(
             (0.0, variable_cost),
             fixed_cost,
             startup_cost,
-            shutdn_cost
+            shutdown_cost
         )
 
         # Create generator
