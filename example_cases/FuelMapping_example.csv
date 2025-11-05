@@ -1,0 +1,11 @@
+Key,Value
+coal,COAL
+ng,NATURAL_GAS
+nuclear,NUCLEAR
+oil,DISTILLATE_FUEL_OIL
+gas,NATURAL_GAS
+biomass,OTHER_BIOMASS_SOLIDS
+hydro,OTHER
+geothermal,GEOTHERMAL
+wind,OTHER
+solar,OTHER
