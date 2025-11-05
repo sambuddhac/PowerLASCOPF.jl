@@ -44,7 +44,7 @@ Base.@kwdef struct CSVReaderConfig
     default_min_down_time::Float64 = 1.0
 
     # Default fuel types
-    default_thermal_fuel::PSY.ThermalFuels.ThermalFuel = PSY.ThermalFuels.COAL
+    default_thermal_fuel::PSY.ThermalFuelsModule.ThermalFuel = PSY.ThermalFuels.COAL
     default_prime_mover::PSY.PrimeMovers.PrimeMover = PSY.PrimeMovers.ST
 
     # Time series defaults
