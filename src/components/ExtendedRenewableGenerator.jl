@@ -45,8 +45,7 @@ forecast uncertainty, curtailment penalties, and environmental variability.
     post_cont_scen_count::Int64
     base_cont_scenario::Int64
     cont_count_gen::Int64
-    gen_total::Int64
-    
+
     # Node connection
     conn_nodeg_ptr::Node
     
@@ -121,8 +120,7 @@ forecast uncertainty, curtailment penalties, and environmental variability.
         dummyZero::Int64,
         accuracy::Int64,
         nodeConng::Node,
-        countOfContingency::Int64,
-        gen_total::Int64;
+        countOfContingency::Int64;
         config::GenSolverConfig = GenSolverConfig()
     ) where {T<:PSY.RenewableGen, U<:GenIntervals}
         

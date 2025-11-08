@@ -974,9 +974,10 @@ renewable_generators5(nodes5) = [
         PrimeMovers.WT,
         (min = 0.0, max = 0.0),
         1.0,
-        PSY.TwoPartCost(0.220, 0.0),
+        PSY.RenewableGenerationCost(CostCurve(LinearCurve(0.22))),
         100.0,
     ),
+
     PSY.RenewableDispatch(
         "WindBusB",
         true,
@@ -987,7 +988,7 @@ renewable_generators5(nodes5) = [
         PrimeMovers.WT,
         (min = 0.0, max = 0.0),
         1.0,
-        PSY.TwoPartCost(0.220, 0.0),
+        PSY.RenewableGenerationCost(CostCurve(LinearCurve(0.22))),
         100.0,
     ),
     PSY.RenewableDispatch(
@@ -1000,7 +1001,7 @@ renewable_generators5(nodes5) = [
         PrimeMovers.WT,
         (min = -0.800, max = 0.800),
         1.0,
-        PSY.TwoPartCost(0.220, 0.0),
+        PSY.RenewableGenerationCost(CostCurve(LinearCurve(0.22))),
         100.0,
     ),
 ];
@@ -1689,40 +1690,87 @@ function powerlascopf_renewable_generators5(nodes::Vector{PowerLASCOPF.Node{PSY.
     for (i, gen) in enumerate(psy_gens)
         # Find corresponding node
         bus_name = PSY.get_name(PSY.get_bus(gen))
-        node_idx = findfirst(n -> PSY.get_name(n.bus_data) == bus_name, nodes)
+        node_idx = findfirst(n -> PSY.get_name(n.node_type) == bus_name, nodes)
         
         if node_idx === nothing
             error("Could not find node for generator $(PSY.get_name(gen))")
         end
-        
-        # Create renewable cost function
-        cost_function = PowerLASCOPF.ExtendedRenewableGenerationCost{StandardGenIntervals}(
-            variable_cost = PSY.get_variable(PSY.get_operation_cost(gen)),
-            curtailment_cost = PSY.get_fixed(PSY.get_operation_cost(gen)),
-            base_power = PSY.get_base_power(gen)
+
+        # Create proper GenFirstBaseInterval with all required parameters
+        gen_interval = PowerLASCOPF.GenFirstBaseInterval(
+            zeros(7),    # lambda_1
+            zeros(7),    # lambda_2
+            zeros(7),    # B
+            zeros(7),    # D
+            zeros(6),    # BSC
+            6,      # cont_count
+            0.1,    # rho
+            0.1,    # beta
+            0.1,    # beta_inner
+            0.2,    # gamma
+            0.2,    # gamma_sc
+            zeros(6), # lambda_1_sc
+            0.0,    # Pg_N_init
+            0.0,    # Pg_N_avg
+            0.0,    # thetag_N_avg
+            0.0,    # ug_N
+            1.0,    # vg_N
+            1.0,    # Vg_N_avg
+            0.0,    # Pg_nu
+            0.0,    # Pg_nu_inner
+            zeros(6), # Pg_next_nu
+            0.0     # Pg_prev
         )
         
-        # Create solver
-        gen_solver = PowerLASCOPF.GenSolver{typeof(gen), StandardGenIntervals}()
-        
-        # Create GeneralizedGenerator parameterized on RenewableDispatch
-        lascopf_gen = PowerLASCOPF.GeneralizedGenerator{typeof(gen), StandardGenIntervals}(
-            generator = gen,
-            cost_function = cost_function,
-            id_of_gen = i,
-            interval = 1,
-            last_flag = false,
-            cont_scenario_count = 2,
-            gensolver = gen_solver,
-            PC_scenario_count = 1,
-            baseCont = 0,
-            dummyZero = 0,
-            accuracy = 1,
-            nodeConng = nodes[node_idx],
-            countOfContingency = 2,
-            gen_total = length(psy_gens)
+        # Create thermal cost function with proper interval
+        extended_cost_first_base = PowerLASCOPF.ExtendedRenewableGenerationCost(
+            gen.operation_cost,
+            gen_interval
         )
-        
+        gensolver_first_base = PowerLASCOPF.GenSolver(gen_interval, extended_cost_first_base)
+
+        extended_cost_first_base_dz = PowerLASCOPF.ExtendedRenewableGenerationCost(
+            gen.operation_cost,
+            PowerLASCOPF.GenFirstBaseIntervalDZ(nothing)
+        )
+        gensolver_first_base_dz = PowerLASCOPF.GenSolver(extended_cost_first_base_dz.regularization_term, extended_cost_first_base_dz)
+
+        extended_cost_first_cont = PowerLASCOPF.ExtendedRenewableGenerationCost(
+            gen.operation_cost,
+            PowerLASCOPF.GenFirstContInterval(nothing)
+        )
+        gensolver_first_cont = PowerLASCOPF.GenSolver(extended_cost_first_cont.regularization_term, extended_cost_first_cont)
+
+        extended_cost_first_cont_dz = PowerLASCOPF.ExtendedRenewableGenerationCost(
+            gen.operation_cost,
+            PowerLASCOPF.GenFirstContIntervalDZ(nothing)
+        )
+        gensolver_first_cont_dz = PowerLASCOPF.GenSolver(extended_cost_first_cont_dz.regularization_term, extended_cost_first_cont_dz)
+
+        extended_cost_last_base = PowerLASCOPF.ExtendedRenewableGenerationCost(
+            gen.operation_cost,
+            PowerLASCOPF.GenLastBaseInterval(nothing)
+        )
+        gensolver_last_base = PowerLASCOPF.GenSolver(extended_cost_last_base.regularization_term, extended_cost_last_base)
+
+        extended_cost_RND = PowerLASCOPF.ExtendedRenewableGenerationCost(
+            gen.operation_cost,
+            PowerLASCOPF.GenInterRNDInterval(nothing)
+        )
+        gensolver_RND = PowerLASCOPF.GenSolver(extended_cost_RND.regularization_term, extended_cost_RND)
+
+        extended_cost_RSD = PowerLASCOPF.ExtendedRenewableGenerationCost(
+            gen.operation_cost,
+            PowerLASCOPF.GenInterRSDInterval(nothing)
+        )
+        gensolver_RSD = PowerLASCOPF.GenSolver(extended_cost_RSD.regularization_term, extended_cost_RSD)
+
+        extended_cost_last_cont = PowerLASCOPF.ExtendedRenewableGenerationCost(
+            gen.operation_cost,
+            PowerLASCOPF.GenLastContInterval(nothing)
+        )
+        gensolver_last_cont = PowerLASCOPF.GenSolver(extended_cost_last_cont.regularization_term, extended_cost_last_cont)
+
         # Add renewable timeseries data
         if PSY.get_prime_mover(gen) == PSY.PrimeMovers.WT
             wind_data = TimeSeries.TimeArray(DayAhead, wind_ts_DA)
@@ -1731,6 +1779,15 @@ function powerlascopf_renewable_generators5(nodes::Vector{PowerLASCOPF.Node{PSY.
             solar_data = TimeSeries.TimeArray(DayAhead, solar_ts_DA)
             PSY.add_time_series!(gen, PSY.Deterministic("max_active_power", solar_data))
         end
+
+        extended_renewable_gen = PowerLASCOPF.ExtendedRenewableGenerator(
+            gen, extended_cost_first_base, i, 1, false, 6, 7, 1, 0, 1, nodes[node_idx], 6
+        )
+        
+        # Create GeneralizedGenerator parameterized on RenewableDispatch
+        lascopf_gen = PowerLASCOPF.GeneralizedGenerator(
+            gen, gen_interval, i, 1, false, 6, 7, 1, 0, 1, nodes[node_idx], 6
+        )
         
         push!(generators, lascopf_gen)
     end
