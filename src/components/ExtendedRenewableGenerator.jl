@@ -143,7 +143,7 @@ forecast uncertainty, curtailment penalties, and environmental variability.
         extract_renewable_timeseries!(self)
         
         # Set initial generator data
-        set_renewable_gen_data!(self)
+        #set_renewable_gen_data!(self)
         
         return self
     end
@@ -211,30 +211,49 @@ end
 Extract renewable-specific timeseries data from PowerSystems generator.
 """
 function extract_renewable_timeseries!(gen::ExtendedRenewableGenerator)
+
     psy_gen = gen.generator
     gen._cache_valid = false
     
-    # Extract available timeseries
-    time_series_names = PSY.get_time_series_names(psy_gen)
-    
-    for ts_name in time_series_names
-        try
-            ts_data = PSY.get_time_series(psy_gen, ts_name)
-            
-            # Map timeseries based on name
-            if occursin("max_active_power", string(ts_name)) || occursin("MaxActivePower", string(ts_name))
-                gen.power_forecast = ts_data
-            elseif occursin("Weather", string(ts_name)) || occursin("Wind", string(ts_name)) || occursin("Solar", string(ts_name))
-                gen.weather_forecast = ts_data
-            elseif occursin("Uncertainty", string(ts_name)) || occursin("Error", string(ts_name))
-                gen.uncertainty_forecast = ts_data
-            elseif occursin("Curtailment", string(ts_name))
-                gen.curtailment_signals = ts_data
+    # Extract available timeseries - use correct PowerSystems function
+    try
+        # Get time series container
+        #ts_container = PSY.get_time_series_container(psy_gen)
+        
+        if IS.has_time_series(psy_gen)
+            # Get all time series keys
+            ts_keys = PSY.get_time_series_keys(psy_gen)
+
+            if !isempty(ts_keys)
+                for ts_key in ts_keys
+                    try
+                        # Get the time series data
+                        ts_data = PSY.get_time_series(psy_gen, ts_key)
+                        # Map timeseries based on name
+                        key_name = string(ts_key.name)
+                        # Map timeseries based on name
+                        if occursin("max_active_power", key_name) || occursin("MaxActivePower", key_name)
+                            gen.power_forecast = ts_data
+                        elseif occursin("Weather", key_name) || occursin("Wind", key_name) || occursin("Solar", key_name)
+                            gen.weather_forecast = ts_data
+                        elseif occursin("Uncertainty", key_name) || occursin("Error", key_name)
+                            gen.uncertainty_forecast = ts_data
+                        elseif occursin("Curtailment", key_name)
+                            gen.curtailment_signals = ts_data
+                        end
+                        
+                    catch e
+                        @debug "Could not extract timeseries $ts_name for renewable generator $(PSY.get_name(psy_gen)): $e"
+                    end
+                end
             end
-            
-        catch e
-            @debug "Could not extract timeseries $ts_name for renewable generator $(PSY.get_name(psy_gen)): $e"
+        else 
+            @info "No timeseries available for thermal generator $(PSY.get_name(psy_gen))"
         end
+        
+    catch e
+        @debug "Could not access time series container for thermal generator $(PSY.get_name(psy_gen)): $e"
+        # If time series access fails, just continue without time series data
     end
 end
 

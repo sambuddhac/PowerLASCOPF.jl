@@ -10,17 +10,19 @@ include("../components/ExtendedHydroGenerator.jl")
 include("../components/ExtendedStorageGenerator.jl")
 
 # Define our extended system structure
+
 @kwdef mutable struct PowerLASCOPFSystem
     # Core PSY.System
     psy_system::PSY.System
     
     # PowerLASCOPF specific extensions
-    nodes::Vector{Node} # Will contain Node objects
-    transmission_lines::Vector{transmissionLine} # Will contain transmissionLine objects
-    extended_thermal_generators::Vector{ExtendedThermalGenerator} # Will contain Thermal Generators
-    extended_hydro_generators::Vector{ExtendedHydroGenerator}  # Placeholder for Hydroelectric Generators
-    extended_renewable_generators::Vector{ExtendedRenewableGenerator}  # Placeholder for VRE Generators
-    extended_storage_generators::Vector{ExtendedStorageGenerator}  # Placeholder for Storage Battery
+    nodes::Vector{Node} = Node[]
+    transmission_lines::Vector{transmissionLine} = transmissionLine[]
+    extended_thermal_generators::Vector{ExtendedThermalGenerator} = ExtendedThermalGenerator[]
+    extended_hydro_generators::Vector{ExtendedHydroGenerator} = ExtendedHydroGenerator[]
+    extended_renewable_generators::Vector{ExtendedRenewableGenerator} = ExtendedRenewableGenerator[]
+    extended_storage_generators::Vector{ExtendedStorageGenerator} = ExtendedStorageGenerator[]
+    extended_loads::Vector{Load} = Load[]
     
     # Network properties
     network_id::Int = 0
@@ -32,7 +34,7 @@ include("../components/ExtendedStorageGenerator.jl")
     outaged_line::Int = 0
     
     # Solver properties
-    solver_choice::Int = 1 # 1=IPOPT, 2=Gurobi, etc.
+    solver_choice::Int = 1
     rho_tuning::Float64 = 1.0
     accuracy::Int = 1
     dummy_zero_flag::Int = 0
@@ -44,58 +46,11 @@ include("../components/ExtendedStorageGenerator.jl")
     # Time series properties
     time_series_resolution::Dates.Period = Dates.Hour(1)
     forecast_horizon::Int = 24
-    
-    # Inner constructor
-    function PowerLASCOPFSystem(;
-        psy_system::PSY.System,
-        network_id::Int = 0,
-        scenario_index::Int = 0,
-        post_contingency_scenario::Int = 0,
-        contingency_count::Int = 0,
-        interval_id::Int = 0,
-        last_flag::Bool = false,
-        outaged_line::Int = 0,
-        solver_choice::Int = 1,
-        rho_tuning::Float64 = 1.0,
-        accuracy::Int = 1,
-        dummy_zero_flag::Int = 0,
-        rnd_intervals::Int = 6,
-        rsd_intervals::Int = 6,
-        time_series_resolution::Dates.Period = Dates.Hour(1),
-        forecast_horizon::Int = 24
-    )
-        return new(
-            psy_system,
-            Node[],
-            transmissionLine[],
-            ExtendedThermalGenerator[],
-            network_id,
-            scenario_index,
-            post_contingency_scenario,
-            contingency_count,
-            interval_id,
-            last_flag,
-            outaged_line,
-            solver_choice,
-            rho_tuning,
-            accuracy,
-            dummy_zero_flag,
-            rnd_intervals,
-            rsd_intervals,
-            time_series_resolution,
-            forecast_horizon
-        )
-    end
 end
 
-# Convenience constructor
-function PowerLASCOPFSystem(
-    base_power::Float64 = 100.0;
-    name::String = "PowerLASCOPF_System",
-    kwargs...
-)
-    psy_sys = PSY.System(base_power; name=name)
-    return PowerLASCOPFSystem(; psy_system=psy_sys, kwargs...)
+# Simplified constructor - let @kwdef handle the defaults
+function PowerLASCOPFSystem(psy_system::PSY.System; kwargs...)
+    return PowerLASCOPFSystem(; psy_system=psy_system, kwargs...)
 end
 
 # ===== EXTEND PSY.SYSTEM INTERFACE =====
@@ -224,6 +179,122 @@ end
 
 function get_extended_thermal_generator_count(sys::PowerLASCOPFSystem)
     return length(sys.extended_thermal_generators)
+end
+
+# Extended renewable generator management
+function add_extended_renewable_generator!(sys::PowerLASCOPFSystem, gen::ExtendedRenewableGenerator)
+    # Add the underlying PSY.RenewableGen to the PSY.System
+    if !PSY.has_component(typeof(gen.generator), sys.psy_system, PSY.get_name(gen.generator))
+        PSY.add_component!(sys.psy_system, gen.generator)
+    end
+    
+    # Add to our extended system
+    push!(sys.extended_renewable_generators, gen)
+    return nothing
+end
+
+function get_extended_renewable_generators(sys::PowerLASCOPFSystem)
+    return sys.extended_renewable_generators
+end
+
+function get_extended_renewable_generator(sys::PowerLASCOPFSystem, gen_id::Int)
+    for gen in sys.extended_renewable_generators
+        if get_gen_id(gen) == gen_id
+            return gen
+        end
+    end
+    return nothing
+end
+
+function get_extended_renewable_generator_count(sys::PowerLASCOPFSystem)
+    return length(sys.extended_renewable_generators)
+end
+
+# Extended hydro generator management
+function add_extended_hydro_generator!(sys::PowerLASCOPFSystem, gen::ExtendedHydroGenerator)
+    # Add the underlying PSY.HydroGen to the PSY.System
+    if !PSY.has_component(typeof(gen.generator), sys.psy_system, PSY.get_name(gen.generator))
+        PSY.add_component!(sys.psy_system, gen.generator)
+    end
+    
+    # Add to our extended system
+    push!(sys.extended_hydro_generators, gen)
+    return nothing
+end
+
+function get_extended_hydro_generators(sys::PowerLASCOPFSystem)
+    return sys.extended_hydro_generators
+end
+
+function get_extended_hydro_generator(sys::PowerLASCOPFSystem, gen_id::Int)
+    for gen in sys.extended_hydro_generators
+        if get_gen_id(gen) == gen_id
+            return gen
+        end
+    end
+    return nothing
+end
+
+function get_extended_hydro_generator_count(sys::PowerLASCOPFSystem)
+    return length(sys.extended_hydro_generators)
+end
+
+# Extended storage generator management
+function add_extended_storage_generator!(sys::PowerLASCOPFSystem, gen::ExtendedStorageGenerator)
+    # Add the underlying PSY.Storage to the PSY.System
+    if !PSY.has_component(typeof(gen.storage_device), sys.psy_system, PSY.get_name(gen.storage_device))
+        PSY.add_component!(sys.psy_system, gen.storage_device)
+    end
+    
+    # Add to our extended system
+    push!(sys.extended_storage_generators, gen)
+    return nothing
+end
+
+function get_extended_storage_generators(sys::PowerLASCOPFSystem)
+    return sys.extended_storage_generators
+end
+
+function get_extended_storage_generator(sys::PowerLASCOPFSystem, gen_id::Int)
+    for gen in sys.extended_storage_generators
+        if get_storage_id(gen) == gen_id
+            return gen
+        end
+    end
+    return nothing
+end
+
+function get_extended_storage_generator_count(sys::PowerLASCOPFSystem)
+    return length(sys.extended_storage_generators)
+end
+
+# Extended load management
+function add_extended_load!(sys::PowerLASCOPFSystem, load::Load)
+    # Add the underlying PSY.Load to the PSY.System
+    if !PSY.has_component(typeof(load.load_device), sys.psy_system, PSY.get_name(load.load_device))
+        PSY.add_component!(sys.psy_system, load.load_device)
+    end
+    
+    # Add to our extended system
+    push!(sys.extended_loads, load)
+    return nothing
+end
+
+function get_extended_loads(sys::PowerLASCOPFSystem)
+    return sys.extended_loads
+end
+
+function get_extended_load(sys::PowerLASCOPFSystem, load_id::Int)
+    for load in sys.extended_loads
+        if get_load_id(load) == load_id
+            return load
+        end
+    end
+    return nothing
+end
+
+function get_extended_load_count(sys::PowerLASCOPFSystem)
+    return length(sys.extended_loads)
 end
 
 # ===== SYSTEM BUILDING UTILITIES =====

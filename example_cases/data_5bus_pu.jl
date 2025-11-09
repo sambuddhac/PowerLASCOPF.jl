@@ -519,7 +519,7 @@ thermal_generators5_pwl_nonconvex(nodes5) = [
         base_power = 100.0,
     ),
 ];
-
+#=
 solar_ts_DA = [
     0
     0
@@ -600,7 +600,7 @@ hydro_inflow_ts_DA = [
     0.780988
     0.190485
 ];
-
+=#
 thermal_generators5_uc_testing(nodes) = [
     PSY.ThermalStandard(
         name = "Alta",
@@ -768,7 +768,7 @@ thermal_pglib_generators5(nodes5) = [
         100.0,
     ),
 ];
-
+#=
 solar_ts_DA = [
     0
     0
@@ -849,7 +849,7 @@ hydro_inflow_ts_DA = [
     0.780988
     0.190485
 ];
-
+=#
 thermal_generators5_uc_testing(nodes) = [
     PSY.ThermalStandard(
         name = "Alta",
@@ -1452,18 +1452,37 @@ Iload_timeseries_DA = [
 ]
 
 """
+Create PowerLASCOPF System from PSY System
+"""
+function power_lascopf_system5()
+    println("Creating PowerLASCOPF System from PSY System...")
+    system = PowerLASCOPF.PowerLASCOPFSystem(PSY.System(100.0))
+    
+    println("Created PowerLASCOPF System ")
+    return system
+end
+
+"""
 Create PowerLASCOPF Nodes from PSY Buses
 """
-function powerlascopf_nodes5()
+function powerlascopf_nodes5!(system::PowerLASCOPF.PowerLASCOPFSystem)
     println("Creating PowerLASCOPF Nodes from PSY Buses...")
     psy_buses = nodes5()
     nodes = PowerLASCOPF.Node{PSY.Bus}[]
-    
+
     for (i, bus) in enumerate(psy_buses)
+        println("PSY bus name", PSY.get_name(bus))  # just to suppress unused variable warning
         # Create PowerLASCOPF.Node parameterized on PSY.Bus
         node = PowerLASCOPF.Node{PSY.Bus}(bus, i, 0,)
+        PSY.add_component!(system.psy_system, bus)
+        PowerLASCOPF.add_node!(system, node)
         push!(nodes, node)
     end
+    println("PSY System now: ", system.psy_system)
+    println("PowerLASCOPF System now: ", system)
+    println("Node vector from 5 bus file", nodes)
+    println("Node vector from PowerLASCOPF struct", system.nodes)
+    PSY.show_components(system.psy_system, PSY.ACBus)
     println("Created $(length(nodes)) PowerLASCOPF Nodes from PSY Buses.")
     return nodes
 end
@@ -1471,9 +1490,11 @@ end
 """
 Create PowerLASCOPF transmission lines from PSY Branches
 """
-function powerlascopf_branches5(nodes::Vector{PowerLASCOPF.Node{PSY.Bus}}, cont_count::Int, RND_int::Int)
+function powerlascopf_branches5!(system::PowerLASCOPF.PowerLASCOPFSystem, nodes::Vector{PowerLASCOPF.Node{PSY.Bus}}, cont_count::Int, RND_int::Int)
     println("Creating PowerLASCOPF Transmission Lines from PSY Branches...")
-    psy_branches = branches5(nodes5())
+    #Get the buses that are already in the system
+    existing_buses = [node.node_type for node in nodes]
+    psy_branches = branches5(existing_buses)
     transmission_lines = PowerLASCOPF.transmissionLine[]
     
     for (i, branch) in enumerate(psy_branches)
@@ -1523,7 +1544,7 @@ function powerlascopf_branches5(nodes::Vector{PowerLASCOPF.Node{PSY.Bus}}, cont_
             
             # Assign connection nodes
             PowerLASCOPF.assign_conn_nodes(trans_line)
-            
+            PowerLASCOPF.add_transmission_line!(system, trans_line)
             push!(transmission_lines, trans_line)
             
         elseif isa(branch, PSY.HVDCLine)
@@ -1561,7 +1582,8 @@ function powerlascopf_branches5(nodes::Vector{PowerLASCOPF.Node{PSY.Bus}}, cont_
                 v2 = 0.0
             )
             
-            assign_conn_nodes(trans_line)
+            PowerLASCOPF.assign_conn_nodes(trans_line)
+            PowerLASCOPF.add_transmission_line!(system, trans_line)
             push!(transmission_lines, trans_line)
         end
     end
@@ -1574,9 +1596,11 @@ end
 """
 Create PowerLASCOPF GeneralizedGenerators from PSY Thermal Generators
 """
-function powerlascopf_thermal_generators5(nodes::Vector{PowerLASCOPF.Node{PSY.Bus}})
+function powerlascopf_thermal_generators5!(system::PowerLASCOPF.PowerLASCOPFSystem, nodes::Vector{PowerLASCOPF.Node{PSY.Bus}})
     println("Creating PowerLASCOPF Thermal Generators from PSY Thermal Generators...")
-    psy_gens = thermal_generators5(nodes5())
+    #Get the buses that are already in the system
+    existing_buses = [node.node_type for node in nodes]
+    psy_gens = thermal_generators5(existing_buses)
     generators = PowerLASCOPF.GeneralizedGenerator[]
     
     for (i, gen) in enumerate(psy_gens)
@@ -1672,7 +1696,7 @@ function powerlascopf_thermal_generators5(nodes::Vector{PowerLASCOPF.Node{PSY.Bu
         lascopf_gen = PowerLASCOPF.GeneralizedGenerator(
             gen, gen_interval, i, 1, false, 6, 7, 1, 0, 1, nodes[node_idx], 6
         )
-        
+        PowerLASCOPF.add_extended_thermal_generator!(system, extended_thermal_gen)
         push!(generators, lascopf_gen)
     end
     println("Created $(length(generators)) PowerLASCOPF Generators from PSY Thermal Generators.")
@@ -1682,9 +1706,11 @@ end
 """
 Create PowerLASCOPF GeneralizedGenerators from PSY Renewable Generators
 """
-function powerlascopf_renewable_generators5(nodes::Vector{PowerLASCOPF.Node{PSY.Bus}})
+function powerlascopf_renewable_generators5!(system::PowerLASCOPF.PowerLASCOPFSystem, nodes::Vector{PowerLASCOPF.Node{PSY.Bus}})
     println("Creating PowerLASCOPF Variable Renewable Energy (VRE) Generators from PSY Variable Renewable Energy (VRE) Generators...")
-    psy_gens = renewable_generators5(nodes5())
+    #Get the buses that are already in the system
+    existing_buses = [node.node_type for node in nodes]
+    psy_gens = renewable_generators5(existing_buses)
     generators = PowerLASCOPF.GeneralizedGenerator[]
     
     for (i, gen) in enumerate(psy_gens)
@@ -1771,18 +1797,20 @@ function powerlascopf_renewable_generators5(nodes::Vector{PowerLASCOPF.Node{PSY.
         )
         gensolver_last_cont = PowerLASCOPF.GenSolver(extended_cost_last_cont.regularization_term, extended_cost_last_cont)
 
-        # Add renewable timeseries data
-        if PSY.get_prime_mover(gen) == PSY.PrimeMovers.WT
-            wind_data = TimeSeries.TimeArray(DayAhead, wind_ts_DA)
-            PSY.add_time_series!(gen, PSY.Deterministic("max_active_power", wind_data))
-        elseif PSY.get_prime_mover(gen) == PSY.PrimeMovers.PV
-            solar_data = TimeSeries.TimeArray(DayAhead, solar_ts_DA)
-            PSY.add_time_series!(gen, PSY.Deterministic("max_active_power", solar_data))
-        end
-
         extended_renewable_gen = PowerLASCOPF.ExtendedRenewableGenerator(
             gen, extended_cost_first_base, i, 1, false, 6, 7, 1, 0, 1, nodes[node_idx], 6
         )
+
+        PowerLASCOPF.add_extended_renewable_generator!(system, extended_renewable_gen)
+
+        # Add renewable timeseries data
+        if PSY.get_prime_mover_type(gen) == PSY.PrimeMovers.WT
+            wind_data = TimeSeries.TimeArray(DayAhead, wind_ts_DA)
+            PSY.add_time_series!(system, gen, PSY.SingleTimeSeries("max_active_power", wind_data))
+        elseif PSY.get_prime_mover_type(gen) == PSY.PrimeMovers.PV
+            solar_data = TimeSeries.TimeArray(DayAhead, solar_ts_DA)
+            PSY.add_time_series!(system, gen, PSY.SingleTimeSeries("max_active_power", solar_data))
+        end
         
         # Create GeneralizedGenerator parameterized on RenewableDispatch
         lascopf_gen = PowerLASCOPF.GeneralizedGenerator(
@@ -1854,7 +1882,7 @@ function powerlascopf_hydro_generators5(nodes::Vector{PowerLASCOPF.Node{PSY.Bus}
         # Add hydro inflow timeseries
         if isa(gen, PSY.HydroEnergyReservoir)
             inflow_data = TimeSeries.TimeArray(DayAhead, hydro_inflow_ts_DA)
-            PSY.add_time_series!(gen, PSY.Deterministic("inflow", inflow_data))
+            PSY.add_time_series!(gen, PSY.SingleTimeSeries("inflow", inflow_data))
         end
         
         push!(generators, lascopf_gen)
@@ -1955,14 +1983,15 @@ function create_5bus_powerlascopf_system()
     # Create components using existing PowerLASCOPF structs
     cont_count = 2  # Number of contingencies
     RND_int = 4     # Number of random intervals for line modeling
-    nodes = powerlascopf_nodes5()
-    branches = powerlascopf_branches5(nodes, cont_count, RND_int)
-    thermal_gens = powerlascopf_thermal_generators5(nodes)
-    renewable_gens = powerlascopf_renewable_generators5(nodes)
-    hydro_gens = powerlascopf_hydro_generators5(nodes)
-    loads = powerlascopf_loads5(nodes)
-    storage_gens = power_lascopf_storage_generators5(nodes)  # No storage in this example
-    
+    system = power_lascopf_system5()
+    nodes = powerlascopf_nodes5!(system)
+    branches = powerlascopf_branches5!(system, nodes, cont_count, RND_int)
+    thermal_gens = powerlascopf_thermal_generators5!(system, nodes)
+    renewable_gens = powerlascopf_renewable_generators5!(system, nodes)
+    hydro_gens = powerlascopf_hydro_generators5!(system, nodes)
+    loads = powerlascopf_loads5!(system, nodes)
+    storage_gens = power_lascopf_storage_generators5!(system, nodes)  # No storage in this example
+
     # Create system data dictionary (using existing PowerLASCOPF pattern)
     system_data = Dict(
         "name" => "5-Bus Test System",
