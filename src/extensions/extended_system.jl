@@ -271,8 +271,8 @@ end
 # Extended load management
 function add_extended_load!(sys::PowerLASCOPFSystem, load::Load)
     # Add the underlying PSY.Load to the PSY.System
-    if !PSY.has_component(typeof(load.load_device), sys.psy_system, PSY.get_name(load.load_device))
-        PSY.add_component!(sys.psy_system, load.load_device)
+    if !PSY.has_component(typeof(load.load_type), sys.psy_system, PSY.get_name(load.load_type))
+        PSY.add_component!(sys.psy_system, load.load_type)
     end
     
     # Add to our extended system

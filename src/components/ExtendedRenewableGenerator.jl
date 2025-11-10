@@ -248,11 +248,11 @@ function extract_renewable_timeseries!(gen::ExtendedRenewableGenerator)
                 end
             end
         else 
-            @info "No timeseries available for thermal generator $(PSY.get_name(psy_gen))"
+            @info "No timeseries available for renewable generator $(PSY.get_name(psy_gen))"
         end
         
     catch e
-        @debug "Could not access time series container for thermal generator $(PSY.get_name(psy_gen)): $e"
+        @debug "Could not access time series container for renewable generator $(PSY.get_name(psy_gen)): $e"
         # If time series access fails, just continue without time series data
     end
 end

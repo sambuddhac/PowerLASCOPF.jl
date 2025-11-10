@@ -86,7 +86,7 @@ println("  - Nodes: $(length(system_data["nodes"]))")
 println("  - Branches: $(length(system_data["branches"]))")
 println("  - Thermal Generators: $(length(system_data["thermal_generators"]))")
 println("  - Renewable Generators: $(length(system_data["renewable_generators"]))")
-println("  - Hydro Generators: $(length(system_data["hydro_generators"]))")
+#println("  - Hydro Generators: $(length(system_data["hydro_generators"]))")
 println("  - Time Horizon: $(length(system_data["time_horizon"])) hours")
 
 # Step 2: Configure ADMM/APP parameters
@@ -140,7 +140,7 @@ for iter in 1:admm_params["max_iterations"]
             "name" => PSY.get_name(gen.generator),
             "power" => gen.Pg,
             "angle" => gen.theta_g,
-            "node" => get_gen_node_id(gen)
+            "node" => PowerLASCOPF.get_gen_node_id(gen)
         )
     end
     

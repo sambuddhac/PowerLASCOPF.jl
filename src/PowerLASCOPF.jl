@@ -27,7 +27,6 @@ using PowerNetworkMatrices
 using MathOptInterface
 using MathOptInterface.Utilities
 import GenX
-#import PowerData
 import LazyArtifacts
 import PowerSystemCaseBuilder: SystemCategory
 import PowerSystems as PSY # For System and components

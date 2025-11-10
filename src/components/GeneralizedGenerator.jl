@@ -190,14 +190,15 @@ function extract_timeseries_from_psy!(gen::GeneralizedGenerator)
     
     try
         # Extract available timeseries from PSY generator
-        #time_series_container = PSY.get_time_series_container(psy_gen)
         
         if IS.has_time_series(psy_gen)
             ts_keys = IS.get_time_series_keys(psy_gen)
+            println("Found $(length(ts_keys)) timeseries for generator $(PSY.get_name(psy_gen))")
 
             # Extract timeseries data
             for (idx, ts_name) in enumerate(ts_keys)
                 try
+                    println("  Processing timeseries: $(ts_name.name)")
                     ts_data = PSY.get_time_series(psy_gen, ts_name)
                     
                     scenario = GeneratorScenario(
@@ -206,67 +207,122 @@ function extract_timeseries_from_psy!(gen::GeneralizedGenerator)
                     )
                     
                     # Map timeseries based on type and name
-                    if occursin("ActivePower", string(ts_name)) || occursin("P", string(ts_name))
+                    ts_name_str = string(ts_name.name)
+                    if occursin("max_active_power", ts_name_str) || occursin("ActivePower", ts_name_str) || occursin("P", ts_name_str)
                         scenario.active_power_series = ts_data
-                    elseif occursin("ReactivePower", string(ts_name)) || occursin("Q", string(ts_name))
+                        # Extract the first value properly from TimeArray
+                        if isa(ts_data, IS.TimeSeriesData)
+                            data_values = IS.get_data(ts_data)
+                            if isa(data_values, TimeSeries.TimeArray)
+                                scenario.current_active_power = Float64(TimeSeries.values(data_values)[1])
+                            else
+                                scenario.current_active_power = Float64(first(data_values))
+                            end
+                        else
+                            scenario.current_active_power = Float64(first(ts_data))
+                        end
+                    elseif occursin("ReactivePower", ts_name_str) || occursin("Q", ts_name_str)
                         scenario.reactive_power_series = ts_data
-                    elseif occursin("Availability", string(ts_name)) || occursin("Available", string(ts_name))
+                    elseif occursin("Availability", ts_name_str) || occursin("Available", ts_name_str)
                         scenario.availability_series = ts_data
-                    elseif occursin("Renewable", string(ts_name)) || occursin("Wind", string(ts_name)) || occursin("Solar", string(ts_name))
+                        if isa(ts_data, IS.TimeSeriesData)
+                            data_values = IS.get_data(ts_data)
+                            if isa(data_values, TimeSeries.TimeArray)
+                                scenario.current_availability = Float64(TimeSeries.values(data_values)[1]) > 0.5
+                            else
+                                scenario.current_availability = Float64(first(data_values)) > 0.5
+                            end
+                        else
+                            scenario.current_availability = Float64(first(ts_data)) > 0.5
+                        end
+                        
+                    elseif occursin("Renewable", ts_name_str) || occursin("Wind", ts_name_str) || occursin("Solar", ts_name_str)
                         scenario.renewable_power_series = ts_data
+                        if isa(ts_data, IS.TimeSeriesData)
+                            data_values = IS.get_data(ts_data)
+                            if isa(data_values, TimeSeries.TimeArray)
+                                scenario.current_renewable_power = Float64(TimeSeries.values(data_values)[1])
+                            else
+                                scenario.current_renewable_power = Float64(first(data_values))
+                            end
+                        else
+                            scenario.current_renewable_power = Float64(first(ts_data))
+                        end
                     else
                         # Default to active power for unknown series
                         scenario.active_power_series = ts_data
+                        if isa(ts_data, IS.TimeSeriesData)
+                            data_values = IS.get_data(ts_data)
+                            if isa(data_values, TimeSeries.TimeArray)
+                                scenario.current_active_power = Float64(TimeSeries.values(data_values)[1])
+                            else
+                                scenario.current_active_power = Float64(first(data_values))
+                            end
+                        else
+                            scenario.current_active_power = Float64(first(ts_data))
+                        end
                     end
                     
-                    # Set initial values
-                    if !isnothing(scenario.active_power_series)
-                        scenario.current_active_power = first(PSY.get_data(scenario.active_power_series))
-                    else
+                    # Set default values if not set from timeseries
+                    if scenario.current_active_power == 0.0
                         scenario.current_active_power = PSY.get_active_power(psy_gen)
                     end
                     
-                    if !isnothing(scenario.renewable_power_series)
-                        scenario.current_renewable_power = first(PSY.get_data(scenario.renewable_power_series))
-                    elseif isa(psy_gen, PSY.RenewableGen)
+                    if scenario.current_renewable_power == 0.0 && isa(psy_gen, PSY.RenewableGen)
                         scenario.current_renewable_power = PSY.get_rating(psy_gen)
                     end
                     
+                    if scenario.current_availability == false
+                        scenario.current_availability = PSY.get_available(psy_gen)
+                    end
+                    
                     push!(gen.scenarios, scenario)
+                    println("    ✅ Added scenario $(idx) with active_power=$(scenario.current_active_power)")
                     
                 catch e
                     @warn "Failed to extract timeseries $ts_name for generator $(PSY.get_name(psy_gen)): $e"
                 end
             end
-            return
-        else
-            println("No timeseries available, create single deterministic scenario")
-            scenario = GeneratorScenario(
-                scenario_id = 1,
-                probability = 1.0,
-                current_active_power = PSY.get_active_power(psy_gen),
-                current_availability = PSY.get_available(psy_gen)
-            )
-            
-            # For renewable generators, set renewable power
-            if isa(psy_gen, PSY.RenewableGen)
-                scenario.current_renewable_power = PSY.get_rating(psy_gen)
+             if !isempty(gen.scenarios)
+                @info "Successfully extracted $(length(gen.scenarios)) scenarios for generator $(PSY.get_name(psy_gen))"
+                return
             end
-            
-            push!(gen.scenarios, scenario)
+        else
+            println("No timeseries available for generator $(PSY.get_name(psy_gen)), creating single deterministic scenario")
         end
         
-        # If no scenarios were created, create default
-        if isempty(gen.scenarios)
-            push!(gen.scenarios, GeneratorScenario(
-                scenario_id = 1,
-                probability = 1.0,
-                current_active_power = PSY.get_active_power(psy_gen),
-                current_availability = PSY.get_available(psy_gen)
-            ))
+        # If no timeseries or extraction failed, create default scenario
+        scenario = GeneratorScenario(
+            scenario_id = 1,
+            probability = 1.0,
+            current_active_power = PSY.get_active_power(psy_gen),
+            current_availability = PSY.get_available(psy_gen)
+        )
+        
+        # For renewable generators, set renewable power
+        if isa(psy_gen, PSY.RenewableGen)
+            scenario.current_renewable_power = PSY.get_rating(psy_gen)
         end
+        
+        push!(gen.scenarios, scenario)
+        @info "Created default scenario for generator $(PSY.get_name(psy_gen))"
+        
     catch e
         @warn "Error extracting timeseries for generator $(PSY.get_name(psy_gen)): $e"
+        
+        # Create fallback scenario
+        fallback_scenario = GeneratorScenario(
+            scenario_id = 1,
+            probability = 1.0,
+            current_active_power = PSY.get_active_power(psy_gen),
+            current_availability = PSY.get_available(psy_gen)
+        )
+        
+        if isa(psy_gen, PSY.RenewableGen)
+            fallback_scenario.current_renewable_power = PSY.get_rating(psy_gen)
+        end
+        
+        push!(gen.scenarios, fallback_scenario)
     end
 end
 
@@ -285,7 +341,20 @@ function update_timeseries!(gen::GeneralizedGenerator, current_time::DateTime)
         # Update from timeseries if available
         if !isnothing(scenario.active_power_series)
             try
-                scenario.current_active_power = PSY.get_value_at_time(scenario.active_power_series, current_time)
+                # FIX: Handle TimeArray properly
+                if isa(scenario.active_power_series, IS.TimeSeriesData)
+                    data_values = IS.get_data(scenario.active_power_series)
+                    if isa(data_values, TimeSeries.TimeArray)
+                        # Find the value at the current time
+                        time_index = findfirst(t -> t == current_time, TimeSeries.timestamp(data_values))
+                        if !isnothing(time_index)
+                            scenario.current_active_power = Float64(TimeSeries.values(data_values)[time_index])
+                        end
+                    end
+                else
+                    # Alternative approach if not IS.TimeSeriesData
+                    scenario.current_active_power = Float64(PSY.get_value_at_time(scenario.active_power_series, current_time))
+                end
             catch e
                 @debug "Could not get active power at time $current_time: $e"
             end
@@ -293,7 +362,17 @@ function update_timeseries!(gen::GeneralizedGenerator, current_time::DateTime)
         
         if !isnothing(scenario.renewable_power_series)
             try
-                scenario.current_renewable_power = PSY.get_value_at_time(scenario.renewable_power_series, current_time)
+                if isa(scenario.renewable_power_series, IS.TimeSeriesData)
+                    data_values = IS.get_data(scenario.renewable_power_series)
+                    if isa(data_values, TimeSeries.TimeArray)
+                        time_index = findfirst(t -> t == current_time, TimeSeries.timestamp(data_values))
+                        if !isnothing(time_index)
+                            scenario.current_renewable_power = Float64(TimeSeries.values(data_values)[time_index])
+                        end
+                    end
+                else
+                    scenario.current_renewable_power = Float64(PSY.get_value_at_time(scenario.renewable_power_series, current_time))
+                end
             catch e
                 @debug "Could not get renewable power at time $current_time: $e"
             end
@@ -301,7 +380,17 @@ function update_timeseries!(gen::GeneralizedGenerator, current_time::DateTime)
         
         if !isnothing(scenario.availability_series)
             try
-                scenario.current_availability = PSY.get_value_at_time(scenario.availability_series, current_time) > 0.5
+                if isa(scenario.availability_series, IS.TimeSeriesData)
+                    data_values = IS.get_data(scenario.availability_series)
+                    if isa(data_values, TimeSeries.TimeArray)
+                        time_index = findfirst(t -> t == current_time, TimeSeries.timestamp(data_values))
+                        if !isnothing(time_index)
+                            scenario.current_availability = Float64(TimeSeries.values(data_values)[time_index]) > 0.5
+                        end
+                    end
+                else
+                    scenario.current_availability = Float64(PSY.get_value_at_time(scenario.availability_series, current_time)) > 0.5
+                end
             catch e
                 @debug "Could not get availability at time $current_time: $e"
             end
@@ -721,4 +810,8 @@ function objective_gen(gen::GeneralizedGenerator)
     end
     
     return 0.0
+end
+
+function get_gen_node_id(gen::GeneralizedGenerator)
+    return PSY.get_number(gen.conn_nodeg_ptr)
 end

@@ -1,0 +1,128 @@
+{
+  "system_name": "5-Bus Test System",
+  "results": {
+    "generator_solutions": {
+      "thermal_3": {
+        "name": "Solitude",
+        "power": 2.6,
+        "node": 3,
+        "angle": 0.0
+      },
+      "thermal_4": {
+        "name": "Sundance",
+        "power": 1.0,
+        "node": 4,
+        "angle": 0.0
+      },
+      "thermal_2": {
+        "name": "Park City",
+        "power": 0.85,
+        "node": 1,
+        "angle": 1.01855797990206e-310
+      },
+      "thermal_1": {
+        "name": "Alta",
+        "power": 0.2,
+        "node": 1,
+        "angle": 1.01855797990206e-310
+      },
+      "thermal_5": {
+        "name": "Brighton",
+        "power": 3.0,
+        "node": 5,
+        "angle": 0.0
+      }
+    },
+    "iterations": 10,
+    "line_solutions": {
+      "line_4": {
+        "name": "4",
+        "flow_2to1": -0.4,
+        "angle_1": 0.0,
+        "flow_1to2": 0.4,
+        "angle_2": 0.0
+      },
+      "line_2": {
+        "name": "2",
+        "flow_2to1": -0.2,
+        "angle_1": 0.0,
+        "flow_1to2": 0.2,
+        "angle_2": 0.0
+      },
+      "line_5": {
+        "name": "5",
+        "flow_2to1": -0.5,
+        "angle_1": 0.0,
+        "flow_1to2": 0.5,
+        "angle_2": 0.0
+      },
+      "line_1": {
+        "name": "1",
+        "flow_2to1": -0.1,
+        "angle_1": 0.0,
+        "flow_1to2": 0.1,
+        "angle_2": 0.0
+      },
+      "line_6": {
+        "name": "6",
+        "flow_2to1": -0.6000000000000001,
+        "angle_1": 0.0,
+        "flow_1to2": 0.6000000000000001,
+        "angle_2": 0.0
+      },
+      "line_3": {
+        "name": "3",
+        "flow_2to1": -0.30000000000000004,
+        "angle_1": 0.0,
+        "flow_1to2": 0.30000000000000004,
+        "angle_2": 0.0
+      }
+    },
+    "convergence_history": [
+      {
+        "iteration": 1,
+        "residual": 0.23499999999999996
+      },
+      {
+        "iteration": 2,
+        "residual": 0.23499999999999996
+      },
+      {
+        "iteration": 3,
+        "residual": 0.23499999999999996
+      },
+      {
+        "iteration": 4,
+        "residual": 0.23499999999999996
+      },
+      {
+        "iteration": 5,
+        "residual": 0.23499999999999996
+      },
+      {
+        "iteration": 6,
+        "residual": 0.23499999999999996
+      },
+      {
+        "iteration": 7,
+        "residual": 0.23499999999999996
+      },
+      {
+        "iteration": 8,
+        "residual": 0.23499999999999996
+      },
+      {
+        "iteration": 9,
+        "residual": 0.23499999999999996
+      },
+      {
+        "iteration": 10,
+        "residual": 0.23499999999999996
+      }
+    ],
+    "status": "FEASIBLE",
+    "objective_value": 229.5,
+    "solve_time": 0.38001108169555664
+  },
+  "timestamp": "2025-11-09T22:46:48.220"
+}
