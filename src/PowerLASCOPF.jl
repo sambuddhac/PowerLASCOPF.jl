@@ -135,6 +135,15 @@ include("io/readers/make_nrel_sienna_compatible.jl")
 # ===== INCLUDE EXTENSION MODULES =====
 include("extensions/powersystems_integration.jl")
 include("extensions/extended_system.jl")
+# Include CSV readers for loading power system data
+include("io/readers/csv_reader.jl")
+
+# Export CSV reader functions
+export CSVReaderConfig, read_csv_system, detect_csv_format
+export read_buses_rts_gmlc, read_buses_csv118
+export read_branches_rts_gmlc, read_branches_csv118
+export read_generators_rts_gmlc, read_generators_csv118
+export read_loads_rts_gmlc, read_loads_csv118
 
 # ===== POWERLAS COPF PSY.SYSTEM EXTENSION =====
 # Export PSY functions for convenience
@@ -198,6 +207,25 @@ function convert_psy_system_to_power_lascopf!(psy_system::PSY.System,
     println("✅ Conversion framework ready - connect with specific PowerLASCOPF component types")
     
     return true
+
+#=
+include("models/solver_models/gensolver_cont.jl")
+include("models/solver_models/gensolver_first_base.jl")
+include("models/solver_models/gensolver_first_cont.jl")
+include("models/solver_models/gensolver_first_dz_cont.jl")
+include("models/solver_models/gensolver_first_dz.jl")
+include("models/solver_models/gensolver_first.jl")
+include("models/solver_models/gensolver_second_base.jl")
+include("models/solver_models/gensolver_second_cont.jl")
+include("models/solver_models/linesolver_base.jl")
+include("models/solver_models/sdp_opf_centralized.jl")
+include("models/subsystems/generator.jl")
+include("models/subsystems/load.jl")
+include("models/subsystems/transmission_line.jl")
+include("models/subsystems/node.jl")
+include("models/subsystems/network.jl")
+include("models/subsystems/supernetwork.jl")
+include("models/run_sim_lascopf_temp_app.jl")=#
 end
 
 """
