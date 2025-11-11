@@ -12,6 +12,8 @@ using Dates
 using BenchmarkTools
 using Statistics
 
+include("../../core/solver_model_types.jl")
+
 @kwdef mutable struct LineSolverBase{T<:LineIntervals} <: AbstractModel
     lambda_txr::Array{Float64} # APP Lagrange Multiplier corresponding to the complementary slackness
     interval_type::T # Interval type

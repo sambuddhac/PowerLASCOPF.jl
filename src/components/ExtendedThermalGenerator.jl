@@ -12,6 +12,7 @@ using Dates
 using TimeSeries
 
 # Include necessary modules from the codebase
+include("../core/types.jl")
 include("node.jl")
 include("../core/solver_model_types.jl")
 include("../core/ExtendedThermalGenerationCost.jl")

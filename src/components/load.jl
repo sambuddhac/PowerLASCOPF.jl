@@ -8,7 +8,7 @@ in the PowerLASCOPF optimization framework.
 A load component that extends PowerSystems.ElectricLoad for LASCOPF optimization.
 Contains ADMM/APP algorithm state variables and message passing functionality.
 """
-@kwdef mutable struct Load{T<:PSY.ElectricLoad}
+@kwdef mutable struct Load{T<:PSY.ElectricLoad} <: Devices
     # Core load properties
     load_type::T
     load_id::Int

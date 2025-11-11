@@ -1,3 +1,4 @@
+include("../core/types.jl")
 # Define the Node struct extending PowerSystems.Bus for Sienna integration
 mutable struct Node{T<:PSY.Bus} <: Subsystem
     # Core node properties

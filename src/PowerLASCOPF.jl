@@ -51,8 +51,8 @@ abstract type LineIntervals <: IntervalType end
 abstract type LoadIntervals <: IntervalType end
 abstract type PowerLASCOPFComponent end
 abstract type Subsystem <: PowerLASCOPFComponent end
-abstract type Device <: PowerLASCOPFComponent end
-abstract type PowerGenerator <: Device end
+abstract type Devices <: PowerLASCOPFComponent end
+abstract type PowerGenerator <: Devices end
 abstract type MockLineInterval <: LineIntervals end
 
 # Type Alias From other Packages
@@ -75,6 +75,10 @@ const _PSYCB = PowerSystemCaseBuilder
 
 struct ERCOTSystem <: _PSYCB.SystemCategory end
 struct IEEESystem <: _PSYCB.SystemCategory end
+
+export AbstractModel, IntervalType, PowerFlowConstraint, GenIntervals
+export LineIntervals, LoadIntervals, PowerLASCOPFComponent
+export Subsystem, Devices, PowerGenerator, MockLineInterval
 
 # ===== INCLUDE CORE MODULES =====
 include("core/types.jl")
@@ -104,13 +108,13 @@ include("solvers/interfaces/solver_interface.jl")
 include("components/node.jl")
 include("components/load.jl")
 include("components/transmission_line.jl")
-include("components/network.jl")
-include("components/supernetwork.jl")
 include("components/extended_hydro.jl")
 #include("components/extended_thermal_generators.jl")
 include("components/extended_storage.jl")
 include("components/ExtendedThermalGenerator.jl")
+include("components/ExtendedRenewableGenerator.jl")
 include("components/ExtendedHydroGenerator.jl")
+include("components/ExtendedStorageGenerator.jl")
 include("components/GeneralizedGenerator.jl")
 include("components/generator_integration.jl")
 include("components/PowerLASCOPFTypes.jl")
@@ -118,6 +122,11 @@ include("components/renewable_generator.jl")
 include("components/storage_generator.jl")
 include("components/unified_generator_framework.jl")
 include("components/load_timeseries_integration.jl")
+# ===== INCLUDE EXTENSION MODULES =====
+include("extensions/powersystems_integration.jl")
+include("extensions/extended_system.jl")
+include("components/network.jl")
+include("components/supernetwork.jl")
 
 
 # ===== INCLUDE UTILITY MODULES =====
@@ -131,10 +140,6 @@ include("io/readers/read_json_inputs.jl")
 include("io/readers/read_inputs_and_parse.jl")
 include("io/readers/make_lanl_ansi_pm_compatible.jl")
 include("io/readers/make_nrel_sienna_compatible.jl")
-
-# ===== INCLUDE EXTENSION MODULES =====
-include("extensions/powersystems_integration.jl")
-include("extensions/extended_system.jl")
 
 # ===== POWERLAS COPF PSY.SYSTEM EXTENSION =====
 # Export PSY functions for convenience

@@ -39,7 +39,12 @@ subject to
   RgMin <= Pg-PgPrev <= RgMax
 end
 """
-
+abstract type AbstractModel end
+abstract type IntervalType end
+abstract type PowerFlowConstraint end
+abstract type GenIntervals <: IntervalType end
+abstract type LineIntervals <: IntervalType end
+abstract type LoadIntervals <: IntervalType end
 @kwdef mutable struct GenFirstBaseInterval <: GenIntervals
     lambda_1::Array{Float64} # APP Lagrange Multiplier corresponding to the complementary slackness for across the dispatch intervals
     lambda_2::Array{Float64} # APP Lagrange Multiplier corresponding to the complementary slackness for across the dispatch intervals

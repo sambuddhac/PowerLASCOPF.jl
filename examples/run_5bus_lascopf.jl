@@ -70,6 +70,7 @@ using JSON
 using Printf
 
 include("../src/PowerLASCOPF.jl")
+include("../src/components/supernetwork.jl")
 
 # Load test case directly
 include("../example_cases/data_5bus_pu.jl")
@@ -79,7 +80,7 @@ println("=" ^ 50)
 
 # Step 1: Create PowerLASCOPF system
 println("\n📊 Step 1: Creating PowerLASCOPF System")
-system_data = create_5bus_powerlascopf_system()
+system, system_data = create_5bus_powerlascopf_system()
 
 println("✓ System created successfully:")
 println("  - Nodes: $(length(system_data["nodes"]))")
@@ -121,6 +122,34 @@ results = Dict(
     "line_solutions" => Dict(),
     "convergence_history" => []
 )
+
+#Create Supernetwork and Network objects
+println("  - Building Supernetwork and Network objects...")
+# Placeholder: In a real implementation, you would build the full PSI.DecisionModel here
+# Create supernetworks with system-specific parameters
+supernetworks = create_supernetwork(
+    system.psy_system,
+    system_data,
+    number_of_cont = 2,        # Number of contingency scenarios
+    rnd_intervals = 6,         # Restoration to normal duration intervals
+    rsd_intervals = 6,         # Restoration to secure duration intervals
+    include_dummy_zero = true, # Include dummy zero interval
+    choice_solver = 1,         # 1=ADMM-PMP-GUROBI
+    rho_tuning = 1.0,         # APP rho parameter tuning
+    contin_sol_accuracy = 1    # Contingency solution accuracy
+)
+    
+# Add supernetworks to system data
+system_data["supernetworks"] = supernetworks
+system_data["number_of_supernetworks"] = length(supernetworks)
+    
+# Add additional metadata
+system_data["rnd_intervals"] = 6
+system_data["rsd_intervals"] = 6
+system_data["number_of_contingencies"] = 2
+system_data["include_dummy_zero"] = true
+    
+println("System created with $(length(supernetworks)) SuperNetwork objects")
 
 start_time = time()
 

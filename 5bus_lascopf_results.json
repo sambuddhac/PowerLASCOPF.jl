@@ -18,19 +18,19 @@
         "name": "Park City",
         "power": 0.85,
         "node": 1,
-        "angle": 1.01855797990206e-310
+        "angle": 0.0
       },
       "thermal_1": {
         "name": "Alta",
         "power": 0.2,
         "node": 1,
-        "angle": 1.01855797990206e-310
+        "angle": 2.361465639e-314
       },
       "thermal_5": {
         "name": "Brighton",
         "power": 3.0,
         "node": 5,
-        "angle": 0.0
+        "angle": 3.4241766773e-314
       }
     },
     "iterations": 10,
@@ -122,7 +122,7 @@
     ],
     "status": "FEASIBLE",
     "objective_value": 229.5,
-    "solve_time": 0.38001108169555664
+    "solve_time": 0.4109210968017578
   },
-  "timestamp": "2025-11-09T22:46:48.220"
+  "timestamp": "2025-11-11T12:22:09.836"
 }

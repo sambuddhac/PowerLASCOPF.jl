@@ -3,14 +3,16 @@ using PowerSystems
 using InfrastructureSystems
 using Dates
 using Printf
+const PSY = PowerSystems
+const IS = InfrastructureSystems
 
 # Include necessary PowerLASCOPF components
 include("../extensions/extended_system.jl")
 include("network.jl")
 
-@kwdef mutable struct SuperNetwork
+#=@kwdef mutable struct SuperNetwork
     # Core properties
-    net_id::Int
+    network_id::Int
     cont_net_vector::Vector{PowerLASCOPFSystem} = PowerLASCOPFSystem[]
     solver_choice::Int = 1  # 1=ADMM-PMP-GUROBI, 2=ADMM-PMP-CVXGEN, 3=APP-Quasi-Decent-GUROBI, 4=APP-GUROBI-Centralized
     set_rho_tuning::Float64 = 1.0
@@ -75,7 +77,7 @@ include("network.jl")
         
         # Initialize SuperNetwork
         super_net = new()
-        super_net.net_id = network_id
+        super_net.network_id = network_id
         super_net.solver_choice = choice_solver
         super_net.set_rho_tuning = rho_tuning
         super_net.post_contingency = post_cont_scen
@@ -127,6 +129,143 @@ include("network.jl")
         
         return super_net
     end
+end=#
+@kwdef mutable struct SuperNetwork
+    # Core properties
+    network_id::Int
+    cont_net_vector::Vector{PowerLASCOPFSystem} = PowerLASCOPFSystem[]
+    solver_choice::Int = 1
+    set_rho_tuning::Float64 = 1.0
+    post_contingency::Int = 0
+    interval_count::Int = 0
+    interval_class::Int = 0
+    rnd_intervals::Int = 6
+    rsd_intervals::Int = 6
+    last_interval::Bool = false
+    outaged_line::Int = 0
+    
+    # Algorithm parameters
+    number_of_cont::Int = 0
+    number_of_generators::Int = 0
+    number_of_trans_lines::Int = 0
+    cons_lag_dim::Int = 0
+    
+    # APP algorithm properties
+    alpha_app::Float64 = 100.0
+    iter_count_app::Int = 1
+    fin_tol::Float64 = 1000.0
+    
+    # Performance tracking
+    largest_net_time_vec::Vector{Float64} = Float64[]
+    single_net_time_vec::Vector{Float64} = Float64[]
+    virtual_net_exec_time::Float64 = 0.0
+    
+    # Results storage
+    matrix_result_app_out::Dict{Any,Any} = Dict()
+end
+
+# Separate factory function for initialization logic
+function initialize_supernetwork!(
+    psy_system::PSY.System,
+    super_net::SuperNetwork;
+    build_contingencies::Bool = true
+)
+    println("\n*** NETWORK INITIALIZATION STAGE BEGINS ***\n")
+    
+    # Create base network instance
+    base_system = PowerLASCOPFSystem(
+        psy_system = psy_system,
+        network_id = super_net.network_id,
+        post_contingency_scenario = super_net.post_contingency,
+        scenario_index = 0,
+        interval_id = super_net.interval_count,
+        last_flag = super_net.last_interval,
+        outaged_line = super_net.outaged_line,
+        solver_choice = super_net.solver_choice,
+        dummy_zero_flag = 0,  # You'll need to pass this if needed
+        accuracy = 1,  # You'll need to pass this if needed
+        rnd_intervals = super_net.rnd_intervals,
+        rsd_intervals = super_net.rsd_intervals
+    )
+    
+    # Add base network to vector
+    push!(super_net.cont_net_vector, base_system)
+    
+    # Get contingency count from base network
+    super_net.number_of_cont = base_system.contingency_count
+    
+    # Create contingency network instances if requested
+    if build_contingencies && 
+       ((super_net.interval_count <= 0) || 
+        (super_net.interval_count == (super_net.rnd_intervals + super_net.rsd_intervals)))
+        
+        for i in 1:super_net.number_of_cont
+            if i != super_net.post_contingency
+                line_outaged = get_outaged_line_index(base_system, i)
+                if line_outaged != super_net.outaged_line
+                    cont_system = PowerLASCOPFSystem(
+                        network_id = super_net.network_id,
+                        post_contingency_scenario = super_net.post_contingency,
+                        scenario_index = i,
+                        interval_id = super_net.interval_count,
+                        last_flag = super_net.last_interval,
+                        outaged_line = line_outaged,
+                        solver_choice = super_net.solver_choice,
+                        dummy_zero_flag = 0,
+                        accuracy = 1,
+                        rnd_intervals = super_net.rnd_intervals,
+                        rsd_intervals = super_net.rsd_intervals
+                    )
+                    push!(super_net.cont_net_vector, cont_system)
+                end
+            end
+        end
+    end
+    
+    println("\n*** NETWORK INITIALIZATION STAGE ENDS ***\n")
+    
+    # Update dimensions based on network information
+    super_net.number_of_generators = get_extended_thermal_generator_count(base_system)
+    super_net.number_of_trans_lines = get_transmission_line_count(base_system)
+    super_net.cons_lag_dim = super_net.number_of_cont * super_net.number_of_generators
+    
+    return super_net
+end
+
+# Convenient constructor function that combines creation and initialization
+function create_supernetwork_object(;
+    psy_system::PSY.System,
+    network_id::Int,
+    solver_choice::Int = 1,
+    set_rho_tuning::Float64 = 1.0,
+    post_contingency::Int = 0,
+    interval_count::Int = 0,
+    interval_class::Int = 0,
+    rnd_intervals::Int = 6,
+    rsd_intervals::Int = 6,
+    last_interval::Bool = false,
+    outaged_line::Int = 0,
+    build_contingencies::Bool = true,
+    kwargs...  # Catch any extra parameters
+)
+    # Create the struct with basic parameters
+    super_net = SuperNetwork(;
+        network_id = network_id,
+        solver_choice = solver_choice,
+        set_rho_tuning = set_rho_tuning,
+        post_contingency = post_contingency,
+        interval_count = interval_count,
+        interval_class = interval_class,
+        rnd_intervals = rnd_intervals,
+        rsd_intervals = rsd_intervals,
+        last_interval = last_interval,
+        outaged_line = outaged_line
+    )
+    
+    # Initialize with network building logic
+    initialize_supernetwork!(psy_system, super_net; build_contingencies = build_contingencies)
+    
+    return super_net
 end
 
 # Helper function to get outaged line index (placeholder implementation)
@@ -500,7 +639,7 @@ function save_simulation_results!(super_net::SuperNetwork)
             println(file, "PowerLASCOPF Simulation Results")
             println(file, "=" * "^" * 40)
             println(file, "Solver Choice: $(super_net.solver_choice)")
-            println(file, "Network ID: $(super_net.net_id)")
+            println(file, "Network ID: $(super_net.network_id)")
             println(file, "Final Tolerance: $(super_net.fin_tol)")
             println(file, "Virtual Execution Time: $(super_net.virtual_net_exec_time)")
             println(file, "Number of Contingencies: $(super_net.number_of_cont)")

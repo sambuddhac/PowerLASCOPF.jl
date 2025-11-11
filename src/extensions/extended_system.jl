@@ -2,8 +2,10 @@
 # This module extends PowerSystems.System to support custom PowerLASCOPF types
 
 # Import our custom types
+include("../core/types.jl")
 include("../components/node.jl")
-include("../components/transmission_line.jl") 
+include("../components/transmission_line.jl")
+include("../components/load.jl")
 include("../components/ExtendedThermalGenerator.jl")
 include("../components/ExtendedRenewableGenerator.jl")
 include("../components/ExtendedHydroGenerator.jl")

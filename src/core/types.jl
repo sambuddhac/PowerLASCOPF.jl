@@ -25,12 +25,12 @@ abstract type Subsystem <: PowerLASCOPFComponent end
 """
 Abstract type for power system devices (e.g., lines, transformers).
 """
-abstract type Device <: PowerLASCOPFComponent end
+abstract type Devices <: PowerLASCOPFComponent end
 
 """
 Abstract type for power generators with optimization capabilities.
 """
-abstract type PowerGenerator <: Device end
+abstract type PowerGenerator <: Devices end
 
 """
 Abstract type for network solvers and algorithms.
@@ -94,7 +94,7 @@ Abstract type for external package integrations.
 abstract type PackageIntegration <: SystemExtension end
 
 # Export all abstract types
-export PowerLASCOPFComponent, Subsystem, Device, PowerGenerator
+export PowerLASCOPFComponent, Subsystem, Devices, PowerGenerator
 export AbstractSolver, AbstractADMMComponent, AbstractAPPComponent
 export IntervalType, GenIntervals, LineIntervals
 export AbstractModel, AbstractCost, AbstractConstraints

@@ -13,7 +13,7 @@ function print_PowerLASCOPF_version()
 	╚═╝      ╚═════╝  ╚══╝╚══╝ ╚══════╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝╚══════╝ ╚═════╝ ╚═════╝ ╚═╝     ╚═╝         ╚═╝     ╚════╝ ╚══════╝
 	"""
 
-	ascii_art *= "POWERED BY The Julia Programming Language, NREL/Sienna: PowerSystems.jl, PowerSimulations.jl, and InfrastructureSystems.jl\n"
+	ascii_art *= "POWERED BY: The Julia Programming Language, JuMP,\n NREL/Sienna: PowerSystems.jl, PowerSimulations.jl, & InfrastructureSystems.jl,\n and LANL/ANSI: PowerModels.jl & InfrastructureModels.jl\n"
 	ascii_art *= "Version: $(v)"
 	println(ascii_art)
 	return nothing

@@ -2,11 +2,12 @@
 
 using PowerSystems
 include("node.jl")
+include("../solvers/line_solvers/linesolver_base.jl")
 
 # Import necessary types from extended_system (for legacy compatibility)
 # Define abstract types for PowerLASCOPF hierarchy
 
-@kwdef mutable struct transmissionLine{T<:PSY.ACBranch} <: Device
+@kwdef mutable struct transmissionLine{T<:PSY.ACBranch} <: Devices
 	transl_type::T
 	solver_line_base::LineSolverBase
 	transl_id::Int64 = 0
