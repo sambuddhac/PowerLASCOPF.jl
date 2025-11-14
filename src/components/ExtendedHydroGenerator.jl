@@ -25,7 +25,7 @@ An extended hydro generator component that extends PowerSystems hydro generators
 Supports HydroDispatch, HydroEnergyReservoir, HydroPumpedStorage, and other hydro types with
 hydro-specific constraints like water flow limits, reservoir levels, and pumping capabilities.
 """
-@kwdef mutable struct ExtendedHydroGenerator{T<:PSY.HydroGen, U<:GenIntervals} <: PowerGenerator
+@kwdef mutable struct ExtendedHydroGenerator{T<:Union{PSY.HydroDispatch, PSY.HydroReservoir, PSY.HydroPumpTurbine, PSY.HydroTurbine}, U<:GenIntervals} <: PowerGenerator
     # Core hydro generator from PowerSystems
     generator::T  # Can be HydroDispatch, HydroEnergyReservoir, HydroPumpedStorage, etc.
     
