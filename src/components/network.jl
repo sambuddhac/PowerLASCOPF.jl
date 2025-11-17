@@ -3,6 +3,12 @@ using CSV
 using LinearAlgebra
 using Statistics
 using JSON3
+using PowerSystems
+using InfrastructureSystems
+using Dates
+using Printf
+const PSY = PowerSystems
+const IS = InfrastructureSystems
 
 # Include component types
 include("node.jl")
@@ -104,34 +110,31 @@ end
 Initialize network variables and load system data
 """
 function network_init_var(
-    val::Int, 
-    post_cont_scen::Int, 
-    scenario_contingency::Int, 
     line_outaged::Int, 
     pre_post_scenario::Int, 
     solver_choice::Int, 
     dummy::Int, 
-    accuracy::Int, 
-    interval_num::Int, 
-    las_int_flag::Int, 
+    accuracy::Int,
     next_choice::Int, 
     outaged_line::Int;
+    net_sys::Union{PowerLASCOPFSystem, Nothing} = nothing,
     data_path::String = "",
     case_name::String = "",
     case_format::Symbol = :matpower
 )
     network = Network(
-        network_id = val,
+	net_sys = net_sys,
+        network_id = net_sys.network_id,
         rho = 1.0,
-        scenario_index = scenario_contingency,
-        post_cont_scenario = post_cont_scen,
+        scenario_index = net_sys.scenario_index,
+        post_cont_scenario = net_sys.post_contingency_scenario,
         pre_post_cont_scen = pre_post_scenario,
         dummy_z = dummy,
         accuracy = accuracy,
         outaged_line_single = line_outaged,
         contingency_count = 0,
-        interval_id = interval_num,
-        last_flag = las_int_flag,
+        interval_id = net_sys.interval_id,
+        last_flag = net_sys.last_flag,
         base_outaged_line = outaged_line,
         solver_choice = solver_choice,
         div_conv_mwpu = val == 2 ? 1.0 : 100.0,

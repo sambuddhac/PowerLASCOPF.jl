@@ -87,7 +87,7 @@ println("  - Nodes: $(length(system_data["nodes"]))")
 println("  - Branches: $(length(system_data["branches"]))")
 println("  - Thermal Generators: $(length(system_data["thermal_generators"]))")
 println("  - Renewable Generators: $(length(system_data["renewable_generators"]))")
-#println("  - Hydro Generators: $(length(system_data["hydro_generators"]))")
+println("  - Hydro Generators: $(length(system_data["hydro_generators"]))")
 println("  - Time Horizon: $(length(system_data["time_horizon"])) hours")
 
 # Step 2: Configure ADMM/APP parameters

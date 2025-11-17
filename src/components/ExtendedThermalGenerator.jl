@@ -45,6 +45,7 @@ and enhanced thermal cost modeling with ADMM/APP state variables.
     post_cont_scen_count::Int64
     base_cont_scenario::Int64
     cont_count_gen::Int64
+
     # Node connection
     conn_nodeg_ptr::Node
     
@@ -218,8 +219,6 @@ function extract_thermal_timeseries!(gen::ExtendedThermalGenerator)
     
     # Extract available timeseries - use correct PowerSystems function
     try
-        # Get time series container
-        #ts_container = PSY.get_time_series_container(psy_gen)
         
         if IS.has_time_series(psy_gen)
             # Get all time series keys

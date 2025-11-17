@@ -66,6 +66,12 @@ function initialize_supernetwork!(
         rnd_intervals = super_net.rnd_intervals,
         rsd_intervals = super_net.rsd_intervals
     )
+
+    #=network_object_base = network_init_var(base_system, 
+        super_net.network_id, super_net.post_contingency, 
+        0, 
+        :matpower
+    )=#
     
     # Add base network to vector
     push!(super_net.cont_net_vector, base_system)

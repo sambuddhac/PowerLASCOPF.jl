@@ -12,6 +12,7 @@ using Dates
 using TimeSeries
 
 # Include necessary modules from the codebase
+include("../core/types.jl")
 include("node.jl")
 include("../core/solver_model_types.jl")
 include("../core/ExtendedHydroGenerationCost.jl")
@@ -25,7 +26,7 @@ An extended hydro generator component that extends PowerSystems hydro generators
 Supports HydroDispatch, HydroEnergyReservoir, HydroPumpedStorage, and other hydro types with
 hydro-specific constraints like water flow limits, reservoir levels, and pumping capabilities.
 """
-@kwdef mutable struct ExtendedHydroGenerator{T<:Union{PSY.HydroDispatch, PSY.HydroReservoir, PSY.HydroPumpTurbine, PSY.HydroTurbine}, U<:GenIntervals} <: PowerGenerator
+@kwdef mutable struct ExtendedHydroGenerator{T<:PSY.HydroGen, U<:GenIntervals} <: PowerGenerator
     # Core hydro generator from PowerSystems
     generator::T  # Can be HydroDispatch, HydroEnergyReservoir, HydroPumpedStorage, etc.
     
@@ -45,13 +46,12 @@ hydro-specific constraints like water flow limits, reservoir levels, and pumping
     post_cont_scen_count::Int64
     base_cont_scenario::Int64
     cont_count_gen::Int64
-    gen_total::Int64
     
     # Node connection
     conn_nodeg_ptr::Node
     
     # Solver interface for hydro generators
-    gen_solver::GenSolver{ExtendedHydroGenerationCost, U}
+    gen_solver::GenSolver{ExtendedHydroGenerationCost{U}, U}
     
     # Power variables (MW)
     P_gen_prev::Float64      # Previous interval power output
@@ -109,8 +109,7 @@ hydro-specific constraints like water flow limits, reservoir levels, and pumping
         dummyZero::Int64,
         accuracy::Int64,
         nodeConng::Node,
-        countOfContingency::Int64,
-        gen_total::Int64;
+        countOfContingency::Int64;
         config::GenSolverConfig = GenSolverConfig()
     ) where {T<:PSY.HydroGen, U<:GenIntervals}
         
@@ -125,7 +124,16 @@ hydro-specific constraints like water flow limits, reservoir levels, and pumping
         self.generator = generator
         self.hydro_cost_function = hydro_cost_function
         self.gen_id = id_of_gen
-        # ...existing code for other assignments...
+        self.dispatch_interval = interval
+        self.flag_last = last_flag
+        self.dummy_zero_int_flag = dummyZero
+        self.cont_solver_accuracy = accuracy
+        self.scenario_cont_count = cont_scenario_count
+        self.post_cont_scen_count = PC_scenario_count
+        self.base_cont_scenario = baseCont
+        self.conn_nodeg_ptr = nodeConng
+        self.cont_count_gen = countOfContingency
+        self.gen_solver = gensolver
         
         # Initialize connection node
         set_g_conn!(self.conn_nodeg_ptr, id_of_gen)
@@ -159,21 +167,24 @@ function initialize_hydro_parameters!(gen::ExtendedHydroGenerator{T}) where T
     # Initialize hydro-specific parameters based on type
     if isa(psy_gen, PSY.HydroEnergyReservoir)
         # Reservoir-based hydro
-        storage = PSY.get_storage_capacity(psy_gen)
-        gen.reservoir_level = storage * 0.5  # Start at 50% capacity
+        storage_limits = PSY.get_storage_capacity(psy_gen)
+        max_storage = storage_limits  # Extract the upper limit (Float64)
+        gen.reservoir_level = max_storage * 0.5  # Start at 50% of max capacity
         
         # Get inflow and outflow characteristics
         inflow = PSY.get_inflow(psy_gen)
-        outflow = PSY.get_outflow(psy_gen)
         gen.water_flow_rate = inflow
         
     elseif isa(psy_gen, PSY.HydroPumpedStorage)
         # Pumped storage hydro
-        storage = PSY.get_storage_capacity(psy_gen)
-        gen.reservoir_level = storage * 0.5
+        # Reservoir-based hydro
+        storage_limits = PSY.get_storage_capacity(psy_gen)
+        max_storage = storage_limits.up  # Extract the upper limit (Float64)
+        gen.reservoir_level = max_storage * 0.5  # Start at 50% of max capacity
+        outflow = PSY.get_outflow(psy_gen)
         
         # Get pump and generation characteristics
-        pump_load = PSY.get_pump_load(psy_gen)
+        pump_load = PSY.get_pump_efficiency(psy_gen) #**THIS NEEDS FURTHER CHECKING**
         gen.pumping_power = pump_load
         gen.pumping_efficiency = 0.8  # Default efficiency
         
@@ -203,27 +214,40 @@ function extract_hydro_timeseries!(gen::ExtendedHydroGenerator)
     psy_gen = gen.generator
     gen._cache_valid = false
     
-    # Extract available timeseries
-    time_series_names = PSY.get_time_series_names(psy_gen)
-    
-    for ts_name in time_series_names
-        try
-            ts_data = PSY.get_time_series(psy_gen, ts_name)
-            
-            # Map timeseries based on name
-            if occursin("Inflow", string(ts_name)) || occursin("Flow", string(ts_name))
-                gen.inflow_forecast = ts_data
-            elseif occursin("WaterPrice", string(ts_name)) || occursin("Water", string(ts_name))
-                gen.water_price_forecast = ts_data
-            elseif occursin("Irrigation", string(ts_name))
-                gen.irrigation_schedule = ts_data
-            elseif occursin("Environmental", string(ts_name)) || occursin("MinFlow", string(ts_name))
-                gen.environmental_constraints = ts_data
+    # Extract available timeseries - use correct PowerSystems function
+    try
+        if IS.has_time_series(psy_gen)
+            # Get all time series keys
+            ts_keys = PSY.get_time_series_keys(psy_gen)
+
+            if !isempty(ts_keys)
+                for ts_name in ts_keys
+                    try
+                        ts_data = PSY.get_time_series(psy_gen, ts_name)
+                        key_name = string(ts_name.name)
+                
+                        # Map timeseries based on name
+                        if occursin("Inflow", string(ts_name)) || occursin("Flow", string(ts_name))
+                            gen.inflow_forecast = ts_data
+                        elseif occursin("WaterPrice", string(ts_name)) || occursin("Water", string(ts_name))
+                            gen.water_price_forecast = ts_data
+                        elseif occursin("Irrigation", string(ts_name))
+                            gen.irrigation_schedule = ts_data
+                        elseif occursin("Environmental", string(ts_name)) || occursin("MinFlow", string(ts_name))
+                            gen.environmental_constraints = ts_data
+                        end
+                    
+                    catch e
+                        @debug "Could not extract timeseries $ts_name for hydro generator $(PSY.get_name(psy_gen)): $e"
+                    end
+                end
             end
-            
-        catch e
-            @debug "Could not extract timeseries $ts_name for hydro generator $(PSY.get_name(psy_gen)): $e"
+        else
+            @info "No timeseries data available for hydro generator $(PSY.get_name(psy_gen))"
         end
+        
+    catch e
+        @warn "Failed to get timeseries names for hydro generator $(PSY.get_name(psy_gen)): $e"
     end
 end
 
@@ -242,15 +266,31 @@ function set_hydro_gen_data!(gen::ExtendedHydroGenerator{T}) where T
     # Validate hydro-specific constraints based on type
     if isa(psy_gen, PSY.HydroEnergyReservoir)
         # Check reservoir level constraints
-        storage_capacity = PSY.get_storage_capacity(psy_gen)
-        if gen.reservoir_level > storage_capacity
-            gen.reservoir_level_violation = gen.reservoir_level - storage_capacity
-            gen.reservoir_level = storage_capacity
-        elseif gen.reservoir_level < 0
-            gen.reservoir_level_violation = -gen.reservoir_level
-            gen.reservoir_level = 0.0
+        storage_limits = PSY.get_storage_capacity(psy_gen)
+        max_storage = storage_limits
+        min_storage = 0.0  # Assuming minimum storage is 0 for simplicity
+
+        if gen.reservoir_level > max_storage
+            gen.reservoir_level_violation = gen.reservoir_level - max_storage
+            gen.reservoir_level = max_storage
+        elseif gen.reservoir_level < min_storage
+            gen.reservoir_level_violation = min_storage - gen.reservoir_level
+            gen.reservoir_level = min_storage
         end
         
+        # Check water flow constraints
+        inflow_limits = PSY.get_inflow(psy_gen)
+        if gen.water_flow_rate > inflow_limits
+            gen.water_flow_violation = gen.water_flow_rate - inflow_limits
+            gen.water_flow_rate = inflow_limits
+        end
+        
+    elseif isa(psy_gen, PSY.HydroPumpedStorage)
+        storage_limits = PSY.get_storage_capacity(psy_gen)
+        max_storage = storage_limits.up
+        min_storage = storage_limits.down
+        gen.reservoir_level = clamp(gen.reservoir_level, min_storage, max_storage)
+
         # Check water flow constraints
         outflow_limits = PSY.get_outflow(psy_gen)
         if gen.water_flow_rate > outflow_limits
@@ -258,13 +298,8 @@ function set_hydro_gen_data!(gen::ExtendedHydroGenerator{T}) where T
             gen.water_flow_rate = outflow_limits
         end
         
-    elseif isa(psy_gen, PSY.HydroPumpedStorage)
-        # Pumped storage specific constraints
-        storage_capacity = PSY.get_storage_capacity(psy_gen)
-        gen.reservoir_level = clamp(gen.reservoir_level, 0.0, storage_capacity)
-        
         # Ensure only generation OR pumping, not both
-        pump_load = PSY.get_pump_load(psy_gen)
+        pump_load = PSY.get_pump_efficiency(psy_gen) #**THIS NEEDS FURTHER CHECKING**
         if gen.Pg > 0 && gen.pumping_power > 0
             # Prioritize generation
             gen.pumping_power = 0.0
@@ -287,27 +322,59 @@ function update_hydro_performance!(gen::ExtendedHydroGenerator{T}) where T
             gen.water_utilization_efficiency = gen.Pg / gen.water_flow_rate
         end
         
-        # Update capacity factor
-        rating = PSY.get_rating(gen.generator)
-        gen.capacity_factor = gen.Pg / rating
-        
         # Update reservoir level based on generation (simplified)
         if isa(gen.generator, PSY.HydroEnergyReservoir)
             # Decrease reservoir level based on generation
             water_used = gen.Pg / gen.generation_efficiency
             gen.reservoir_level = max(0.0, gen.reservoir_level - water_used)
+            
+        elseif isa(gen.generator, PSY.HydroPumpedStorage)
+            # For PSH in generation mode, decrease reservoir level
+            water_used = gen.Pg / gen.generation_efficiency
+            
+            # Get minimum storage capacity to respect lower bound
+            storage_limits = PSY.get_storage_capacity(gen.generator)
+            min_storage = storage_limits.down  # Extract lower limit
+            
+            gen.reservoir_level = max(min_storage, gen.reservoir_level - water_used)
         end
         
     elseif isa(gen.generator, PSY.HydroPumpedStorage) && gen.pumping_power > 0
         # Pumping mode - increase reservoir level
         water_pumped = gen.pumping_power * gen.pumping_efficiency
-        storage_capacity = PSY.get_storage_capacity(gen.generator)
-        gen.reservoir_level = min(storage_capacity, gen.reservoir_level + water_pumped)
+        
+        # Get storage capacity limits and extract the upper bound
+        storage_limits = PSY.get_storage_capacity(gen.generator)
+        max_storage = storage_limits.up  # Extract upper limit (Float64)
+        min_storage = storage_limits.down  # Extract lower limit (Float64)
+        
+        # Increase reservoir level but don't exceed maximum capacity
+        gen.reservoir_level = min(max_storage, gen.reservoir_level + water_pumped)
         gen.capacity_factor = 0.0  # Not generating
+        
     else
         gen.water_utilization_efficiency = 0.0
         gen.capacity_factor = 0.0
     end
+
+    # Additional safety check: ensure reservoir level stays within bounds for all hydro types
+    #=if isa(gen.generator, PSY.HydroEnergyReservoir) || isa(gen.generator, PSY.HydroPumpedStorage)
+        storage_limits = PSY.get_storage_capacity(gen.generator)
+        max_storage = storage_limits.up
+        min_storage = storage_limits.down
+        
+        # Clamp reservoir level to valid range
+        gen.reservoir_level = clamp(gen.reservoir_level, min_storage, max_storage)=#
+        
+        # Track violations if they occur
+        #=if gen.reservoir_level == max_storage && (gen.reservoir_level + water_pumped > max_storage rescue false)
+            gen.reservoir_level_violation = (gen.reservoir_level + water_pumped) - max_storage
+        elseif gen.reservoir_level == min_storage && (gen.reservoir_level - water_used < min_storage rescue false)
+            gen.reservoir_level_violation = min_storage - (gen.reservoir_level - water_used)
+        else
+            gen.reservoir_level_violation = 0.0
+        end
+    end=#
 end
 
 """

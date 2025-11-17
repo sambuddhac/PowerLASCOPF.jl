@@ -846,7 +846,50 @@ renewable_generators5(nodes5) = [
 
 hydro_generators5(nodes5) = [
     PSY.HydroDispatch(
-        name = "HydroDispatch",
+        "HydroDispatch_1",
+        true,
+        nodes5[2],
+        0.0,
+        0.0,
+        6.0,
+        PrimeMovers.HY,
+        (min = 0.0, max = 6.0),
+        (min = 0.0, max = 6.0),
+        nothing,
+        nothing,
+        100.0,
+        PSY.HydroGenerationCost( variable = FuelCurve(
+                    value_curve = LinearCurve(10.0),
+                    fuel_cost = 0.0
+                    ), fixed = 5.0),
+        PSY.Device[], 
+        nothing, 
+        Dict{String, Any}(),
+    ),
+    PSY.HydroEnergyReservoir(;
+        name = "HydroEnergyReservoir_1",
+        available = true,
+        bus = nodes5[3],
+        active_power = 0.0,
+        reactive_power = 0.0,
+        rating = 7.0,
+        prime_mover_type = PrimeMovers.HY,
+        active_power_limits = (min = 0.0, max = 7.0),
+        reactive_power_limits = (min = 0.0, max = 7.0),
+        ramp_limits = (up = 7.0, down = 7.0),
+        time_limits = nothing,
+        operation_cost = PSY.HydroGenerationCost( variable = FuelCurve(
+                    value_curve = LinearCurve(5.0),
+                    fuel_cost = 0.0
+                    ), fixed = 2.0),
+        base_power = 100.0,
+        storage_capacity = 50.0,
+        inflow = 4.0,
+        conversion_factor = 1.0,
+        initial_storage = 0.5,
+    ),
+    PSY.HydroDispatch(;
+        name = "HydroDispatch_2 ",
         available = true,
         bus = nodes5[2],
         active_power = 0.0,
@@ -858,12 +901,16 @@ hydro_generators5(nodes5) = [
         ramp_limits = nothing,
         time_limits = nothing,
         base_power = 100.0,
-        status=false,
-        time_at_status=INFINITE_TIME,
-        operation_cost=PSY.HydroGenerationCost(nothing),
+        operation_cost =PSY.HydroGenerationCost( variable = FuelCurve(
+                    value_curve = LinearCurve(10.0),
+                    fuel_cost = 0.0
+                    ), fixed = 5.0),
+        services = PSY.Device[], 
+        dynamic_injector = nothing, 
+        ext = Dict{String, Any}(),
     ),
-    PSY.HydroReservoir(
-        name = "HydroEnergyReservoir",
+    PSY.HydroEnergyReservoir(;
+        name = "HydroEnergyReservoir_2",
         available = true,
         bus = nodes5[3],
         active_power = 0.0,
@@ -874,16 +921,49 @@ hydro_generators5(nodes5) = [
         reactive_power_limits = (min = 0.0, max = 7.0),
         ramp_limits = (up = 7.0, down = 7.0),
         time_limits = nothing,
-        operation_cost = PSY.TwoPartCost(0.15, 0.0),
+        operation_cost = PSY.HydroGenerationCost( variable = FuelCurve(
+                    value_curve = LinearCurve(2.50),
+                    fuel_cost = 0.0
+                    ), fixed = 2.5),
         base_power = 100.0,
         storage_capacity = 50.0,
         inflow = 4.0,
         conversion_factor = 1.0,
         initial_storage = 0.5,
     ),
+    PSY.HydroPumpedStorage(;
+        name = "HydroPumpedStorage",
+        available = true,
+        bus = nodes5[3],
+        active_power = 0.0,
+        reactive_power = 0.0,
+        rating = 5.0,
+        base_power = 100.0,
+        prime_mover_type = PrimeMovers.HY,
+        active_power_limits = (min = 0.0, max = 5.0),
+        reactive_power_limits = (min = 0.0, max = 5.0),
+        ramp_limits = (up = 10.0 * 0.5, down = 10.0 * 0.5),
+        time_limits = nothing,
+        operation_cost = PSY.HydroGenerationCost( variable = FuelCurve(
+                    value_curve = LinearCurve(2.50),
+                    fuel_cost = 0.0
+                    ), fixed = 2.5),
+        rating_pump = 0.2,
+        active_power_limits_pump = (min = 0.0, max = 10.0),
+        reactive_power_limits_pump = (min = 0.0, max = 10.0),
+        ramp_limits_pump = (up = 10.0 * 0.6, down = 10.0 * 0.6),
+        time_limits_pump = nothing,
+        storage_capacity = (up = 25.0, down = 25.0), # 50 pu * hr (i.e. 5 GWh)
+        inflow = 3.0,
+        outflow = 1.0,
+        initial_storage = (up = 0.5, down = 0.5),
+        storage_target = (up = 0.5, down = 0.75),
+        conversion_factor = 1.0,
+        pump_efficiency = 1.0,
+    ),
 ];
 
-hydro_generators5_ems(nodes5) = [
+#=hydro_generators5_ems(nodes5) = [
     PSY.HydroDispatch(
         name = "HydroDispatch",
         available = true,
@@ -924,9 +1004,9 @@ hydro_generators5_ems(nodes5) = [
         conversion_factor = 1.0,
         initial_storage = 0.5,
     ),
-];
+];=#
 
-phes5(nodes5) = [
+#=phes5(nodes5) = [
     PSY.HydroPumpedStorage(
         name = "HydroPumpedStorage",
         available = true,
@@ -954,10 +1034,10 @@ phes5(nodes5) = [
         conversion_factor = 1.0,
         pump_efficiency = 1.0,
     ),
-];
+];=#
 
-battery5(nodes5) = [GenericBattery(
-    name = "Bat",
+battery5(nodes5) = [PSY.EnergyReservoirStorage(;
+    name = "GenericBattery",
     prime_mover_type = PrimeMovers.BA,
     available = true,
     bus = nodes5[1],
@@ -971,9 +1051,35 @@ battery5(nodes5) = [GenericBattery(
     reactive_power = 0.0,
     reactive_power_limits = (min = -2.0, max = 2.0),
     base_power = 100.0,
-)];
+),
+    PSY.EnergyReservoirStorage(;
+         name = "BatteryEMS",
+         prime_mover_type = PrimeMovers.BA,
+         available = true,
+         bus = nodes5[1],
+         initial_energy = 5.0,
+         state_of_charge_limits = (min = .10, max = 7.0),
+         rating = 7.0,
+         active_power = 2.0,
+         input_active_power_limits = (min = 0.0, max = 2.0),
+         output_active_power_limits = (min = 0.0, max = 2.0),
+         efficiency = (in = 0.80, out = 0.90),
+         reactive_power = 0.0,
+         reactive_power_limits = (min = -2.0, max = 2.0),
+         base_power = 100.0,
+         storage_target=0.2,
+         operation_cost = PSY.StorageManagementCost(
+            variable = PSY.VariableCost(0.0),
+            fixed = 0.0,
+            start_up = 0.0,
+            shut_down = 0.0,
+            energy_shortage_cost = 50.0,
+            energy_surplus_cost = 40.0,
+         ),
+     )
+];
 
-batteryems5(nodes5) = [
+#=batteryems5(nodes5) = [
      PSY.BatteryEMS(;
          name = "Bat2",
          prime_mover_type = PrimeMovers.BA,
@@ -999,7 +1105,7 @@ batteryems5(nodes5) = [
             energy_surplus_cost = 40.0,
          ),
      )
- ];
+ ];=#
 
 loadbus2_ts_DA = [
     0.792729978
@@ -1728,70 +1834,61 @@ function powerlascopf_hydro_generators5!(system::PowerLASCOPF.PowerLASCOPFSystem
         )
         
         # Create thermal cost function with proper interval
-        extended_cost_first_base = PowerLASCOPF.ExtendedRenewableGenerationCost(
+        extended_cost_first_base = PowerLASCOPF.ExtendedHydroGenerationCost(
             gen.operation_cost,
             gen_interval
         )
         gensolver_first_base = PowerLASCOPF.GenSolver(gen_interval, extended_cost_first_base)
 
-        extended_cost_first_base_dz = PowerLASCOPF.ExtendedRenewableGenerationCost(
+        extended_cost_first_base_dz = PowerLASCOPF.ExtendedHydroGenerationCost(
             gen.operation_cost,
             PowerLASCOPF.GenFirstBaseIntervalDZ(nothing)
         )
         gensolver_first_base_dz = PowerLASCOPF.GenSolver(extended_cost_first_base_dz.regularization_term, extended_cost_first_base_dz)
 
-        extended_cost_first_cont = PowerLASCOPF.ExtendedRenewableGenerationCost(
+        extended_cost_first_cont = PowerLASCOPF.ExtendedHydroGenerationCost(
             gen.operation_cost,
             PowerLASCOPF.GenFirstContInterval(nothing)
         )
         gensolver_first_cont = PowerLASCOPF.GenSolver(extended_cost_first_cont.regularization_term, extended_cost_first_cont)
 
-        extended_cost_first_cont_dz = PowerLASCOPF.ExtendedRenewableGenerationCost(
+        extended_cost_first_cont_dz = PowerLASCOPF.ExtendedHydroGenerationCost(
             gen.operation_cost,
             PowerLASCOPF.GenFirstContIntervalDZ(nothing)
         )
         gensolver_first_cont_dz = PowerLASCOPF.GenSolver(extended_cost_first_cont_dz.regularization_term, extended_cost_first_cont_dz)
 
-        extended_cost_last_base = PowerLASCOPF.ExtendedRenewableGenerationCost(
+        extended_cost_last_base = PowerLASCOPF.ExtendedHydroGenerationCost(
             gen.operation_cost,
             PowerLASCOPF.GenLastBaseInterval(nothing)
         )
         gensolver_last_base = PowerLASCOPF.GenSolver(extended_cost_last_base.regularization_term, extended_cost_last_base)
 
-        extended_cost_RND = PowerLASCOPF.ExtendedRenewableGenerationCost(
+        extended_cost_RND = PowerLASCOPF.ExtendedHydroGenerationCost(
             gen.operation_cost,
             PowerLASCOPF.GenInterRNDInterval(nothing)
         )
         gensolver_RND = PowerLASCOPF.GenSolver(extended_cost_RND.regularization_term, extended_cost_RND)
 
-        extended_cost_RSD = PowerLASCOPF.ExtendedRenewableGenerationCost(
+        extended_cost_RSD = PowerLASCOPF.ExtendedHydroGenerationCost(
             gen.operation_cost,
             PowerLASCOPF.GenInterRSDInterval(nothing)
         )
         gensolver_RSD = PowerLASCOPF.GenSolver(extended_cost_RSD.regularization_term, extended_cost_RSD)
 
-        extended_cost_last_cont = PowerLASCOPF.ExtendedRenewableGenerationCost(
+        extended_cost_last_cont = PowerLASCOPF.ExtendedHydroGenerationCost(
             gen.operation_cost,
             PowerLASCOPF.GenLastContInterval(nothing)
         )
         gensolver_last_cont = PowerLASCOPF.GenSolver(extended_cost_last_cont.regularization_term, extended_cost_last_cont)
 
-        extended_renewable_gen = PowerLASCOPF.ExtendedRenewableGenerator(
+        extended_hydro_gen = PowerLASCOPF.ExtendedHydroGenerator(
             gen, extended_cost_first_base, i, 1, false, 6, 7, 1, 0, 1, nodes[node_idx], 6
         )
 
-        PowerLASCOPF.add_extended_renewable_generator!(system, extended_renewable_gen)
+        PowerLASCOPF.add_extended_hydro_generator!(system, extended_hydro_gen)
 
-        # Add renewable timeseries data
-        if PSY.get_prime_mover_type(gen) == PSY.PrimeMovers.WT
-            wind_data = TimeSeries.TimeArray(DayAhead, wind_ts_DA)
-            PSY.add_time_series!(system, gen, PSY.SingleTimeSeries("max_active_power", wind_data))
-        elseif PSY.get_prime_mover_type(gen) == PSY.PrimeMovers.PV
-            solar_data = TimeSeries.TimeArray(DayAhead, solar_ts_DA)
-            PSY.add_time_series!(system, gen, PSY.SingleTimeSeries("max_active_power", solar_data))
-        end
-        
-        # Create hydro cost function
+        #=# Create hydro cost function
         if isa(gen, PSY.HydroEnergyReservoir)
             cost_function = PowerLASCOPF.ExtendedHydroGenerationCost{StandardGenIntervals}(
                 variable_cost = PSY.get_variable(PSY.get_operation_cost(gen)),
@@ -1808,37 +1905,36 @@ function powerlascopf_hydro_generators5!(system::PowerLASCOPF.PowerLASCOPFSystem
                 spillage_cost = 10.0,
                 base_power = PSY.get_base_power(gen)
             )
-        end
+        end=#
         
         # Create solver
-        gen_solver = PowerLASCOPF.GenSolver{typeof(gen), StandardGenIntervals}()
-        
-        # Create GeneralizedGenerator parameterized on HydroGen
-        lascopf_gen = PowerLASCOPF.GeneralizedGenerator{typeof(gen), StandardGenIntervals}(
-            generator = gen,
-            cost_function = cost_function,
-            id_of_gen = i,
-            interval = 1,
-            last_flag = false,
-            cont_scenario_count = 2,
-            gensolver = gen_solver,
-            PC_scenario_count = 1,
-            baseCont = 0,
-            dummyZero = 0,
-            accuracy = 1,
-            nodeConng = nodes[node_idx],
-            countOfContingency = 2,
-            gen_total = length(psy_gens)
-        )
-        
+        #gen_solver = PowerLASCOPF.GenSolver{typeof(gen), StandardGenIntervals}()
+        # Add hydro timeseries data
         # Add hydro inflow timeseries
         if isa(gen, PSY.HydroEnergyReservoir)
             inflow_data = TimeSeries.TimeArray(DayAhead, hydro_inflow_ts_DA)
-            PSY.add_time_series!(gen, PSY.SingleTimeSeries("inflow", inflow_data))
+            PSY.add_time_series!(system, gen, PSY.SingleTimeSeries("inflow", inflow_data))
+        else
+            hydro_data = TimeSeries.TimeArray(DayAhead, hydro_inflow_ts_DA)
+            PSY.add_time_series!(system, gen, PSY.SingleTimeSeries("max_active_power", hydro_data))
         end
+
+        # Create GeneralizedGenerator parameterized on RenewableDispatch
+        lascopf_gen = PowerLASCOPF.GeneralizedGenerator(
+            gen, gen_interval, i, 1, false, 6, 7, 1, 0, 1, nodes[node_idx], 6
+        )
         
         push!(generators, lascopf_gen)
     end
+    println("=" ^ 50)
+    println("PSY System after adding Hydro Generators: ", system.psy_system)
+    println("PowerLASCOPF System after adding Hydro Generators: ", system)
+    #println("Hydro Generator vector from 5 bus file", generators)
+    #println("Hydro Generator vector from PowerLASCOPF struct", system.extended_hydro_generators)
+    PSY.show_components(system.psy_system, PSY.HydroDispatch)
+    println("Created $(length(generators)) PowerLASCOPF Generators from PSY Hydro Generators.")
+    println("=" ^ 50)
+    return generators
     
     return generators
 end
@@ -2141,7 +2237,7 @@ function create_5bus_powerlascopf_system()
     branches = powerlascopf_branches5!(system, nodes, cont_count, RND_int)
     thermal_gens = powerlascopf_thermal_generators5!(system, nodes)
     renewable_gens = powerlascopf_renewable_generators5!(system, nodes)
-    #hydro_gens = powerlascopf_hydro_generators5!(system, nodes)
+    hydro_gens = powerlascopf_hydro_generators5!(system, nodes)
     loads = powerlascopf_loads5!(system, nodes)
     #storage_gens = power_lascopf_storage_generators5!(system, nodes)  # No storage in this example
 
@@ -2152,7 +2248,7 @@ function create_5bus_powerlascopf_system()
         "branches" => branches,
         "thermal_generators" => thermal_gens,
         "renewable_generators" => renewable_gens,
-        #"hydro_generators" => hydro_gens,
+        "hydro_generators" => hydro_gens,
         #"storage_generators" => GeneralizedGenerator[],
         "loads" => loads,  # Keep PSY loads for now
         "base_power" => 100.0,

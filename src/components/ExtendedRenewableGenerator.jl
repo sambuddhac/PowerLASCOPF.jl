@@ -12,6 +12,7 @@ using Dates
 using TimeSeries
 
 # Include necessary modules from the codebase
+include("../core/types.jl")
 include("node.jl")
 include("../core/solver_model_types.jl")
 include("../core/ExtendedRenewableGenerationCost.jl")
@@ -50,7 +51,7 @@ forecast uncertainty, curtailment penalties, and environmental variability.
     conn_nodeg_ptr::Node
     
     # Solver interface for renewable generators
-    gen_solver::GenSolver{ExtendedRenewableGenerationCost, U}
+    gen_solver::GenSolver{ExtendedRenewableGenerationCost{U}, U}
     
     # Power variables (MW)
     P_gen_prev::Float64      # Previous interval power output
@@ -134,7 +135,19 @@ forecast uncertainty, curtailment penalties, and environmental variability.
         self = new{T,U}()
         self.generator = generator
         self.renewable_cost_function = renewable_cost_function
-        # ...existing code for other assignments...
+        self.dispatch_interval = interval
+        self.flag_last = last_flag
+        self.dummy_zero_int_flag = dummyZero
+        self.cont_solver_accuracy = accuracy
+        self.scenario_cont_count = cont_scenario_count
+        self.post_cont_scen_count = PC_scenario_count
+        self.base_cont_scenario = baseCont
+        self.conn_nodeg_ptr = nodeConng
+        self.cont_count_gen = countOfContingency
+        self.gen_solver = gensolver
+
+        # Initialize connection node
+        set_g_conn!(self.conn_nodeg_ptr, id_of_gen)
         
         # Initialize renewable-specific parameters
         initialize_renewable_parameters!(self)
@@ -217,8 +230,6 @@ function extract_renewable_timeseries!(gen::ExtendedRenewableGenerator)
     
     # Extract available timeseries - use correct PowerSystems function
     try
-        # Get time series container
-        #ts_container = PSY.get_time_series_container(psy_gen)
         
         if IS.has_time_series(psy_gen)
             # Get all time series keys
