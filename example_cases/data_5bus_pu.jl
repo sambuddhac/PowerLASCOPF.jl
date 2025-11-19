@@ -5,8 +5,63 @@ using Random
 Random.seed!(123)
 using PowerSystems
 using InfrastructureSystems
+using Logging
 const PSY = PowerSystems
 const IS = InfrastructureSystems
+
+const LOG_FILE = joinpath(@__DIR__, "execution_run.log")
+const LOG_IO = open(LOG_FILE, "w")
+
+"""
+    log_both(message)
+
+Prints message to both console and log file with timestamp.
+"""
+function log_both(message::String)
+    timestamp = Dates.format(now(), "yyyy-mm-dd HH:MM:SS")
+    formatted_message = "[$timestamp] $message"
+    
+    # Print to console
+    println(formatted_message)
+    
+    # Write to log file
+    println(LOG_IO, formatted_message)
+    flush(LOG_IO)  # Ensure immediate write to file
+end
+
+"""
+    log_info(message)
+
+Logs an info message to both console and file.
+"""
+log_info(message::String) = log_both("ℹ️  INFO: $message")
+
+"""
+    log_warn(message)
+
+Logs a warning message to both console and file.
+"""
+log_warn(message::String) = log_both("⚠️  WARN: $message")
+
+"""
+    log_error(message)
+
+Logs an error message to both console and file.
+"""
+log_error(message::String) = log_both("❌ ERROR: $message")
+
+"""
+    log_success(message)
+
+Logs a success message to both console and file.
+"""
+log_success(message::String) = log_both("✅ SUCCESS: $message")
+
+# Ensure log file is closed when Julia exits
+atexit(() -> close(LOG_IO))
+
+log_info("Starting PowerLASCOPF execution script")
+log_info("Log file: $LOG_FILE")
 
 #=# Include PowerLASCOPF components
 include("../src/components/GeneralizedGenerator.jl")
@@ -1400,9 +1455,11 @@ Create PowerLASCOPF System from PSY System
 """
 function power_lascopf_system5()
     println("Creating PowerLASCOPF System from PSY System...")
+    log_info("Creating PowerLASCOPF System from PSY System...")
     system = PowerLASCOPF.PowerLASCOPFSystem(PSY.System(100.0))
     
     println("Created PowerLASCOPF System ")
+    log_info("Created PowerLASCOPF System ")
     return system
 end
 
@@ -1411,11 +1468,13 @@ Create PowerLASCOPF Nodes from PSY Buses
 """
 function powerlascopf_nodes5!(system::PowerLASCOPF.PowerLASCOPFSystem)
     println("Creating PowerLASCOPF Nodes from PSY Buses...")
+    log_info("Creating PowerLASCOPF Nodes from PSY Buses...")
     psy_buses = nodes5()
     nodes = PowerLASCOPF.Node{PSY.Bus}[]
 
     for (i, bus) in enumerate(psy_buses)
         println("PSY bus name", PSY.get_name(bus))  # just to suppress unused variable warning
+        log_info("PSY bus name: $(PSY.get_name(bus))")
         # Create PowerLASCOPF.Node parameterized on PSY.Bus
         node = PowerLASCOPF.Node{PSY.Bus}(bus, i, 0,)
         PSY.add_component!(system.psy_system, bus)
@@ -1424,11 +1483,17 @@ function powerlascopf_nodes5!(system::PowerLASCOPF.PowerLASCOPFSystem)
     end
     println("=" ^ 50)
     println("PSY System after adding nodes: ", system.psy_system)
+    log_info("PSY System after adding nodes: $(system.psy_system)")
     println("PowerLASCOPF System after adding nodes: ", system)
+    log_info("PowerLASCOPF System after adding nodes: $(system)")
     println("Node vector from 5 bus file", nodes)
+    log_info("Node vector from 5 bus file: $(nodes)")
     println("Node vector from PowerLASCOPF struct", system.nodes)
+    log_info("Node vector from PowerLASCOPF struct: $(system.nodes)")
     PSY.show_components(system.psy_system, PSY.ACBus)
+    log_info("Showing PSY ACBus components in the system.")
     println("Created $(length(nodes)) PowerLASCOPF Nodes from PSY Buses.")
+    log_info("Created $(length(nodes)) PowerLASCOPF Nodes from PSY Buses.")
     println("=" ^ 50)
     return nodes
 end
@@ -1438,6 +1503,7 @@ Create PowerLASCOPF transmission lines from PSY Branches
 """
 function powerlascopf_branches5!(system::PowerLASCOPF.PowerLASCOPFSystem, nodes::Vector{PowerLASCOPF.Node{PSY.Bus}}, cont_count::Int, RND_int::Int)
     println("Creating PowerLASCOPF Transmission Lines from PSY Branches...")
+    log_info("Creating PowerLASCOPF Transmission Lines from PSY Branches...")
     #Get the buses that are already in the system
     existing_buses = [node.node_type for node in nodes]
     psy_branches = branches5(existing_buses)
@@ -1535,12 +1601,15 @@ function powerlascopf_branches5!(system::PowerLASCOPF.PowerLASCOPFSystem, nodes:
     end
     println("=" ^ 50)
     println("PSY System after adding branches: ", system.psy_system)
+    log_info("PSY System after adding branches: $(system.psy_system)")
     println("PowerLASCOPF System after adding branches: ", system)
+    log_info("PowerLASCOPF System after adding branches: $(system)")
     #println("Transmission Lines vector from 5 bus file", transmission_lines)
     #println("Transmission Lines vector from PowerLASCOPF struct", system.transmission_lines)
     PSY.show_components(system.psy_system, PSY.Line)
     #PSY.show_components(system.psy_system, PSY.HVDCLine)
     println("Created $(length(transmission_lines)) PowerLASCOPF Transmission Lines from PSY Branches.")
+    log_info("Created $(length(transmission_lines)) PowerLASCOPF Transmission Lines from PSY Branches.")
     println("=" ^ 50)
     return transmission_lines
 end
@@ -1550,6 +1619,7 @@ Create PowerLASCOPF GeneralizedGenerators from PSY Thermal Generators
 """
 function powerlascopf_thermal_generators5!(system::PowerLASCOPF.PowerLASCOPFSystem, nodes::Vector{PowerLASCOPF.Node{PSY.Bus}})
     println("Creating PowerLASCOPF Thermal Generators from PSY Thermal Generators...")
+    log_info("Creating PowerLASCOPF Thermal Generators from PSY Thermal Generators...")
     #Get the buses that are already in the system
     existing_buses = [node.node_type for node in nodes]
     psy_gens = thermal_generators5(existing_buses)
@@ -1562,6 +1632,7 @@ function powerlascopf_thermal_generators5!(system::PowerLASCOPF.PowerLASCOPFSyst
         
         if node_idx === nothing
             error("Could not find node for generator $(PSY.get_name(gen))")
+            log_error("Could not find node for generator $(PSY.get_name(gen))")
         end
         
         # Create proper GenFirstBaseInterval with all required parameters
@@ -1653,11 +1724,14 @@ function powerlascopf_thermal_generators5!(system::PowerLASCOPF.PowerLASCOPFSyst
     end
     println("=" ^ 50)
     println("PSY System after adding Thermal Generators: ", system.psy_system)
+    log_info("PSY System after adding Thermal Generators: $(system.psy_system)")
     println("PowerLASCOPF System after adding Thermal Generators: ", system)
+    log_info("PowerLASCOPF System after adding Thermal Generators: $(system)")
     #println("Thermal Generator vector from 5 bus file", generators)
     #println("Thermal Generator vector from PowerLASCOPF struct", system.extended_thermal_generators)
     PSY.show_components(system.psy_system, PSY.ThermalStandard)
     println("Created $(length(generators)) PowerLASCOPF Generators from PSY Thermal Generators.")
+    log_info("Created $(length(generators)) PowerLASCOPF Generators from PSY Thermal Generators.")
     println("=" ^ 50)
     return generators
 end
@@ -1667,6 +1741,7 @@ Create PowerLASCOPF GeneralizedGenerators from PSY Renewable Generators
 """
 function powerlascopf_renewable_generators5!(system::PowerLASCOPF.PowerLASCOPFSystem, nodes::Vector{PowerLASCOPF.Node{PSY.Bus}})
     println("Creating PowerLASCOPF Variable Renewable Energy (VRE) Generators from PSY Variable Renewable Energy (VRE) Generators...")
+    log_info("Creating PowerLASCOPF Variable Renewable Energy (VRE) Generators from PSY Variable Renewable Energy (VRE) Generators...")
     #Get the buses that are already in the system
     existing_buses = [node.node_type for node in nodes]
     psy_gens = renewable_generators5(existing_buses)
@@ -1679,6 +1754,7 @@ function powerlascopf_renewable_generators5!(system::PowerLASCOPF.PowerLASCOPFSy
         
         if node_idx === nothing
             error("Could not find node for generator $(PSY.get_name(gen))")
+            log_error("Could not find node for generator $(PSY.get_name(gen))")
         end
 
         # Create proper GenFirstBaseInterval with all required parameters
@@ -1780,11 +1856,14 @@ function powerlascopf_renewable_generators5!(system::PowerLASCOPF.PowerLASCOPFSy
     end
     println("=" ^ 50)
     println("PSY System after adding Renewable Generators: ", system.psy_system)
+    log_info("PSY System after adding Renewable Generators: $(system.psy_system)")
     println("PowerLASCOPF System after adding Renewable Generators: ", system)
+    log_info("PowerLASCOPF System after adding Renewable Generators: $(system)")
     #println("Renewable Generator vector from 5 bus file", generators)
     #println("Renewable Generator vector from PowerLASCOPF struct", system.extended_renewable_generators)
     PSY.show_components(system.psy_system, PSY.RenewableDispatch)
     println("Created $(length(generators)) PowerLASCOPF Generators from PSY Renewable Generators.")
+    log_info("Created $(length(generators)) PowerLASCOPF Generators from PSY Renewable Generators.")
     println("=" ^ 50)
     return generators
 end
@@ -1805,6 +1884,7 @@ function powerlascopf_hydro_generators5!(system::PowerLASCOPF.PowerLASCOPFSystem
         
         if node_idx === nothing
             error("Could not find node for generator $(PSY.get_name(gen))")
+            log_error("Could not find node for generator $(PSY.get_name(gen))")
         end
 
         # Create proper GenFirstBaseInterval with all required parameters
@@ -1928,11 +2008,14 @@ function powerlascopf_hydro_generators5!(system::PowerLASCOPF.PowerLASCOPFSystem
     end
     println("=" ^ 50)
     println("PSY System after adding Hydro Generators: ", system.psy_system)
+    log_info("PSY System after adding Hydro Generators: $(system.psy_system)")
     println("PowerLASCOPF System after adding Hydro Generators: ", system)
+    log_info("PowerLASCOPF System after adding Hydro Generators: $(system)")
     #println("Hydro Generator vector from 5 bus file", generators)
     #println("Hydro Generator vector from PowerLASCOPF struct", system.extended_hydro_generators)
     PSY.show_components(system.psy_system, PSY.HydroDispatch)
     println("Created $(length(generators)) PowerLASCOPF Generators from PSY Hydro Generators.")
+    log_info("Created $(length(generators)) PowerLASCOPF Generators from PSY Hydro Generators.")
     println("=" ^ 50)
     return generators
     
@@ -1944,6 +2027,7 @@ end
 
 function power_lascopf_storage_generators5!(system::PowerLASCOPF.PowerLASCOPFSystem, nodes::Vector{PowerLASCOPF.Node{PSY.Bus}})
     println("Creating PowerLASCOPF Storage Generators from PSY Storage Generators...")
+    log_info("Creating PowerLASCOPF Storage Generators from PSY Storage Generators...")
     #Get the buses that are already in the system
     existing_buses = [node.node_type for node in nodes]
     psy_gens = storage_generators5(existing_buses)
@@ -1956,6 +2040,7 @@ function power_lascopf_storage_generators5!(system::PowerLASCOPF.PowerLASCOPFSys
         
         if node_idx === nothing
             error("Could not find node for generator $(PSY.get_name(gen))")
+            log_error("Could not find node for generator $(PSY.get_name(gen))")
         end
 
         # Create proper GenFirstBaseInterval with all required parameters
@@ -2079,6 +2164,7 @@ function power_lascopf_storage_generators5!(system::PowerLASCOPF.PowerLASCOPFSys
         push!(generators, lascopf_gen)
     end
     println("Created $(length(generators)) PowerLASCOPF Generators from PSY Storage Generators.")
+    log_info("Created $(length(generators)) PowerLASCOPF Generators from PSY Storage Generators.")
     return generators
 end
 
@@ -2088,6 +2174,7 @@ Create PowerLASCOPF Loads from PSY Loads
 
 function powerlascopf_loads5!(system::PowerLASCOPF.PowerLASCOPFSystem, nodes::Vector{PowerLASCOPF.Node{PSY.Bus}})
     println("Creating PowerLASCOPF Loads from PSY Loads...")
+    log_info("Creating PowerLASCOPF Loads from PSY Loads...")
     #Get the buses that are already in the system
     existing_buses = [node.node_type for node in nodes]
     psy_loads = loads5(existing_buses)
@@ -2107,6 +2194,7 @@ function powerlascopf_loads5!(system::PowerLASCOPF.PowerLASCOPFSystem, nodes::Ve
         
         if node_idx === nothing
             error("Could not find node for load $(PSY.get_name(load))")
+            log_error("Could not find node for load $(PSY.get_name(load))") 
         end
 
         #=WE'LL NEED THIS ONLY FOR DEFERRABLE FLEXIBLE LOAD
@@ -2197,6 +2285,7 @@ function powerlascopf_loads5!(system::PowerLASCOPF.PowerLASCOPFSystem, nodes::Ve
             PSY.add_time_series!(system.psy_system, load, PSY.SingleTimeSeries("max_active_power", load_data))
         else
             @warn "No timeseries data found for node $node_idx, using default values"
+            log_warn("No timeseries data found for node $node_idx, using default values")
             # Use a default timeseries or handle the missing data case
             default_load_data = TimeSeries.TimeArray(DayAhead, ones(24) * PSY.get_active_power(load))
             PSY.add_time_series!(system.psy_system, load, PSY.SingleTimeSeries("max_active_power", default_load_data))
@@ -2215,11 +2304,14 @@ function powerlascopf_loads5!(system::PowerLASCOPF.PowerLASCOPFSystem, nodes::Ve
     end
     println("=" ^ 50)
     println("PSY System after adding Electric Loads: ", system.psy_system)
+    log_info("PSY System after adding Electric Loads: $(system.psy_system)")
     println("PowerLASCOPF System after adding Electric Loads: ", system)
+    log_info("PowerLASCOPF System after adding Electric Loads: $(system)")
     #println("Electric Load vector from 5 bus file", loads)
     #println("Electric Load vector from PowerLASCOPF struct", system.extended_loads)
     PSY.show_components(system.psy_system, PSY.PowerLoad)
     println("Created $(length(loads)) PowerLASCOPF Loads from PSY Loads.")
+    log_info("Created $(length(loads)) PowerLASCOPF Loads from PSY Loads.")
     println("=" ^ 50)
     return loads
 end
@@ -2229,6 +2321,7 @@ Create complete PowerLASCOPF system data
 """
 function create_5bus_powerlascopf_system()
     print("Creating 5-bus PowerLASCOPF system...")
+    log_info("Creating 5-bus PowerLASCOPF system...")
     # Create components using existing PowerLASCOPF structs
     cont_count = 2  # Number of contingencies
     RND_int = 4     # Number of random intervals for line modeling
