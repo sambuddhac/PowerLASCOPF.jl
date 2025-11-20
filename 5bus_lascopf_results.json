@@ -6,31 +6,51 @@
         "name": "Solitude",
         "power": 2.6,
         "node": 3,
+<<<<<<< HEAD
         "angle": 5.0e-324
+=======
+        "angle": 2.4732667736e-314
+>>>>>>> origin/sams_branch
       },
       "thermal_4": {
         "name": "Sundance",
         "power": 1.0,
         "node": 4,
+<<<<<<< HEAD
         "angle": 2.298e-320
+=======
+        "angle": 2.4732667736e-314
+>>>>>>> origin/sams_branch
       },
       "thermal_2": {
         "name": "Park City",
         "power": 0.85,
         "node": 1,
+<<<<<<< HEAD
         "angle": 3.0e-323
+=======
+        "angle": 0.0
+>>>>>>> origin/sams_branch
       },
       "thermal_1": {
         "name": "Alta",
         "power": 0.2,
         "node": 1,
+<<<<<<< HEAD
         "angle": 2.5e-323
+=======
+        "angle": 2.4e-322
+>>>>>>> origin/sams_branch
       },
       "thermal_5": {
         "name": "Brighton",
         "power": 3.0,
         "node": 5,
+<<<<<<< HEAD
         "angle": 7.4e-323
+=======
+        "angle": 2.4732667736e-314
+>>>>>>> origin/sams_branch
       }
     },
     "iterations": 10,
@@ -122,7 +142,13 @@
     ],
     "status": "FEASIBLE",
     "objective_value": 229.5,
+<<<<<<< HEAD
     "solve_time": 0.22799992561340332
   },
   "timestamp": "2025-11-19T11:41:56.465"
+=======
+    "solve_time": 0.298490047454834
+  },
+  "timestamp": "2025-11-19T15:36:34.156"
+>>>>>>> origin/sams_branch
 }
