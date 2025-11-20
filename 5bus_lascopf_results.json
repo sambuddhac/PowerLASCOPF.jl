@@ -24,13 +24,13 @@
         "name": "Alta",
         "power": 0.2,
         "node": 1,
-        "angle": 0.0
+        "angle": 2.5e-323
       },
       "thermal_5": {
         "name": "Brighton",
         "power": 3.0,
         "node": 5,
-        "angle": 0.0
+        "angle": 7.4e-323
       }
     },
     "iterations": 10,

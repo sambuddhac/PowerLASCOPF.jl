@@ -16,12 +16,15 @@ function read_csv_files(folder_path)
 end
 
 # Usage
+#=
 folder_path = "example_cases/IEEE_Test_Cases/IEEE_300_Bus/"
 data_dict = read_csv_files(folder_path)
 
 # Accessing the data
 file_name = "Gen300.csv"
 data = data_dict[file_name]
+=#
+
 
 #=
 data_directory = "./1_three_zones";

@@ -1,7 +1,15 @@
+using Revise
 using TimeSeries
 using Dates
+using Random
+Random.seed!(123)
 using PowerSystems
+using InfrastructureSystems
+const PSY = PowerSystems
+const IS = InfrastructureSystems
 #const PSY = PowerSystems
+
+import PowerSystems: VariableCost, TwoPartCost, MarketBidCost, PrimeMovers, ThermalFuels, Arc
 
 dates = collect(
     DateTime("1/1/2024  0:00:00", "d/m/y  H:M:S"):Hour(1):DateTime(
@@ -9,6 +17,8 @@ dates = collect(
         "d/m/y  H:M:S",
     ),
 )
+
+#Dispatch_11am =  collect(DateTime("1/1/2024  0:11:00", "d/m/y  H:M:S"):Minute(15):DateTime("1/1/2024  12::00", "d/m/y  H:M:S"))
 
 nodes14() = [
     PSY.Bus(1, "Bus 1", "REF", 0.0, 1.06, (min = 0.94, max = 1.06), 69, nothing, nothing),
