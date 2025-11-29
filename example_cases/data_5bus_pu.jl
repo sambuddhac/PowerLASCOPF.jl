@@ -6,6 +6,11 @@ Random.seed!(123)
 using PowerSystems
 using InfrastructureSystems
 using Logging
+# At the top of the file, add:
+#=using .PowerLASCOPF: PowerLASCOPFSystem, SuperNetwork, Node, transmissionLine
+# OR if PowerLASCOPF is loaded differently:
+const PowerLASCOPFSystem = PowerLASCOPF.PowerLASCOPFSystem
+const SuperNetwork = PowerLASCOPF.SuperNetwork=#
 const PSY = PowerSystems
 const IS = InfrastructureSystems
 
@@ -2615,7 +2620,7 @@ end=#
 Function to create SuperNetwork objects for PowerLASCOPF systems
 Returns a vector of SuperNetwork objects based on the intervals and contingencies
 """
-function create_supernetwork(system::PSY.System, system_data::Dict; 
+function create_supernetwork(system::PowerLASCOPF.PowerLASCOPFSystem, system_data::Dict; 
     number_of_cont::Int = 2,
     rnd_intervals::Int = 6,
     rsd_intervals::Int = 6,
@@ -2629,10 +2634,10 @@ function create_supernetwork(system::PSY.System, system_data::Dict;
     
     # Calculate total number of SuperNetwork objects needed
     total_intervals = rnd_intervals + rsd_intervals
-    base_networks = 1 + (total_intervals * (1 + number_of_cont))
+    base_networks = 1 + (total_intervals * (1 + number_of_cont)) # 1 for the no-outage base case
     
     if include_dummy_zero
-        total_supernetworks = 2 + (total_intervals * (1 + number_of_cont))
+        total_supernetworks = 1 + base_networks
         start_interval = -1  # Include dummy zero interval
     else
         total_supernetworks = base_networks
@@ -2645,7 +2650,7 @@ function create_supernetwork(system::PSY.System, system_data::Dict;
     println("  - Number of contingencies: $number_of_cont")
     println("  - Include dummy zero: $include_dummy_zero")
     
-    supernetworks = SuperNetwork[]
+    supernetworks = PowerLASCOPF.SuperNetwork[]
     network_id_counter = 1
     
     # Create SuperNetwork objects for each dispatch interval
@@ -2655,9 +2660,9 @@ function create_supernetwork(system::PSY.System, system_data::Dict;
         if disp_interval < 0
             interval_class = 0  # dummy
         elseif disp_interval == 0 || disp_interval == total_intervals
-            interval_class = 1  # forthcoming  
+            interval_class = 1  # forthcoming  or last
         else
-            interval_class = 2  # subsequent
+            interval_class = 2  # subsequent to forthcoming
         end
         
         # Determine if this is the last interval
@@ -2665,8 +2670,9 @@ function create_supernetwork(system::PSY.System, system_data::Dict;
         
         # For dummy interval, create only one network
         if disp_interval < 0
-            super_net = create_supernetwork_object(
-                psy_system = system,
+            super_net = PowerLASCOPF.create_supernetwork_object(
+                powerlascopf_system = system,
+                pre_post_scenario = false,        # Indicate dummy interval
                 network_id = network_id_counter,
                 cont_net_vector = PowerLASCOPFSystem[],  # Initialize empty
                 solver_choice = choice_solver,          # ✓ Correct parameter name
@@ -2693,10 +2699,11 @@ function create_supernetwork(system::PSY.System, system_data::Dict;
             push!(supernetworks, super_net)
             network_id_counter += 1
             
-        else
+        elseif disp_interval == 0
             # For regular intervals, create base case network
-            base_super_net = create_supernetwork_object(
-                 psy_system = system,
+            base_super_net = PowerLASCOPF.create_supernetwork_object(
+                powerlascopf_system = system,
+                pre_post_scenario = false,
                 network_id = network_id_counter,
                 cont_net_vector = PowerLASCOPFSystem[],
                 solver_choice = choice_solver,
@@ -2722,14 +2729,15 @@ function create_supernetwork(system::PSY.System, system_data::Dict;
             )
             push!(supernetworks, base_super_net)
             network_id_counter += 1
-            
+        else
             # Create contingency scenario networks for this interval
-            for cont_scenario in 1:number_of_cont
+            for cont_scenario in 0:number_of_cont
                 # Determine outaged line for this contingency
                 outaged_line = get_outaged_line_for_contingency(cont_scenario)
                 
-                cont_super_net = create_supernetwork_object(
-                    psy_system = system,
+                cont_super_net = PowerLASCOPF.create_supernetwork_object(
+                    powerlascopf_system = system,
+                    pre_post_scenario = true,
                     network_id = network_id_counter,
                     cont_net_vector = PowerLASCOPFSystem[],
                     solver_choice = choice_solver,

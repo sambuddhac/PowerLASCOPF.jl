@@ -128,7 +128,7 @@ println("  - Building Supernetwork and Network objects...")
 # Placeholder: In a real implementation, you would build the full PSI.DecisionModel here
 # Create supernetworks with system-specific parameters
 supernetworks = create_supernetwork(
-    system.psy_system,
+    system,
     system_data,
     number_of_cont = 2,        # Number of contingency scenarios
     rnd_intervals = 6,         # Restoration to normal duration intervals

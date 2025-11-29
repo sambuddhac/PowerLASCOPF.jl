@@ -33,15 +33,12 @@ Represents a complete power system network with generators, loads, transmission 
     network_id::Int = 0
     scenario_index::Int = 0
     post_cont_scenario::Int = 0
-    pre_post_cont_scen::Int = 0
+    pre_post_cont_scen::Bool = false
     
     # Component counts
     gen_number::Int = 0
-    gen_fields::Int = 0
     load_number::Int = 0
-    load_fields::Int = 0
     transl_number::Int = 0
-    transl_fields::Int = 0
     device_term_count::Int = 0
     node_number::Int = 0
     
@@ -110,13 +107,7 @@ end
 Initialize network variables and load system data
 """
 function network_init_var(
-    line_outaged::Int, 
-    pre_post_scenario::Int, 
-    solver_choice::Int, 
-    dummy::Int, 
-    accuracy::Int,
-    next_choice::Int, 
-    outaged_line::Int;
+    pre_post_scenario::Bool;
     net_sys::Union{PowerLASCOPFSystem, Nothing} = nothing,
     data_path::String = "",
     case_name::String = "",
@@ -129,21 +120,19 @@ function network_init_var(
         scenario_index = net_sys.scenario_index,
         post_cont_scenario = net_sys.post_contingency_scenario,
         pre_post_cont_scen = pre_post_scenario,
-        dummy_z = dummy,
-        accuracy = accuracy,
-        outaged_line = net_sys.outaged_line,
+        dummy_z = net_sys.dummy_zero_flag,
+        accuracy = net_sys.accuracy,
         contingency_count = 0,
         interval_id = net_sys.interval_id,
         last_flag = net_sys.last_flag,
-        solver_choice = solver_choice,
-        div_conv_mwpu = val == 2 ? 1.0 : 100.0,
+        solver_choice = net_sys.solver_choice,
         data_path = data_path,
         case_name = case_name,
         case_format = case_format
     )
-    
+    push!(network.outaged_line, net_sys.outaged_line)
     # Load network data
-    set_network_variables!(network, next_choice)
+    set_network_variables!(network)
     
     return network
 end
@@ -151,47 +140,250 @@ end
 """
 Load network data from files based on case format and create PowerLASCOPFSystem
 """
-function set_network_variables!(network::Network, next_choice::Int)
-    println("Setting network variables for $(network.network_id)-bus system...")
-    
-    # Create PowerLASCOPFSystem based on network size or case name
-    if !isempty(network.case_name)
-        # Use specific case file
-        case_file = joinpath(network.data_path, network.case_name)
-        network.net_sys = load_case_to_power_lascopf_system(case_file, network.case_format)
+function set_network_variables!(network::Network)
+    println("Setting network variables for network ID: $(network.network_id) ...")
+
+    # Check if PowerLASCOPFSystem already exists and is populated
+    if network.net_sys !== nothing
+        println("PowerLASCOPFSystem already exists, checking component population...")
+        
+        # Check if system is already fully populated
+        is_populated = check_system_population(network.net_sys)
+        
+        if is_populated
+            println("System is already fully populated, skipping data loading...")
+            # Just update counts from existing system
+            update_network_counts_from_system!(network)
+            initialize_coordination_variables!(network)
+            return
+        else
+            println("System is partially populated, will populate missing components...")
+        end
     else
-        # Use standard IEEE cases
-        network.net_sys = create_ieee_case_system(network.network_id, network.data_path)
+        println("Creating new PowerLASCOPFSystem...")
+    
+	# Create PowerLASCOPFSystem based on network size or case name
+	if !isempty(network.case_name)
+		# Use specific case file
+		case_file = joinpath(network.data_path, network.case_name)
+		network.net_sys = load_case_to_power_lascopf_system(case_file, network.case_format)
+	else
+		# Use standard IEEE cases
+		network.net_sys = create_ieee_case_system(network.network_id, network.data_path)
+	end
+	
+	if network.net_sys === nothing
+		error("Failed to create PowerLASCOPFSystem")
+	end	
     end
-    
-    if network.net_sys === nothing
-        error("Failed to create PowerLASCOPFSystem")
-    end
-    
-    # Extract basic system information
-    network.node_number = get_node_count(network.net_sys)
-    network.gen_number = get_extended_thermal_generator_count(network.net_sys)
-    network.transl_number = get_transmission_line_count(network.net_sys)
-    
-    # Load transmission line data and count contingencies
-    load_transmission_data!(network)
-    
-    # Create nodes from PowerLASCOPFSystem
-    create_nodes_from_system!(network)
-    
-    # Create transmission lines from PowerLASCOPFSystem
-    create_transmission_lines_from_system!(network)
-    
-    # Load generator data from PowerLASCOPFSystem
-    load_generator_data_from_system!(network)
-    
-    # Load demand data from PowerLASCOPFSystem
-    load_demand_data_from_system!(network)
+
+    # Populate missing components
+    populate_missing_components!(network)
     
     # Initialize coordination variables
     initialize_coordination_variables!(network)
     
     println("Network setup complete: $(network.node_number) nodes, $(network.gen_number) generators, $(network.transl_number) lines")
+end
+
+"""
+Check if PowerLASCOPFSystem is fully populated
+"""
+function check_system_population(sys::PowerLASCOPFSystem)::Bool
+    has_nodes = !isempty(get_nodes(sys))
+    has_generators = (get_extended_thermal_generator_count(sys) > 0 || 
+                     get_extended_hydro_generator_count(sys) > 0 || 
+                     get_extended_renewable_generator_count(sys) > 0)
+    has_lines = get_transmission_line_count(sys) > 0
+    has_loads = any(node -> node.conn_load_val != 0.0, get_nodes(sys))
+    println("has_nodes: $has_nodes, has_generators: $has_generators, has_lines: $has_lines, has_loads: $has_loads")
+    
+    is_fully_populated = has_nodes && has_generators && has_lines
+    
+    if is_fully_populated
+        println("  ✓ System has nodes: $(get_node_count(sys))")
+        println("  ✓ System has generators: $(get_extended_thermal_generator_count(sys))")
+        println("  ✓ System has transmission lines: $(get_transmission_line_count(sys))")
+    else
+        println("  Missing components:")
+        !has_nodes && println("    ✗ No nodes found")
+        !has_generators && println("    ✗ No generators found")
+        !has_lines && println("    ✗ No transmission lines found")
+    end
+    
+    return is_fully_populated
+end
+
+"""
+Check which components are missing and need to be populated
+"""
+function check_missing_components(sys::PowerLASCOPFSystem)
+    missing = Dict{Symbol, Bool}()
+    
+    missing[:nodes] = isempty(get_nodes(sys))
+    missing[:thermal_generators] = get_extended_thermal_generator_count(sys) == 0
+    missing[:hydro_generators] = get_extended_hydro_generator_count(sys) == 0
+    missing[:renewable_generators] = get_extended_renewable_generator_count(sys) == 0
+    missing[:storage_units] = get_extended_storage_unit_count(sys) == 0
+    missing[:transmission_lines] = get_transmission_line_count(sys) == 0
+    missing[:loads] = all(node -> node.conn_load_val == 0.0, get_nodes(sys))
+    
+    return missing
+end
+
+"""
+Populate only the missing components in the network
+"""
+function populate_missing_components!(network::Network)
+    missing = check_missing_components(network.net_sys)
+    
+    # Update network counts first
+    update_network_counts_from_system!(network)
+    
+    # Populate nodes if missing
+    if missing[:nodes]
+        println("  Creating nodes from system...")
+        create_nodes_from_system!(network)
+    else
+        println("  ✓ Nodes already exist ($(network.node_number))")
+        # Just populate the network.node_object vector from existing nodes
+        sync_nodes_from_system!(network)
+    end
+    
+    # Load transmission line data if missing
+    if missing[:transmission_lines]
+        println("  Loading transmission data...")
+        load_transmission_data!(network)
+        create_transmission_lines_from_system!(network)
+    else
+        println("  ✓ Transmission lines already exist ($(network.transl_number))")
+        sync_transmission_lines_from_system!(network)
+    end
+    
+    # Load generator data if missing
+    if missing[:thermal_generators] && missing[:hydro_generators] && 
+       missing[:renewable_generators] && missing[:storage_units]
+        println("  Loading generator data from system...")
+        load_generator_data_from_system!(network)
+    else
+        println("  ✓ Generators already exist ($(network.gen_number))")
+        sync_generators_from_system!(network)
+    end
+    
+    # Load demand data if missing
+    if missing[:loads]
+        println("  Loading demand data from system...")
+        load_demand_data_from_system!(network)
+    else
+        println("  ✓ Loads already exist ($(network.load_number))")
+        sync_loads_from_system!(network)
+    end
+end
+"""
+Update network component counts from existing PowerLASCOPFSystem
+"""
+function update_network_counts_from_system!(network::Network)
+    network.node_number = get_node_count(network.net_sys)
+    network.gen_number = (get_extended_thermal_generator_count(network.net_sys) + 
+                         get_extended_hydro_generator_count(network.net_sys) + 
+                         get_extended_renewable_generator_count(network.net_sys) + 
+                         get_extended_storage_unit_count(network.net_sys))
+    network.transl_number = get_transmission_line_count(network.net_sys)
+    
+    # Count loads
+    network.load_number = 0
+    for node in get_nodes(network.net_sys)
+        if node.conn_load_val != 0.0
+            network.load_number += 1
+        end
+    end
+end
+
+"""
+Sync nodes from PowerLASCOPFSystem to network.node_object (when nodes already exist)
+"""
+function sync_nodes_from_system!(network::Network)
+    if isempty(network.node_object)
+        nodes = get_nodes(network.net_sys)
+        for node in nodes
+            push!(network.node_object, node)
+        end
+    end
+end
+
+"""
+Sync transmission lines from PowerLASCOPFSystem to network.transl_object
+"""
+function sync_transmission_lines_from_system!(network::Network)
+    if isempty(network.transl_object)
+        create_transmission_lines_from_system!(network)
+    end
+end
+
+"""
+Sync generators from PowerLASCOPFSystem to network.gen_object
+"""
+function sync_generators_from_system!(network::Network)
+    if isempty(network.gen_object)
+        load_generator_data_from_system!(network)
+    end
+end
+
+"""
+Sync loads from PowerLASCOPFSystem to network.load_object
+"""
+function sync_loads_from_system!(network::Network)
+    if isempty(network.load_object)
+        load_demand_data_from_system!(network)
+    end
+end
+
+"""
+Alternative: Create network from pre-populated PowerLASCOPFSystem
+"""
+function network_init_var_from_populated_system(
+    net_sys::PowerLASCOPFSystem,
+    pre_post_scenario::Bool;
+    data_path::String = "",
+    case_name::String = ""
+)
+    # Create network with existing system
+    network = Network(
+        net_sys = net_sys,
+        network_id = net_sys.network_id,
+        rho = 1.0,
+        scenario_index = net_sys.scenario_index,
+        post_cont_scenario = net_sys.post_contingency_scenario,
+        pre_post_cont_scen = pre_post_scenario,
+        dummy_z = net_sys.dummy_zero_flag,
+        accuracy = net_sys.accuracy,
+        contingency_count = 0,
+        interval_id = net_sys.interval_id,
+        last_flag = net_sys.last_flag,
+        solver_choice = net_sys.solver_choice,
+        data_path = data_path,
+        case_name = case_name,
+        case_format = :custom  # Since system is pre-populated
+    )
+    
+    push!(network.outaged_line, net_sys.outaged_line)
+    
+    # Check if system is populated and sync components
+    if check_system_population(net_sys)
+        println("Using pre-populated PowerLASCOPFSystem...")
+        update_network_counts_from_system!(network)
+        sync_nodes_from_system!(network)
+        sync_transmission_lines_from_system!(network)
+        sync_generators_from_system!(network)
+        sync_loads_from_system!(network)
+        initialize_coordination_variables!(network)
+    else
+        # System is not fully populated, need to load data
+        println("System not fully populated, loading missing components...")
+        set_network_variables!(network)
+    end
+    
+    return network
 end
 
 """
@@ -273,7 +465,7 @@ function load_transmission_data!(network::Network)
     end
     
     # Store outaged lines for contingency analysis
-    if network.pre_post_cont_scen == 0
+    if network.pre_post_cont_scen == false
         for (idx, line) in enumerate(lines)
             if haskey(IS.get_ext(line.transl_type), "contingency_marked") && 
                IS.get_ext(line.transl_type)["contingency_marked"] == 1
@@ -431,11 +623,11 @@ Initialize ADMM/APP coordination variables
 """
 function initialize_coordination_variables!(network::Network)
     # Calculate device terminal count
-    network.device_term_count = if (network.pre_post_cont_scen == 0) && (network.post_cont_scenario == 0)
+    network.device_term_count = if (network.pre_post_cont_scen == false) && (network.post_cont_scenario == 0)
         network.gen_number + network.load_number + 2 * network.transl_number
-    elseif (network.pre_post_cont_scen == 0) && (network.post_cont_scenario != 0)
+    elseif (network.pre_post_cont_scen == false) && (network.post_cont_scenario != 0)
         network.gen_number + network.load_number + 2 * (network.transl_number - 1)
-    elseif (network.pre_post_cont_scen != 0) && (network.post_cont_scenario == 0)
+    elseif (network.pre_post_cont_scen != false) && (network.post_cont_scenario == 0)
         network.gen_number + network.load_number + 2 * (network.transl_number - 1)
     else
         network.gen_number + network.load_number + 2 * (network.transl_number - 2)

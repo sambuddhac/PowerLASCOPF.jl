@@ -13,6 +13,7 @@ include("network.jl")
     # Core properties
     network_id::Int
     cont_net_vector::Vector{PowerLASCOPFSystem} = PowerLASCOPFSystem[]
+    net_object_vec::Vector{Network} = Network[]
     solver_choice::Int = 1
     set_rho_tuning::Float64 = 1.0
     post_contingency::Int = 0
@@ -45,63 +46,69 @@ end
 
 # Separate factory function for initialization logic
 function initialize_supernetwork!(
-    psy_system::PSY.System,
+    pre_post_scenario::Bool,
+    powerlascopf_system::PowerLASCOPFSystem,
     super_net::SuperNetwork;
     build_contingencies::Bool = true
 )
     println("\n*** NETWORK INITIALIZATION STAGE BEGINS ***\n")
     
     # Create base network instance
-    base_system = PowerLASCOPFSystem(
-        psy_system = psy_system,
+    network_object_base = create_network_from_system(
+        sys = powerlascopf_system,
         network_id = super_net.network_id,
-        post_contingency_scenario = super_net.post_contingency,
         scenario_index = 0,
+        post_contingency_scenario = super_net.post_contingency,
+        pre_post_cont_scen = pre_post_scenario,  # Use the parameter passed to this function
+        dummy_zero_flag = 0,
+        accuracy = 1,
         interval_id = super_net.interval_count,
         last_flag = super_net.last_interval,
         outaged_line = super_net.outaged_line,
-        solver_choice = super_net.solver_choice,
-        dummy_zero_flag = 0,  # You'll need to pass this if needed
-        accuracy = 1,  # You'll need to pass this if needed
-        rnd_intervals = super_net.rnd_intervals,
-        rsd_intervals = super_net.rsd_intervals
+        base_outaged_line = super_net.outaged_line,
+        contingency_count = super_net.number_of_cont,
+        solver_choice = super_net.solver_choice
     )
 
-    #=network_object_base = network_init_var(base_system, 
-        super_net.network_id, super_net.post_contingency, 
-        0, 
-        :matpower
+    #=network_object_base = network_init_var(pre_post_scenario; 
+                                        net_sys = powerlascopf_system
     )=#
     
     # Add base network to vector
-    push!(super_net.cont_net_vector, base_system)
+    push!(super_net.cont_net_vector, powerlascopf_system)
+    push!(super_net.net_object_vec, network_object_base)
     
     # Get contingency count from base network
-    super_net.number_of_cont = base_system.contingency_count
+    super_net.number_of_cont = network_object_base.contingency_count
     
     # Create contingency network instances if requested
     if build_contingencies && 
-       ((super_net.interval_count <= 0) || 
+       ((super_net.interval_count == 0) || 
         (super_net.interval_count == (super_net.rnd_intervals + super_net.rsd_intervals)))
         
         for i in 1:super_net.number_of_cont
             if i != super_net.post_contingency
-                line_outaged = get_outaged_line_index(base_system, i)
+                line_outaged = get_outaged_line_index(network_object_base, i)
                 if line_outaged != super_net.outaged_line
-                    cont_system = PowerLASCOPFSystem(
+                    network_object_cont = create_network_from_system(
+                        sys = powerlascopf_system,
                         network_id = super_net.network_id,
-                        post_contingency_scenario = super_net.post_contingency,
                         scenario_index = i,
-                        interval_id = super_net.interval_count,
-                        last_flag = super_net.last_interval,
-                        outaged_line = line_outaged,
-                        solver_choice = super_net.solver_choice,
+                        post_contingency_scenario = super_net.post_contingency,
+                        pre_post_cont_scen = pre_post_scenario,  # Use the parameter passed to this function
                         dummy_zero_flag = 0,
                         accuracy = 1,
-                        rnd_intervals = super_net.rnd_intervals,
-                        rsd_intervals = super_net.rsd_intervals
+                        interval_id = super_net.interval_count,
+                        last_flag = super_net.last_interval,
+                        base_outaged_line = super_net.outaged_line,
+                        contingency_count = super_net.number_of_cont,
+                        solver_choice = super_net.solver_choice,
                     )
-                    push!(super_net.cont_net_vector, cont_system)
+                    #=network_object_cont = network_init_var(pre_post_scenario; 
+                                                        net_sys = cont_system
+                    )   =#
+                    #push!(super_net.cont_net_vector, cont_system)
+                    push!(super_net.net_object_vec, network_object_cont)
                 end
             end
         end
@@ -110,16 +117,53 @@ function initialize_supernetwork!(
     println("\n*** NETWORK INITIALIZATION STAGE ENDS ***\n")
     
     # Update dimensions based on network information
-    super_net.number_of_generators = get_extended_thermal_generator_count(base_system)
-    super_net.number_of_trans_lines = get_transmission_line_count(base_system)
+    super_net.number_of_generators = get_extended_thermal_generator_count(powerlascopf_system)
+    super_net.number_of_trans_lines = get_transmission_line_count(powerlascopf_system)
     super_net.cons_lag_dim = super_net.number_of_cont * super_net.number_of_generators
     
     return super_net
 end
 
+#="""
+Ensure type identity for PowerLASCOPFSystem across different module contexts
+"""
+function ensure_powerlascopf_system_type(sys)
+    # If it's already the correct type, return it
+    if sys isa PowerLASCOPFSystem
+        return sys
+    end
+    
+    # If it's a qualified version from Main, we need to handle it
+    # Check if it has all the required fields
+    if hasproperty(sys, :psy_system) && 
+       hasproperty(sys, :nodes) && 
+       hasproperty(sys, :extended_thermal_generators)
+        
+        # Create a new instance with the correct type
+        new_sys = PowerLASCOPFSystem(
+            psy_system = sys.psy_system,
+            network_id = sys.network_id
+        )
+        
+        # Copy all the vectors
+        append!(new_sys.nodes, sys.nodes)
+        append!(new_sys.extended_thermal_generators, sys.extended_thermal_generators)
+        append!(new_sys.extended_hydro_generators, sys.extended_hydro_generators)
+        append!(new_sys.extended_renewable_generators, sys.extended_renewable_generators)
+        append!(new_sys.extended_storage_units, sys.extended_storage_generators)
+        append!(new_sys.transmission_lines, sys.transmission_lines)
+        append!(new_sys.extended_loads, sys.extended_loads)
+        
+        return new_sys
+    end
+    
+    error("Cannot convert $(typeof(sys)) to PowerLASCOPFSystem")
+end=#
+
 # Convenient constructor function that combines creation and initialization
 function create_supernetwork_object(;
-    psy_system::PSY.System,
+    powerlascopf_system,#::PowerLASCOPFSystem,
+    pre_post_scenario::Bool,
     network_id::Int,
     solver_choice::Int = 1,
     set_rho_tuning::Float64 = 1.0,
@@ -133,6 +177,10 @@ function create_supernetwork_object(;
     build_contingencies::Bool = true,
     kwargs...  # Catch any extra parameters
 )
+
+    # Convert to the correct type if needed
+    #corrected_system = ensure_powerlascopf_system_type(powerlascopf_system)
+
     # Create the struct with basic parameters
     super_net = SuperNetwork(;
         network_id = network_id,
@@ -148,7 +196,7 @@ function create_supernetwork_object(;
     )
     
     # Initialize with network building logic
-    initialize_supernetwork!(psy_system, super_net; build_contingencies = build_contingencies)
+    initialize_supernetwork!(pre_post_scenario, powerlascopf_system, super_net; build_contingencies = build_contingencies)
     
     return super_net
 end
