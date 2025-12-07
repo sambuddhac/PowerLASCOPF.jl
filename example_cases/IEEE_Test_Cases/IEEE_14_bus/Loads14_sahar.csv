@@ -1,0 +1,4 @@
+LoadName,BusNumber,Available,ActivePower,ReactivePower,BasePower,MaxActivePower,MaxReactivePower
+Bus2,2,true,3.0,0.9861,100.0,3.0,0.9861
+Bus3,3,true,3.0,0.9861,100.0,3.0,0.9861
+Bus4,4,true,4.0,1.3147,100.0,4.0,1.3147

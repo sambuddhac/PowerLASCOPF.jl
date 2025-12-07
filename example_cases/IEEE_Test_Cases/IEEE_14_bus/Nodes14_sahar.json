@@ -1,0 +1,16 @@
+[
+  {"BusNumber": 1, "BusName": "nodeA", "BusType": "REF", "Angle": 0, "Voltage": 1.0, "VoltageMin": 0.9, "VoltageMax": 1.05, "BaseVoltage": 230},
+  {"BusNumber": 2, "BusName": "nodeB", "BusType": "PV", "Angle": 0, "Voltage": 1.0, "VoltageMin": 0.9, "VoltageMax": 1.05, "BaseVoltage": 230},
+  {"BusNumber": 3, "BusName": "nodeC", "BusType": "PV", "Angle": 0, "Voltage": 1.0, "VoltageMin": 0.9, "VoltageMax": 1.05, "BaseVoltage": 230},
+  {"BusNumber": 4, "BusName": "nodeD", "BusType": "PQ", "Angle": 0, "Voltage": 1.0, "VoltageMin": 0.9, "VoltageMax": 1.05, "BaseVoltage": 230},
+  {"BusNumber": 5, "BusName": "nodeE", "BusType": "PQ", "Angle": 0, "Voltage": 1.0, "VoltageMin": 0.9, "VoltageMax": 1.05, "BaseVoltage": 230},
+  {"BusNumber": 6, "BusName": "nodeF", "BusType": "PV", "Angle": 0, "Voltage": 1.0, "VoltageMin": 0.9, "VoltageMax": 1.05, "BaseVoltage": 230},
+  {"BusNumber": 7, "BusName": "nodeG", "BusType": "PQ", "Angle": 0, "Voltage": 1.0, "VoltageMin": 0.9, "VoltageMax": 1.05, "BaseVoltage": 230},
+  {"BusNumber": 8, "BusName": "nodeH", "BusType": "PV", "Angle": 0, "Voltage": 1.0, "VoltageMin": 0.9, "VoltageMax": 1.05, "BaseVoltage": 230},
+  {"BusNumber": 9, "BusName": "nodeI", "BusType": "PQ", "Angle": 0, "Voltage": 1.0, "VoltageMin": 0.9, "VoltageMax": 1.05, "BaseVoltage": 230},
+  {"BusNumber": 10, "BusName": "nodeJ", "BusType": "PQ", "Angle": 0, "Voltage": 1.0, "VoltageMin": 0.9, "VoltageMax": 1.05, "BaseVoltage": 230},
+  {"BusNumber": 11, "BusName": "nodeK", "BusType": "PQ", "Angle": 0, "Voltage": 1.0, "VoltageMin": 0.9, "VoltageMax": 1.05, "BaseVoltage": 230},
+  {"BusNumber": 12, "BusName": "nodeL", "BusType": "PQ", "Angle": 0, "Voltage": 1.0, "VoltageMin": 0.9, "VoltageMax": 1.05, "BaseVoltage": 230},
+  {"BusNumber": 13, "BusName": "nodeM", "BusType": "PQ", "Angle": 0, "Voltage": 1.0, "VoltageMin": 0.9, "VoltageMax": 1.05, "BaseVoltage": 230},
+  {"BusNumber": 14, "BusName": "nodeN", "BusType": "PQ", "Angle": 0, "Voltage": 1.0, "VoltageMin": 0.9, "VoltageMax": 1.05, "BaseVoltage": 230}
+]

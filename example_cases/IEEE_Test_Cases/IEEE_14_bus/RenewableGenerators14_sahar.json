@@ -1,0 +1,47 @@
+[
+  {
+    "GeneratorName": "WindBusA",
+    "BusNumber": 5,
+    "GeneratorType": "RenewableDispatch",
+    "Available": true,
+    "ActivePower": 0.0,
+    "ReactivePower": 0.0,
+    "Rating": 1.200,
+    "PrimeMover": "WT",
+    "ReactivePowerMin": 0.0,
+    "ReactivePowerMax": 0.0,
+    "PowerFactor": 1.0,
+    "CostCurve_b": 0.22,
+    "BasePower": 100.0
+  },
+  {
+    "GeneratorName": "WindBusB",
+    "BusNumber": 4,
+    "GeneratorType": "RenewableDispatch",
+    "Available": true,
+    "ActivePower": 0.0,
+    "ReactivePower": 0.0,
+    "Rating": 1.200,
+    "PrimeMover": "WT",
+    "ReactivePowerMin": 0.0,
+    "ReactivePowerMax": 0.0,
+    "PowerFactor": 1.0,
+    "CostCurve_b": 0.22,
+    "BasePower": 100.0
+  },
+  {
+    "GeneratorName": "WindBusC",
+    "BusNumber": 3,
+    "GeneratorType": "RenewableDispatch",
+    "Available": true,
+    "ActivePower": 0.0,
+    "ReactivePower": 0.0,
+    "Rating": 1.20,
+    "PrimeMover": "WT",
+    "ReactivePowerMin": -0.800,
+    "ReactivePowerMax": 0.800,
+    "PowerFactor": 1.0,
+    "CostCurve_b": 0.22,
+    "BasePower": 100.0
+  }
+]

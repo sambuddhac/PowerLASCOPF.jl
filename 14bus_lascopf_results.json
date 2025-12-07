@@ -1,0 +1,279 @@
+{
+  "system_name": "14-Bus Test System",
+  "system_summary": {
+    "nodes": 14,
+    "scenarios": 2,
+    "branches": 16,
+    "thermal_generators": 5,
+    "loads": 3,
+    "renewable_generators": 3,
+    "hydro_generators": 5
+  },
+  "results": {
+    "generator_solutions": {
+      "thermal_3": {
+        "name": "nodeC_Gen",
+        "power": 0.6,
+        "node": 3,
+        "angle": 9.31887e-319
+      },
+      "thermal_4": {
+        "name": "nodeF_Gen",
+        "power": 0.6,
+        "node": 6,
+        "angle": 9.319e-319
+      },
+      "thermal_2": {
+        "name": "nodeB_Gen",
+        "power": 0.84,
+        "node": 2,
+        "angle": 9.3191e-319
+      },
+      "thermal_1": {
+        "name": "nodeA_Gen",
+        "power": 1.9991999999999999,
+        "node": 1,
+        "angle": 5.0e-324
+      },
+      "thermal_5": {
+        "name": "nodeH_Gen",
+        "power": 0.6,
+        "node": 8,
+        "angle": 3.0e-323
+      }
+    },
+    "iterations": 15,
+    "line_solutions": {
+      "line_13": {
+        "name": "Line12",
+        "flow_2to1": -1.04,
+        "angle_1": 0.0,
+        "flow_1to2": 1.04,
+        "angle_2": 0.0
+      },
+      "line_2": {
+        "name": "Line2",
+        "flow_2to1": -0.16,
+        "angle_1": 0.0,
+        "flow_1to2": 0.16,
+        "angle_2": 0.0
+      },
+      "line_11": {
+        "name": "Line16",
+        "flow_2to1": -0.88,
+        "angle_1": 0.0,
+        "flow_1to2": 0.88,
+        "angle_2": 0.0
+      },
+      "line_12": {
+        "name": "Line11",
+        "flow_2to1": -0.96,
+        "angle_1": 0.0,
+        "flow_1to2": 0.96,
+        "angle_2": 0.0
+      },
+      "line_6": {
+        "name": "Line6",
+        "flow_2to1": -0.48,
+        "angle_1": 0.0,
+        "flow_1to2": 0.48,
+        "angle_2": 0.0
+      },
+      "line_3": {
+        "name": "Line3",
+        "flow_2to1": -0.24,
+        "angle_1": 0.0,
+        "flow_1to2": 0.24,
+        "angle_2": 0.0
+      },
+      "line_8": {
+        "name": "Line8",
+        "flow_2to1": -0.64,
+        "angle_1": 0.0,
+        "flow_1to2": 0.64,
+        "angle_2": 0.0
+      },
+      "line_15": {
+        "name": "Line14",
+        "flow_2to1": -1.2,
+        "angle_1": 0.0,
+        "flow_1to2": 1.2,
+        "angle_2": 0.0
+      },
+      "line_4": {
+        "name": "Line4",
+        "flow_2to1": -0.32,
+        "angle_1": 0.0,
+        "flow_1to2": 0.32,
+        "angle_2": 0.0
+      },
+      "line_5": {
+        "name": "Line5",
+        "flow_2to1": -0.4,
+        "angle_1": 0.0,
+        "flow_1to2": 0.4,
+        "angle_2": 0.0
+      },
+      "line_1": {
+        "name": "Line1",
+        "flow_2to1": -0.08,
+        "angle_1": 0.0,
+        "flow_1to2": 0.08,
+        "angle_2": 0.0
+      },
+      "line_14": {
+        "name": "Line13",
+        "flow_2to1": -1.12,
+        "angle_1": 0.0,
+        "flow_1to2": 1.12,
+        "angle_2": 0.0
+      },
+      "line_9": {
+        "name": "Line9",
+        "flow_2to1": -0.72,
+        "angle_1": 0.0,
+        "flow_1to2": 0.72,
+        "angle_2": 0.0
+      },
+      "line_10": {
+        "name": "Line10",
+        "flow_2to1": -0.8,
+        "angle_1": 0.0,
+        "flow_1to2": 0.8,
+        "angle_2": 0.0
+      },
+      "line_16": {
+        "name": "Line15",
+        "flow_2to1": -1.28,
+        "angle_1": 0.0,
+        "flow_1to2": 1.28,
+        "angle_2": 0.0
+      },
+      "line_7": {
+        "name": "Line7",
+        "flow_2to1": -0.56,
+        "angle_1": 0.0,
+        "flow_1to2": 0.56,
+        "angle_2": 0.0
+      }
+    },
+    "renewable_solutions": {
+      "renewable_3": {
+        "name": "WindBusC",
+        "power": 0.84,
+        "node": 11,
+        "angle": 3.0e-323
+      },
+      "renewable_1": {
+        "name": "WindBusA",
+        "power": 0.84,
+        "node": 5,
+        "angle": 1.91663e-319
+      },
+      "renewable_2": {
+        "name": "WindBusB",
+        "power": 0.84,
+        "node": 9,
+        "angle": 5.0e-324
+      }
+    },
+    "status": "FEASIBLE",
+    "hydro_solutions": {
+      "hydro_2": {
+        "name": "HydroEnergyReservoir_1",
+        "power": 3.5,
+        "node": 7,
+        "angle": 2.1219957984e-314
+      },
+      "hydro_3": {
+        "name": "HydroDispatch_2 ",
+        "power": 3.0,
+        "node": 4,
+        "angle": 1.1745805378433e-311
+      },
+      "hydro_4": {
+        "name": "HydroEnergyReservoir_2",
+        "power": 3.5,
+        "node": 7,
+        "angle": 3.0e-323
+      },
+      "hydro_5": {
+        "name": "HydroPumpedStorage",
+        "power": 2.5,
+        "node": 10,
+        "angle": 7.08e-320
+      },
+      "hydro_1": {
+        "name": "HydroDispatch_1",
+        "power": 3.0,
+        "node": 4,
+        "angle": 8.321e-320
+      }
+    },
+    "convergence_history": [
+      {
+        "iteration": 1,
+        "residual": 0.3552963694000835
+      },
+      {
+        "iteration": 2,
+        "residual": 0.3552963694000835
+      },
+      {
+        "iteration": 3,
+        "residual": 0.3552963694000835
+      },
+      {
+        "iteration": 4,
+        "residual": 0.3552963694000835
+      },
+      {
+        "iteration": 5,
+        "residual": 0.3552963694000835
+      },
+      {
+        "iteration": 6,
+        "residual": 0.3552963694000835
+      },
+      {
+        "iteration": 7,
+        "residual": 0.3552963694000835
+      },
+      {
+        "iteration": 8,
+        "residual": 0.3552963694000835
+      },
+      {
+        "iteration": 9,
+        "residual": 0.3552963694000835
+      },
+      {
+        "iteration": 10,
+        "residual": 0.3552963694000835
+      },
+      {
+        "iteration": 11,
+        "residual": 0.3552963694000835
+      },
+      {
+        "iteration": 12,
+        "residual": 0.3552963694000835
+      },
+      {
+        "iteration": 13,
+        "residual": 0.3552963694000835
+      },
+      {
+        "iteration": 14,
+        "residual": 0.3552963694000835
+      },
+      {
+        "iteration": 15,
+        "residual": 0.3552963694000835
+      }
+    ],
+    "objective_value": 306.77599999999995,
+    "solve_time": 0.2589998245239258
+  },
+  "timestamp": "2025-11-28T17:03:49.452"
+}
