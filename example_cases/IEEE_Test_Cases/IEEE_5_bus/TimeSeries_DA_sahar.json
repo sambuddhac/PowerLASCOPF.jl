@@ -1,0 +1,220 @@
+{
+  "DayAhead": [
+    {
+      "Hour": 1,
+      "Solar": 0,
+      "Wind": 0.985205412,
+      "HydroInflow": 0.314300,
+      "LoadBus2": 0.792729978,
+      "LoadBus3": 0.831093782,
+      "LoadBus4": 0.871297342
+    },
+    {
+      "Hour": 2,
+      "Solar": 0,
+      "Wind": 0.991791369,
+      "HydroInflow": 0.386684,
+      "LoadBus2": 0.723201574,
+      "LoadBus3": 0.689863228,
+      "LoadBus4": 0.670489749
+    },
+    {
+      "Hour": 3,
+      "Solar": 0,
+      "Wind": 0.997654144,
+      "HydroInflow": 0.228582,
+      "LoadBus2": 0.710952098,
+      "LoadBus3": 0.666058513,
+      "LoadBus4": 0.642812243
+    },
+    {
+      "Hour": 4,
+      "Solar": 0,
+      "Wind": 1,
+      "HydroInflow": 0.226677,
+      "LoadBus2": 0.677672816,
+      "LoadBus3": 0.627033103,
+      "LoadBus4": 0.630092987
+    },
+    {
+      "Hour": 5,
+      "Solar": 0,
+      "Wind": 0.998663733,
+      "HydroInflow": 0.222867,
+      "LoadBus2": 0.668249175,
+      "LoadBus3": 0.624901388,
+      "LoadBus4": 0.652991383
+    },
+    {
+      "Hour": 6,
+      "Solar": 0,
+      "Wind": 0.995497149,
+      "HydroInflow": 0.129530,
+      "LoadBus2": 0.67166919,
+      "LoadBus3": 0.62858924,
+      "LoadBus4": 0.671971681
+    },
+    {
+      "Hour": 7,
+      "Solar": 0,
+      "Wind": 0.992414567,
+      "HydroInflow": 0.144768,
+      "LoadBus2": 0.687608809,
+      "LoadBus3": 0.650734211,
+      "LoadBus4": 0.716278493
+    },
+    {
+      "Hour": 8,
+      "Solar": 0,
+      "Wind": 0.98252418,
+      "HydroInflow": 0.365731,
+      "LoadBus2": 0.711821241,
+      "LoadBus3": 0.683424321,
+      "LoadBus4": 0.770885833
+    },
+    {
+      "Hour": 9,
+      "Solar": 0,
+      "Wind": 0.957203427,
+      "HydroInflow": 0.207628,
+      "LoadBus2": 0.756320618,
+      "LoadBus3": 0.750876413,
+      "LoadBus4": 0.810075243
+    },
+    {
+      "Hour": 10,
+      "Solar": 0.351105684,
+      "Wind": 0.927650911,
+      "HydroInflow": 0.622885,
+      "LoadBus2": 0.7984057,
+      "LoadBus3": 0.828347191,
+      "LoadBus4": 0.85562361
+    },
+    {
+      "Hour": 11,
+      "Solar": 0.632536266,
+      "Wind": 0.907181989,
+      "HydroInflow": 0.670507,
+      "LoadBus2": 0.827836527,
+      "LoadBus3": 0.884248576,
+      "LoadBus4": 0.892440566
+    },
+    {
+      "Hour": 12,
+      "Solar": 0.99463925,
+      "Wind": 0.889095913,
+      "HydroInflow": 0.676221,
+      "LoadBus2": 0.840362459,
+      "LoadBus3": 0.888523615,
+      "LoadBus4": 0.910660449
+    },
+    {
+      "Hour": 13,
+      "Solar": 1,
+      "Wind": 0.848186718,
+      "HydroInflow": 0.668602,
+      "LoadBus2": 0.84511032,
+      "LoadBus3": 0.87752169,
+      "LoadBus4": 0.922135467
+    },
+    {
+      "Hour": 14,
+      "Solar": 0.944237283,
+      "Wind": 0.766813846,
+      "HydroInflow": 0.407638,
+      "LoadBus2": 0.834592803,
+      "LoadBus3": 0.847534405,
+      "LoadBus4": 0.898416969
+    },
+    {
+      "Hour": 15,
+      "Solar": 0.396681234,
+      "Wind": 0.654052531,
+      "HydroInflow": 0.321919,
+      "LoadBus2": 0.822949221,
+      "LoadBus3": 0.8227661,
+      "LoadBus4": 0.879816542
+    },
+    {
+      "Hour": 16,
+      "Solar": 0.366511428,
+      "Wind": 0.525336131,
+      "HydroInflow": 0.369541,
+      "LoadBus2": 0.816941743,
+      "LoadBus3": 0.803809323,
+      "LoadBus4": 0.896390855
+    },
+    {
+      "Hour": 17,
+      "Solar": 0.155125829,
+      "Wind": 0.396098004,
+      "HydroInflow": 0.287632,
+      "LoadBus2": 0.824079963,
+      "LoadBus3": 0.813282799,
+      "LoadBus4": 0.978598576
+    },
+    {
+      "Hour": 18,
+      "Solar": 0.040872694,
+      "Wind": 0.281771509,
+      "HydroInflow": 0.449544,
+      "LoadBus2": 0.905735139,
+      "LoadBus3": 0.907575962,
+      "LoadBus4": 0.96523761
+    },
+    {
+      "Hour": 19,
+      "Solar": 0,
+      "Wind": 0.197790004,
+      "HydroInflow": 0.630505,
+      "LoadBus2": 0.989967048,
+      "LoadBus3": 0.98679848,
+      "LoadBus4": 1
+    },
+    {
+      "Hour": 20,
+      "Solar": 0,
+      "Wind": 0.153241012,
+      "HydroInflow": 0.731462,
+      "LoadBus2": 1,
+      "LoadBus3": 1,
+      "LoadBus4": 0.969626503
+    },
+    {
+      "Hour": 21,
+      "Solar": 0,
+      "Wind": 0.131355854,
+      "HydroInflow": 0.777178,
+      "LoadBus2": 0.991227765,
+      "LoadBus3": 0.990489904,
+      "LoadBus4": 0.901212601
+    },
+    {
+      "Hour": 22,
+      "Solar": 0,
+      "Wind": 0.113688144,
+      "HydroInflow": 0.712413,
+      "LoadBus2": 0.960842114,
+      "LoadBus3": 0.952520972,
+      "LoadBus4": 0.81894251
+    },
+    {
+      "Hour": 23,
+      "Solar": 0,
+      "Wind": 0.099302656,
+      "HydroInflow": 0.780988,
+      "LoadBus2": 0.921465115,
+      "LoadBus3": 0.906611479,
+      "LoadBus4": 0.771004923
+    },
+    {
+      "Hour": 24,
+      "Solar": 0,
+      "Wind": 0.069569628,
+      "HydroInflow": 0.190485,
+      "LoadBus2": 0.837001437,
+      "LoadBus3": 0.824307054,
+      "LoadBus4": 0.717847996
+    }
+  ]
+}
