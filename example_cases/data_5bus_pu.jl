@@ -323,6 +323,15 @@ branches5_ml(nodes5) = [
     ),
 ];
 
+branches_5_contingency_list() = [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+];
+
 solar_ts_DA = [
     0
     0
@@ -1512,7 +1521,9 @@ function powerlascopf_branches5!(system::PowerLASCOPF.PowerLASCOPFSystem, nodes:
     #Get the buses that are already in the system
     existing_buses = [node.node_type for node in nodes]
     psy_branches = branches5(existing_buses)
+    contingency_list = branches_5_contingency_list()
     transmission_lines = PowerLASCOPF.transmissionLine[]
+    contingency_tracker = 0
     
     for (i, branch) in enumerate(psy_branches)
         if isa(branch, PSY.Line)
@@ -1522,6 +1533,15 @@ function powerlascopf_branches5!(system::PowerLASCOPF.PowerLASCOPFSystem, nodes:
             
             from_node = findfirst(n -> PSY.get_name(n.node_type) == from_bus_name, nodes)
             to_node = findfirst(n -> PSY.get_name(n.node_type) == to_bus_name, nodes)
+
+            if i in contingency_list
+                println("Branch $(i) is in the contingency list.")
+                log_info("Branch $(i) is in the contingency list.")
+                contingency_tracker += 1
+                temp_tracker = contingency_tracker
+            else
+                temp_tracker = 0
+            end
 
             # Create PowerLASCOPF.LineSolverBase for the line
             solver_base = PowerLASCOPF.LineSolverBase(
@@ -1550,7 +1570,7 @@ function powerlascopf_branches5!(system::PowerLASCOPF.PowerLASCOPFSystem, nodes:
                 transl_id = i,
                 conn_nodet1_ptr = nodes[from_node],
                 conn_nodet2_ptr = nodes[to_node],
-                cont_scen_tracker = 0,
+                cont_scen_tracker = temp_tracker,
                 thetat1 = 0.0,
                 thetat2 = 0.0,
                 pt1 = 0.0,
@@ -1571,6 +1591,15 @@ function powerlascopf_branches5!(system::PowerLASCOPF.PowerLASCOPFSystem, nodes:
             
             from_node = findfirst(n -> PSY.get_name(n.bus_data) == from_bus_name, nodes)
             to_node = findfirst(n -> PSY.get_name(n.bus_data) == to_bus_name, nodes)
+
+            if i in contingency_list
+                println("Branch $(i) is in the contingency list.")
+                log_info("Branch $(i) is in the contingency list.")
+                contingency_tracker += 1
+                temp_tracker = contingency_tracker
+            else
+                temp_tracker = 0
+            end
             
             solver_base = PowerLASCOPF.LineSolverBase(
                 lambda_txr = [0.0],
@@ -1590,7 +1619,7 @@ function powerlascopf_branches5!(system::PowerLASCOPF.PowerLASCOPFSystem, nodes:
                 transl_id = i,
                 conn_nodet1_ptr = nodes[from_node],
                 conn_nodet2_ptr = nodes[to_node],
-                cont_scen_tracker = 0,
+                cont_scen_tracker = temp_tracker,
                 thetat1 = 0.0,
                 thetat2 = 0.0,
                 pt1 = 0.0,
@@ -2621,7 +2650,7 @@ Function to create SuperNetwork objects for PowerLASCOPF systems
 Returns a vector of SuperNetwork objects based on the intervals and contingencies
 """
 function create_supernetwork(system::PowerLASCOPF.PowerLASCOPFSystem, system_data::Dict; 
-    number_of_cont::Int = 2,
+    number_of_cont::Int = 6,
     rnd_intervals::Int = 6,
     rsd_intervals::Int = 6,
     include_dummy_zero::Bool = false,
@@ -2631,6 +2660,20 @@ function create_supernetwork(system::PowerLASCOPF.PowerLASCOPFSystem, system_dat
     kwargs...)
     
     println("Creating SuperNetwork objects for PowerLASCOPF system...")
+
+    # Validate contingency scenarios before proceeding
+    validate_contingency_scenarios(number_of_cont)
+    
+    # Get all contingency mappings for reference
+    contingency_map = get_all_contingency_mappings()
+    println("Available contingency scenarios:")
+    for (scenario, line) in sort(collect(contingency_map))
+        if scenario == 0
+            println("  Scenario $scenario: Base case (no outage)")
+        else
+            println("  Scenario $scenario: Line $line outaged")
+        end
+    end
     
     # Calculate total number of SuperNetwork objects needed
     total_intervals = rnd_intervals + rsd_intervals
@@ -2670,6 +2713,8 @@ function create_supernetwork(system::PowerLASCOPF.PowerLASCOPFSystem, system_dat
         
         # For dummy interval, create only one network
         if disp_interval < 0
+            println("\n  Creating dummy interval network (ID: $network_id_counter)")
+
             super_net = PowerLASCOPF.create_supernetwork_object(
                 powerlascopf_system = system,
                 pre_post_scenario = false,        # Indicate dummy interval
@@ -2701,6 +2746,9 @@ function create_supernetwork(system::PowerLASCOPF.PowerLASCOPFSystem, system_dat
             
         elseif disp_interval == 0
             # For regular intervals, create base case network
+            # Forthcoming interval - create base case only
+            println("\n  Creating forthcoming interval $disp_interval (Base case, ID: $network_id_counter)")
+            
             base_super_net = PowerLASCOPF.create_supernetwork_object(
                 powerlascopf_system = system,
                 pre_post_scenario = false,
@@ -2730,8 +2778,31 @@ function create_supernetwork(system::PowerLASCOPF.PowerLASCOPFSystem, system_dat
             push!(supernetworks, base_super_net)
             network_id_counter += 1
         else
+            # Regular intervals - create base case + contingency scenarios
+            println("\n  Creating interval $disp_interval networks:")
+            
+            # Base case (contingency scenario 0)
+            println("    - Base case (ID: $network_id_counter)")
+            base_super_net = PowerLASCOPF.create_supernetwork_object(
+                powerlascopf_system = system,
+                pre_post_scenario = false,
+                network_id = network_id_counter,
+                solver_choice = choice_solver,
+                set_rho_tuning = rho_tuning,
+                post_contingency = 0,
+                interval_count = disp_interval,
+                interval_class = interval_class,
+                rnd_intervals = rnd_intervals,
+                rsd_intervals = rsd_intervals,
+                last_interval = last_flag,
+                outaged_line = 0,  # No outage for base case
+                number_of_cont = number_of_cont
+            )
+            push!(supernetworks, base_super_net)
+            network_id_counter += 1
+
             # Create contingency scenario networks for this interval
-            for cont_scenario in 0:number_of_cont
+            for cont_scenario in 1:number_of_cont
                 # Determine outaged line for this contingency
                 outaged_line = get_outaged_line_for_contingency(cont_scenario)
                 
@@ -2767,30 +2838,98 @@ function create_supernetwork(system::PowerLASCOPF.PowerLASCOPFSystem, system_dat
         end
     end
     
-    println("Created $(length(supernetworks)) SuperNetwork objects:")
+    println("\n✓ Created $(length(supernetworks)) SuperNetwork objects")
+    
+    # Print summary
+    println("\nSuperNetwork Summary:")
     for (i, snet) in enumerate(supernetworks)
-        println("  [$i] Network ID: $(snet.network_id), Interval: $(snet.interval_count), " * 
-                "Post-cont: $(snet.post_contingency), Class: $(snet.interval_class)")
+        interval_type = if snet.interval_count < 0
+            "Dummy"
+        elseif snet.interval_count == 0
+            "Forthcoming"
+        elseif snet.interval_count == total_intervals
+            "Last"
+        else
+            "Subsequent"
+        end
+        
+        contingency_desc = if snet.post_contingency == 0
+            "Base case"
+        else
+            "Contingency $(snet.post_contingency) (Line $(snet.outaged_line))"
+        end
+        
+        println("  [$i] ID=$(snet.network_id), Interval=$(snet.interval_count) ($interval_type), $contingency_desc")
     end
     
     return supernetworks
 end
 
 """
-Helper function to determine outaged line for a given contingency scenario
+Helper function to determine outaged line for a given contingency scenario.
+Creates the mapping dynamically from the contingency list defined in the system.
+Returns 0 for base case (no contingency).
 """
 function get_outaged_line_for_contingency(contingency_index::Int)
-    # Map contingency scenarios to specific transmission lines
-    # This should be based on your actual system topology
-    contingency_line_map = Dict(
-        1 => 1,  # Contingency 1 affects line 1
-        2 => 2,  # Contingency 2 affects line 2
-        3 => 3,  # Contingency 3 affects line 3
-        4 => 4,  # Contingency 4 affects line 4
-        5 => 5,  # Contingency 5 affects line 5
-    )
+    # Return 0 for base case (no outage)
+    if contingency_index == 0
+        return 0
+    end
     
-    return get(contingency_line_map, contingency_index, contingency_index)
+    # Get the contingency list from the system definition
+    contingency_lines = branches_5_contingency_list()
+    
+    # Validate contingency index
+    if contingency_index < 0 || contingency_index > length(contingency_lines)
+        @warn "Invalid contingency index $contingency_index. Valid range: 0-$(length(contingency_lines)). Returning 0 (no outage)."
+        return 0
+    end
+    
+    # Return the line ID for this contingency scenario
+    outaged_line_id = contingency_lines[contingency_index]
+    
+    println("  Contingency $contingency_index: Outaging line $outaged_line_id")
+    
+    return outaged_line_id
+end
+
+"""
+Alternative version that returns a dictionary mapping for all contingencies at once.
+Useful for initialization and validation.
+"""
+function get_all_contingency_mappings()
+    contingency_lines = branches_5_contingency_list()
+    
+    # Create dictionary: contingency_scenario => outaged_line_id
+    contingency_map = Dict{Int, Int}()
+    
+    # Base case (no contingency)
+    contingency_map[0] = 0
+    
+    # Add all contingency scenarios
+    for (idx, line_id) in enumerate(contingency_lines)
+        contingency_map[idx] = line_id
+    end
+    
+    return contingency_map
+end
+
+"""
+Validate that contingency scenarios are consistent with the system definition.
+"""
+function validate_contingency_scenarios(number_of_cont::Int)
+    available_contingencies = length(branches_5_contingency_list())
+    
+    if number_of_cont > available_contingencies
+        error("Requested $number_of_cont contingencies, but only $available_contingencies are defined in branches_5_contingency_list()")
+    end
+    
+    if number_of_cont < 0
+        error("Number of contingencies must be non-negative, got $number_of_cont")
+    end
+    
+    println("✓ Contingency validation passed: Using $number_of_cont out of $available_contingencies available contingencies")
+    return true
 end
 
 """

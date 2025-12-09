@@ -52,8 +52,14 @@ function initialize_supernetwork!(
     build_contingencies::Bool = true
 )
     println("\n*** NETWORK INITIALIZATION STAGE BEGINS ***\n")
+    println("Creating lightweight Network interfaces that reference shared PowerLASCOPFSystem...")
+
+    # Store reference to the shared PowerLASCOPFSystem
+    # All networks in this SuperNetwork will reference THIS SAME system
+    push!(super_net.cont_net_vector, powerlascopf_system)
     
-    # Create base network instance
+    # Create base network interface (scenario 0)
+    println("  Creating base case network interface...")
     network_object_base = create_network_from_system(
         sys = powerlascopf_system,
         network_id = super_net.network_id,
@@ -64,8 +70,8 @@ function initialize_supernetwork!(
         accuracy = 1,
         interval_id = super_net.interval_count,
         last_flag = super_net.last_interval,
-        outaged_line = super_net.outaged_line,
-        base_outaged_line = super_net.outaged_line,
+        outaged_line = 0, #super_net.outaged_line,
+        base_outaged_line = 0, #super_net.outaged_line,
         contingency_count = super_net.number_of_cont,
         solver_choice = super_net.solver_choice
     )
@@ -75,7 +81,7 @@ function initialize_supernetwork!(
     )=#
     
     # Add base network to vector
-    push!(super_net.cont_net_vector, powerlascopf_system)
+    #push!(super_net.cont_net_vector, powerlascopf_system)
     push!(super_net.net_object_vec, network_object_base)
     
     # Get contingency count from base network
@@ -124,45 +130,9 @@ function initialize_supernetwork!(
     return super_net
 end
 
-#="""
-Ensure type identity for PowerLASCOPFSystem across different module contexts
-"""
-function ensure_powerlascopf_system_type(sys)
-    # If it's already the correct type, return it
-    if sys isa PowerLASCOPFSystem
-        return sys
-    end
-    
-    # If it's a qualified version from Main, we need to handle it
-    # Check if it has all the required fields
-    if hasproperty(sys, :psy_system) && 
-       hasproperty(sys, :nodes) && 
-       hasproperty(sys, :extended_thermal_generators)
-        
-        # Create a new instance with the correct type
-        new_sys = PowerLASCOPFSystem(
-            psy_system = sys.psy_system,
-            network_id = sys.network_id
-        )
-        
-        # Copy all the vectors
-        append!(new_sys.nodes, sys.nodes)
-        append!(new_sys.extended_thermal_generators, sys.extended_thermal_generators)
-        append!(new_sys.extended_hydro_generators, sys.extended_hydro_generators)
-        append!(new_sys.extended_renewable_generators, sys.extended_renewable_generators)
-        append!(new_sys.extended_storage_units, sys.extended_storage_generators)
-        append!(new_sys.transmission_lines, sys.transmission_lines)
-        append!(new_sys.extended_loads, sys.extended_loads)
-        
-        return new_sys
-    end
-    
-    error("Cannot convert $(typeof(sys)) to PowerLASCOPFSystem")
-end=#
-
 # Convenient constructor function that combines creation and initialization
 function create_supernetwork_object(;
-    powerlascopf_system,#::PowerLASCOPFSystem,
+    powerlascopf_system::PowerLASCOPFSystem,
     pre_post_scenario::Bool,
     network_id::Int,
     solver_choice::Int = 1,
@@ -178,8 +148,8 @@ function create_supernetwork_object(;
     kwargs...  # Catch any extra parameters
 )
 
-    # Convert to the correct type if needed
-    #corrected_system = ensure_powerlascopf_system_type(powerlascopf_system)
+    # Extract number_of_cont from kwargs with a default value
+    number_of_cont = get(kwargs, :number_of_cont, 0)
 
     # Create the struct with basic parameters
     super_net = SuperNetwork(;
@@ -192,7 +162,8 @@ function create_supernetwork_object(;
         rnd_intervals = rnd_intervals,
         rsd_intervals = rsd_intervals,
         last_interval = last_interval,
-        outaged_line = outaged_line
+        outaged_line = outaged_line,
+        number_of_cont = number_of_cont,  # Will be set during initialization
     )
     
     # Initialize with network building logic

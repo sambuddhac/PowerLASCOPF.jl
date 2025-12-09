@@ -25,6 +25,9 @@ include("../components/ExtendedStorageGenerator.jl")
     extended_renewable_generators::Vector{ExtendedRenewableGenerator} = ExtendedRenewableGenerator[]
     extended_storage_generators::Vector{ExtendedStorageGenerator} = ExtendedStorageGenerator[]
     extended_loads::Vector{Load} = Load[]
+
+    # Outage tracking
+    outaged_line::Vector{Int} = Int[]
     
     # Network properties
     network_id::Int = 0
@@ -116,6 +119,11 @@ function add_transmission_line!(sys::PowerLASCOPFSystem, line::transmissionLine)
         PSY.add_component!(sys.psy_system, line.transl_type)
     end
     
+    #Examine if the line is marked for contingency analysis
+    if line.cont_scen_tracker > 0
+        push!(sys.outaged_line, get_transl_id(line))
+    end
+
     # Add to our extended system
     push!(sys.transmission_lines, line)
     return nothing
@@ -482,38 +490,59 @@ function create_network_from_system(;
     
     # Initialize network variables
     network = Network(
+        # Reference to the shared PowerLASCOPFSystem
         net_sys = sys,
+        
+        # Scenario-specific identifiers
         network_id = network_id,
         scenario_index = scenario_index,
         post_cont_scenario = post_contingency_scenario,
         pre_post_cont_scen = pre_post_cont_scen,
+        
+        # Component counts (cached for quick access)
         gen_number = total_generators,
-        load_number = length(sys.extended_loads),  # TODO: Add load support
+        load_number = length(sys.extended_loads),
         transl_number = length(sys.transmission_lines),
+        node_number = length(sys.nodes),
+        
+        # Scenario-specific settings
         device_term_count = 0,
         dummy_z = dummy_zero_flag,
         accuracy = accuracy,
-        node_number = length(sys.nodes),
         interval_id = interval_id,
         last_flag = last_flag,
         outaged_line_single = outaged_line,
         base_outaged_line = base_outaged_line,
         contingency_count = contingency_count,
         solver_choice = solver_choice,
+
+        # Algorithm parameters
+        rho = 1.0,
+        div_conv_mwpu = 100.0,
         verbose = true,
-        p_self_belief = zeros(Float64, length(sys.extended_thermal_generators)),
-        p_self_belief_inner = zeros(Float64, length(sys.extended_thermal_generators)),
-        p_prev_belief = zeros(Float64, length(sys.extended_thermal_generators)),
-        p_next_belief = zeros(Float64, length(sys.extended_thermal_generators)),
+
+
+         # Scenario-specific state variables (NOT component data)
+        # These are the interface variables for APP/ADMM algorithms
+        p_self_belief = zeros(Float64, total_generators),
+        p_self_belief_inner = zeros(Float64, total_generators),
+        p_prev_belief = zeros(Float64, total_generators),
+        p_next_belief = zeros(Float64, total_generators),
+        p_self_buffer = zeros(Float64, total_generators),
+        p_prev_buffer = zeros(Float64, total_generators),
+        p_next_buffer = zeros(Float64, total_generators),
+
+        # Message passing variables
         conn_node_num_list = Int[],
         node_val_list = Int[],
         assigned_node_ser = 0,
-        p_self_buffer = zeros(Float64, length(sys.extended_thermal_generators)),
-        p_prev_buffer = zeros(Float64, length(sys.extended_thermal_generators)),
-        p_next_buffer = zeros(Float64, length(sys.extended_thermal_generators)),
-        p_self_buffer_gurobi = zeros(Float64, length(sys.extended_thermal_generators)),
-        p_next_buffer_gurobi = zeros(Float64, length(sys.extended_thermal_generators)),
-        p_prev_buffer_gurobi = zeros(Float64, length(sys.extended_thermal_generators)),
+
+        # Performance tracking strings
+        gen_single_time_vec = Float64[],
+        gen_admm_max_time_vec = Float64[],
+        virtual_exec_time = 0.0,
+
+        # Results storage
         matrix_result_string = "",
         dev_prod_string = "",
         iteration_result_string = "",
@@ -521,15 +550,18 @@ function create_network_from_system(;
         objective_result_string = "",
         primal_result_string = "",
         dual_result_string = "",
-        gen_single_time_vec = Float64[],
-        gen_admm_max_time_vec = Float64[],
-        virtual_exec_time = 0.0,
-        div_conv_mwpu = 100.0,
-        gen_object = [],  # Use existing generators
-        load_object = sys.extended_loads,              # Use existing loads
-        transl_object = sys.transmission_lines,        # Use existing lines
-        node_object = sys.nodes  
+        
+        # IMPORTANT: These remain EMPTY - we reference sys components instead
+        gen_object = PowerGenerator[],      # Empty - use sys.extended_thermal_generators etc.
+        load_object = Load[],               # Empty - use sys.extended_loads
+        transl_object = transmissionLine[], # Empty - use sys.transmission_lines
+        node_object = Node[]                # Empty - use sys.nodes
     )
+
+    push!(network.outaged_line, net_sys.outaged_line)
+    # Load network data
+    set_network_variables!(network)
+    
     println("  ✅ Created Network object from PowerLASCOPFSystem")
     println("     - Network ID: $network_id")
     println("     - Nodes: $(length(sys.nodes))")

@@ -972,9 +972,115 @@ function Base.show(io::IO, network::Network)
     println(io, "  Scenario: $(network.scenario_index)")
 end
 
+"""
+Access functions that get components from the shared PowerLASCOPFSystem
+rather than from duplicated local storage.
+"""
+
+"""Get all thermal generators from the shared system"""
+function get_thermal_generators(network::Network)
+    if network.net_sys !== nothing
+        return network.net_sys.extended_thermal_generators
+    end
+    return ExtendedThermalGenerator[]
+end
+
+"""Get all hydro generators from the shared system"""
+function get_hydro_generators(network::Network)
+    if network.net_sys !== nothing
+        return network.net_sys.extended_hydro_generators
+    end
+    return ExtendedHydroGenerator[]
+end
+
+"""Get all renewable generators from the shared system"""
+function get_renewable_generators(network::Network)
+    if network.net_sys !== nothing
+        return network.net_sys.extended_renewable_generators
+    end
+    return ExtendedRenewableGenerator[]
+end
+
+"""Get all storage generators from the shared system"""
+function get_storage_generators(network::Network)
+    if network.net_sys !== nothing
+        return network.net_sys.extended_storage_generators
+    end
+    return ExtendedStorageGenerator[]
+end
+
+"""Get all generators (combined) from the shared system"""
+function get_all_generators(network::Network)
+    all_gens = PowerGenerator[]
+    append!(all_gens, get_thermal_generators(network))
+    append!(all_gens, get_hydro_generators(network))
+    append!(all_gens, get_renewable_generators(network))
+    append!(all_gens, get_storage_generators(network))
+    return all_gens
+end
+
+"""Get all transmission lines from the shared system"""
+function get_transmission_lines(network::Network)
+    if network.net_sys !== nothing
+        return network.net_sys.transmission_lines
+    end
+    return transmissionLine[]
+end
+
+"""Get all nodes from the shared system"""
+function get_nodes(network::Network)
+    if network.net_sys !== nothing
+        return network.net_sys.nodes
+    end
+    return Node[]
+end
+
+"""Get all loads from the shared system"""
+function get_loads(network::Network)
+    if network.net_sys !== nothing
+        return network.net_sys.extended_loads
+    end
+    return Load[]
+end
+
+"""
+Get a specific generator by index.
+This accounts for all generator types in order: thermal, hydro, renewable, storage.
+"""
+function get_generator_by_index(network::Network, idx::Int)
+    all_gens = get_all_generators(network)
+    if idx > 0 && idx <= length(all_gens)
+        return all_gens[idx]
+    end
+    error("Generator index $idx out of bounds (1:$(length(all_gens)))")
+end
+
+"""
+Check if a transmission line is outaged in this network scenario.
+"""
+function is_line_outaged(network::Network, line_id::Int)
+    return (network.outaged_line_single == line_id) || 
+           (network.base_outaged_line == line_id)
+end
+
+"""
+Get the effective power capacity for a line, considering outages.
+Returns 0 if the line is outaged in this scenario.
+"""
+function get_effective_line_capacity(network::Network, line::transmissionLine)
+    if is_line_outaged(network, line.transl_id)
+        return 0.0  # Line is outaged
+    end
+    return line.transl_rating  # Normal capacity
+end
+
 # Export functions
 export Network, network_init_var, set_network_variables!
 export get_gen_number, get_contingency_count, get_outaged_line_index
+export get_thermal_generators, get_hydro_generators, get_renewable_generators
+export get_storage_generators, get_all_generators, get_transmission_lines
+export get_nodes, get_loads, get_generator_by_index
+export get_effective_line_capacity, is_line_outaged
 export get_power_self, get_power_prev, get_power_next
 export get_power_self_gurobi, get_power_next_gurobi, get_power_prev_gurobi
 export reset_network!, get_network_summary
