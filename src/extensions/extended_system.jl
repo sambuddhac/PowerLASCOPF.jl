@@ -464,7 +464,11 @@ function validate_power_lascopf_system(sys::PowerLASCOPFSystem)
 end
 
 # ===== NETWORK INTEGRATION =====
-
+"""
+Create a lightweight Network interface from a PowerLASCOPFSystem.
+The Network acts as a controller/interface that references the shared system components
+rather than duplicating them.
+"""
 function create_network_from_system(;
     sys::PowerLASCOPFSystem,
     network_id::Int = 0,
@@ -480,15 +484,18 @@ function create_network_from_system(;
     contingency_count::Int = 0,
     solver_choice::Int = 1
 )
-    """Create a Network instance from a PowerLASCOPFSystem"""
+    """
+    Create a Network instance that serves as an interface to the PowerLASCOPFSystem.
+    This Network does NOT duplicate component data - it references the shared system.
+    """
     
-    # Calculate total generator count
+    # Calculate total generator count from the shared system
     total_generators = length(sys.extended_thermal_generators) +
                       length(sys.extended_renewable_generators) +
                       length(sys.extended_hydro_generators) +
                       length(sys.extended_storage_generators)
     
-    # Initialize network variables
+    # Initialize network variables as a lightweight interface
     network = Network(
         # Reference to the shared PowerLASCOPFSystem
         net_sys = sys,
@@ -504,9 +511,9 @@ function create_network_from_system(;
         load_number = length(sys.extended_loads),
         transl_number = length(sys.transmission_lines),
         node_number = length(sys.nodes),
+        device_term_count = 0,
         
         # Scenario-specific settings
-        device_term_count = 0,
         dummy_z = dummy_zero_flag,
         accuracy = accuracy,
         interval_id = interval_id,

@@ -60,7 +60,7 @@ function initialize_supernetwork!(
     
     # Create base network interface (scenario 0)
     println("  Creating base case network interface...")
-    network_object_base = create_network_from_system(
+    network_object_base = create_network_from_system(;
         sys = powerlascopf_system,
         network_id = super_net.network_id,
         scenario_index = 0,
