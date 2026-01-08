@@ -1,0 +1,11 @@
+GeneratorName,BusNumber,GeneratorType,Available,ActivePower,ReactivePower,Rating,PrimeMover,ActivePowerMin,ActivePowerMax,ReactivePowerMin,ReactivePowerMax,RampUp,RampDown,CostCurve_b,FuelCost,FixedCost,BasePower,StorageCapacity,Inflow,ConversionFactor,InitialStorage,StorageTargetUp,StorageTargetDown,RatingPump,ActivePowerMinPump,ActivePowerMaxPump,ReactivePowerMinPump,ReactivePowerMaxPump,RampUpPump,RampDownPump,StorageCapacityUp,StorageCapacityDown,Outflow,InitialStorageUp,InitialStorageDown,PumpEfficiency
+HydroDispatch_Bus5,5,HydroDispatch,true,0.0,0.0,6.5,HY,0.0,6.5,0.0,6.5,,,8.5,0.0,3.2,100.0,,,,,,,,,,,,,,,,,,
+HydroDispatch_Bus8,8,HydroDispatch,true,0.0,0.0,7.0,HY,0.0,7.0,0.0,7.0,,,9.0,0.0,3.5,100.0,,,,,,,,,,,,,,,,,,
+HydroDispatch_Bus29,29,HydroDispatch,true,0.0,0.0,6.0,HY,0.0,6.0,0.0,6.0,,,8.0,0.0,3.0,100.0,,,,,,,,,,,,,,,,,,
+HydroDispatch_Bus32,32,HydroDispatch,true,0.0,0.0,6.8,HY,0.0,6.8,0.0,6.8,,,9.5,0.0,3.8,100.0,,,,,,,,,,,,,,,,,,
+HydroEnergyReservoir_Bus10,10,HydroEnergyReservoir,true,0.0,0.0,8.0,HY,0.0,8.0,0.0,8.0,8.0,8.0,4.5,0.0,2.8,100.0,70.0,4.0,1.0,0.5,,,,,,,,,,,,,,
+HydroEnergyReservoir_Bus14,14,HydroEnergyReservoir,true,0.0,0.0,7.5,HY,0.0,7.5,0.0,7.5,7.5,7.5,4.0,0.0,2.5,100.0,65.0,3.5,1.0,0.5,,,,,,,,,,,,,,
+HydroEnergyReservoir_Bus34,34,HydroEnergyReservoir,true,0.0,0.0,7.8,HY,0.0,7.8,0.0,7.8,7.8,7.8,4.2,0.0,2.6,100.0,68.0,3.8,1.0,0.5,,,,,,,,,,,,,,
+HydroEnergyReservoir_Bus38,38,HydroEnergyReservoir,true,0.0,0.0,7.2,HY,0.0,7.2,0.0,7.2,7.2,7.2,3.8,0.0,2.4,100.0,62.0,3.2,1.0,0.5,,,,,,,,,,,,,,
+HydroPumpedStorage_Bus20,20,HydroPumpedStorage,true,0.0,0.0,6.5,HY,0.0,6.5,0.0,6.5,6.5,6.5,3.5,0.0,3.0,100.0,,3.0,1.0,,0.5,0.75,0.30,0.0,10.0,0.0,10.0,6.5,6.5,35.0,35.0,1.0,0.5,0.5,0.95
+HydroPumpedStorage_Bus44,44,HydroPumpedStorage,true,0.0,0.0,6.0,HY,0.0,6.0,0.0,6.0,6.0,6.0,3.2,0.0,2.8,100.0,,2.8,1.0,,0.5,0.75,0.28,0.0,9.5,0.0,9.5,6.0,6.0,32.0,32.0,0.9,0.5,0.5,0.95
