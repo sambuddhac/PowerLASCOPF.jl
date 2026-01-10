@@ -176,6 +176,7 @@ export DEFAULT_SOLVER_CHOICE, DEFAULT_CONTINGENCY_COUNT
 # Export utility functions
 export validate_component, validate_system_connectivity
 export mw_to_pu, pu_to_mw, degrees_to_radians, radians_to_degrees
+export get_gen_node_id
 
 
 """

@@ -215,7 +215,7 @@ function UnitCommitmentSimulation(sys::System; optimizer)
 	problem = DecisionModel(template_uc, sys; optimizer = solver, horizon = Hour(24))
 
     build!(problem; output_dir = mktempdir())
-    return sim
+    return problem
 end
 
 sys = create_power_gem_case()

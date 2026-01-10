@@ -2625,7 +2625,7 @@ function create_5bus_powerlascopf_system_with_supernetwork()
     println("Creating 5-bus PowerLASCOPF system with Supernetwork...")
     
     # Create base system data
-    system_data = create_5bus_powerlascopf_system()
+    system, system_data = create_5bus_powerlascopf_system()
     
     # Create supernetwork with additional parameters
     supernetwork = create_supernetwork(
@@ -2939,7 +2939,7 @@ Updated create_5bus_powerlascopf_system function to use the new supernetwork cre
     println("Creating 5-bus PowerLASCOPF system with SuperNetworks...")
     
     # Create base system data
-    system_data = create_5bus_powerlascopf_system()
+    system, system_data = create_5bus_powerlascopf_system()
     
     
     

@@ -368,17 +368,23 @@ function run_simulation(args::Dict)
     # Determine file extension
     ext = lowercase(file_format) == "csv" ? "csv" : "json"
     
+    # Derive a generic case suffix from the case name
+    # - If the case name contains digits (e.g., "5bus", "118bus"), use the digits only
+    # - Otherwise, fall back to using the full case_name (e.g., "my_grid")
+    digits_in_name = filter(isdigit, collect(case_name))
+    case_suffix = isempty(digits_in_name) ? case_name : join(digits_in_name)
+    
     # Construct file paths
-    # WHY: All files follow naming convention: <ComponentType>_sahar.<format>
+    # WHY: All files follow naming convention: <ComponentType><case_suffix>_sahar.<format>
     # This makes it easy to find all required files
     timeseries_file = joinpath(data_path, "TimeSeries_DA_sahar.$ext")
-    nodes_file = joinpath(data_path, "Nodes$(case_name == "5bus" ? "5" : "14")_sahar.$ext")
-    branches_file = joinpath(data_path, "Trans$(case_name == "5bus" ? "5" : "14")_sahar.$ext")
-    thermal_file = joinpath(data_path, "ThermalGenerators$(case_name == "5bus" ? "5" : "14")_sahar.$ext")
-    renewable_file = joinpath(data_path, "RenewableGenerators$(case_name == "5bus" ? "5" : "14")_sahar.$ext")
-    hydro_file = joinpath(data_path, "HydroGenerators$(case_name == "5bus" ? "5" : "14")_sahar.$ext")
-    storage_file = joinpath(data_path, "Storage$(case_name == "5bus" ? "5" : "14")_sahar.$ext")
-    loads_file = joinpath(data_path, "Loads$(case_name == "5bus" ? "5" : "14")_sahar.$ext")
+    nodes_file = joinpath(data_path, "Nodes$(case_suffix)_sahar.$ext")
+    branches_file = joinpath(data_path, "Trans$(case_suffix)_sahar.$ext")
+    thermal_file = joinpath(data_path, "ThermalGenerators$(case_suffix)_sahar.$ext")
+    renewable_file = joinpath(data_path, "RenewableGenerators$(case_suffix)_sahar.$ext")
+    hydro_file = joinpath(data_path, "HydroGenerators$(case_suffix)_sahar.$ext")
+    storage_file = joinpath(data_path, "Storage$(case_suffix)_sahar.$ext")
+    loads_file = joinpath(data_path, "Loads$(case_suffix)_sahar.$ext")
     
     # Verify files exist before attempting to read
     # WHY: Fail fast with clear error rather than cryptic file not found
@@ -584,8 +590,16 @@ function run_simulation(args::Dict)
         # WHY: Enforce coupling constraints between generators and lines
         # residual = update_dual_variables(gen_solutions, line_solutions, admm_params)
         
-        # Placeholder: Simulate exponential convergence
-        residual = rand() * exp(-0.5 * iter)
+        # ⚠️ PLACEHOLDER WARNING: This simulation uses random number generation to simulate
+        # convergence behavior. This is NOT a real implementation and produces misleading results.
+        # In a real implementation:
+        # - Calculate actual primal residuals: ||Ax - b||
+        # - Calculate actual dual residuals: ||A^T y||
+        # - Update dual variables based on constraint violations
+        # This placeholder should ONLY be used for demonstration/testing the workflow structure.
+        # TODO: Implement actual residual calculation using:
+        #   residual = calculate_primal_residual(gen_solutions, line_solutions, admm_params)
+        residual = rand() * exp(-0.5 * iter)  # PLACEHOLDER - NOT REAL CONVERGENCE
         
         # STEP 4: Check Convergence
         # WHY: Stop when primal and dual residuals are below tolerance

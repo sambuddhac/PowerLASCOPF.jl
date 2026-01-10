@@ -169,7 +169,7 @@ for iter in 1:admm_params["max_iterations"]
             "name" => PSY.get_name(gen.generator),
             "power" => gen.Pg,
             "angle" => gen.theta_g,
-            "node" => PowerLASCOPF.get_gen_node_id(gen)
+            "node" => get_gen_node_id(gen)
         )
     end
     

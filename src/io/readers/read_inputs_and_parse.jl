@@ -166,9 +166,11 @@ function read_powerlascopf_format(data_path::AbstractString; kwargs...)
     
     # Try to find the main system creation function
     system_data = if isdefined(Main, :create_5bus_powerlascopf_system)
-        create_5bus_powerlascopf_system()
+        _, data = create_5bus_powerlascopf_system()
+        data
     elseif isdefined(Main, :create_powerlascopf_system)
-        create_powerlascopf_system()
+        _, data = create_powerlascopf_system()
+        data
     else
         error("No PowerLASCOPF system creation function found")
     end
