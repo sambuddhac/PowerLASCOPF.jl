@@ -2371,6 +2371,7 @@ function create_5bus_powerlascopf_system()
     # Create system data dictionary (using existing PowerLASCOPF pattern)
     system_data = Dict(
         "name" => "5-Bus Test System",
+        "system" => system,  # Include the PowerLASCOPFSystem object
         "nodes" => nodes,
         "branches" => branches,
         "thermal_generators" => thermal_gens,
@@ -2383,7 +2384,7 @@ function create_5bus_powerlascopf_system()
         "scenarios" => create_scenarios()
     )
     
-    return system, system_data
+    return system_data
 end
 
 """

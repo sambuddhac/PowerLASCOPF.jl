@@ -80,7 +80,8 @@ println("=" ^ 50)
 
 # Step 1: Create PowerLASCOPF system
 println("\n📊 Step 1: Creating PowerLASCOPF System")
-system, system_data = create_5bus_powerlascopf_system()
+system_data = create_5bus_powerlascopf_system()
+system = system_data["system"]  # Extract the PowerLASCOPFSystem object
 
 println("✓ System created successfully:")
 println("  - Nodes: $(length(system_data["nodes"]))")
