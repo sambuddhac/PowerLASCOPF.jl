@@ -1,128 +1,42 @@
 {
-  "system_name": "5-Bus Test System",
-  "results": {
-    "generator_solutions": {
-      "thermal_3": {
-        "name": "Solitude",
-        "power": 2.6,
-        "node": 3,
-        "angle": 9.63462126995e-312
-      },
-      "thermal_4": {
-        "name": "Sundance",
-        "power": 1.0,
-        "node": 4,
-        "angle": 1.91035e-319
-      },
-      "thermal_2": {
-        "name": "Park City",
-        "power": 0.85,
-        "node": 1,
-        "angle": 9.63462389632e-312
-      },
-      "thermal_1": {
-        "name": "Alta",
-        "power": 0.2,
-        "node": 1,
-        "angle": 0.0
-      },
-      "thermal_5": {
-        "name": "Brighton",
-        "power": 3.0,
-        "node": 5,
-        "angle": 1.9166e-319
-      }
+    "line_flows": {
+        "4": 0,
+        "1": 0,
+        "DCL2": 0,
+        "5": 0,
+        "6": 0,
+        "3": 0
     },
-    "iterations": 10,
-    "line_solutions": {
-      "line_4": {
-        "name": "4",
-        "flow_2to1": -0.4,
-        "angle_1": 0.0,
-        "flow_1to2": 0.4,
-        "angle_2": 0.0
-      },
-      "line_2": {
-        "name": "2",
-        "flow_2to1": -0.2,
-        "angle_1": 0.0,
-        "flow_1to2": 0.2,
-        "angle_2": 0.0
-      },
-      "line_5": {
-        "name": "5",
-        "flow_2to1": -0.5,
-        "angle_1": 0.0,
-        "flow_1to2": 0.5,
-        "angle_2": 0.0
-      },
-      "line_1": {
-        "name": "1",
-        "flow_2to1": -0.1,
-        "angle_1": 0.0,
-        "flow_1to2": 0.1,
-        "angle_2": 0.0
-      },
-      "line_6": {
-        "name": "6",
-        "flow_2to1": -0.6000000000000001,
-        "angle_1": 0.0,
-        "flow_1to2": 0.6000000000000001,
-        "angle_2": 0.0
-      },
-      "line_3": {
-        "name": "3",
-        "flow_2to1": -0.30000000000000004,
-        "angle_1": 0.0,
-        "flow_1to2": 0.30000000000000004,
-        "angle_2": 0.0
-      }
+    "convergence": {
+        "iterations": 1,
+        "final_residual": 0,
+        "converged": true
     },
-    "convergence_history": [
-      {
-        "iteration": 1,
-        "residual": 0.23499999999999996
-      },
-      {
-        "iteration": 2,
-        "residual": 0.23499999999999996
-      },
-      {
-        "iteration": 3,
-        "residual": 0.23499999999999996
-      },
-      {
-        "iteration": 4,
-        "residual": 0.23499999999999996
-      },
-      {
-        "iteration": 5,
-        "residual": 0.23499999999999996
-      },
-      {
-        "iteration": 6,
-        "residual": 0.23499999999999996
-      },
-      {
-        "iteration": 7,
-        "residual": 0.23499999999999996
-      },
-      {
-        "iteration": 8,
-        "residual": 0.23499999999999996
-      },
-      {
-        "iteration": 9,
-        "residual": 0.23499999999999996
-      },
-      {
-        "iteration": 10,
-        "residual": 0.23499999999999996
-      }
-    ],
-    "status": "FEASIBLE",
-    "objective_value": 229.5,
-    "solve_time": 0.9530000686645508
-  },
-  "timestamp": "2025-11-23T17:24:19.889"
+    "data_summary": {
+        "nodes": 5,
+        "branches": 6,
+        "thermal_generators": 5,
+        "storage": 2,
+        "loads": 3,
+        "renewable_generators": 3,
+        "hydro_generators": 5
+    },
+    "system_metrics": {
+        "total_generation_capacity_MW": 46.3,
+        "total_load_MW": 10
+    },
+    "status": "converged",
+    "case_name": "5bus",
+    "timestamp": "2026-01-16 16:01:00",
+    "bus_count": 5,
+    "costs": {
+        "total_cost": 148.39000000000001
+    },
+    "generator_dispatch": {
+        "Solitude": 1.9000000000000001,
+        "Park City": 1.7,
+        "Alta": 0.4,
+        "Brighton": 6,
+        "Sundance": 0
+    }
 }
