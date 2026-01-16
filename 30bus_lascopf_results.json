@@ -62,7 +62,7 @@
     },
     "status": "converged",
     "case_name": "30bus",
-    "timestamp": "2026-01-16 16:06:23",
+    "timestamp": "2026-01-16 17:01:20",
     "bus_count": 30,
     "costs": {
         "total_cost": 626.1727999999999

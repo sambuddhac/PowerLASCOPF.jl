@@ -4,35 +4,50 @@ Generic PowerLASCOPF Simulation Runner
 
 PURPOSE:
   A SINGLE runner that works for ANY IEEE test case (5-bus, 30-bus, 48-bus, 57-bus, 300-bus, etc.)
-  Just specify the case name and it automatically:
-  1. Finds the correct data folder
-  2. Detects the file format (sahar vs legacy)
-  3. Loads all component data
-  4. Sets up the simulation
-  5. Runs and saves results
-
-USAGE EXAMPLES:
-  # Run from command line
-  julia run_reader_generic.jl case=5bus
-  julia run_reader_generic.jl case=30bus format=JSON
-  julia run_reader_generic.jl case=IEEE_300_bus iterations=20 verbose=true
   
-  # Run from Julia REPL
-  include("run_reader_generic.jl")
-  results = run_case("IEEE_5_bus")
-  results = run_case("IEEE_30_bus", verbose=true)
-  results = run_case("IEEE_300_bus", iterations=20)
+  Features:
+  - INTERACTIVE MODE: Run without arguments to see available cases and select one
+  - Automatically finds data folder and detects file format
+  - Supports both Sahar (standard) and legacy file formats
+  - Runs economic dispatch simulation and saves results
 
-SUPPORTED TEST CASES:
-  - 5bus, IEEE_5_bus     (5-bus test system)
-  - 30bus, IEEE_30_bus   (IEEE 30-bus system)
-  - 48bus, IEEE_48_bus   (IEEE 48-bus system)
-  - 57bus, IEEE_57_bus   (IEEE 57-bus system)
-  - 300bus, IEEE_300_bus (IEEE 300-bus system)
-  - Any custom case following the naming convention
+USAGE MODES:
+
+  1. INTERACTIVE MODE (recommended for new users):
+     julia run_reader_generic.jl
+     
+     This will:
+     - Display all available IEEE test cases
+     - Let you select a case by number or name
+     - Ask for simulation parameters
+     - Run the simulation and offer to run more cases
+
+  2. COMMAND LINE MODE:
+     julia run_reader_generic.jl case=5bus
+     julia run_reader_generic.jl case=30bus format=JSON
+     julia run_reader_generic.jl case=IEEE_300_bus iterations=20 verbose=true
+
+  3. SPECIAL COMMANDS:
+     julia run_reader_generic.jl list    # List all available cases
+     julia run_reader_generic.jl help    # Show help
+     julia run_reader_generic.jl all     # Run all available cases
+
+  4. FROM JULIA REPL:
+     include("run_reader_generic.jl")
+     results = run_case("IEEE_5_bus")
+     results = run_case("IEEE_30_bus", verbose=true)
+     interactive_mode()  # Start interactive mode
+
+ADDING NEW TEST CASES:
+  To add a new IEEE test case (e.g., IEEE 24-bus):
+  1. Create folder: example_cases/IEEE_Test_Cases/IEEE_24_bus/
+  2. Add CSV files in Sahar format (see ADDING_NEW_CASES.md)
+  3. The case will automatically appear in the list
+
+  Full documentation: example_cases/IEEE_Test_Cases/ADDING_NEW_CASES.md
 
 COMMAND LINE ARGUMENTS:
-  case=<name>          Case name (required)
+  case=<name>          Case name (e.g., 5bus, 30bus, IEEE_300_bus)
   format=<CSV|JSON>    File format (default: CSV)
   iterations=<n>       Max ADMM iterations (default: 10)
   tolerance=<x>        Convergence tolerance (default: 1e-3)
@@ -707,6 +722,227 @@ function list_available_cases()
 end
 
 # ============================================================================
+# STEP 10: INTERACTIVE MODE
+# ============================================================================
+
+"""
+    get_available_case_names() -> Vector{String}
+
+Get list of available case names (just the short names like "5bus", "30bus").
+"""
+function get_available_case_names()
+    cases_dir = joinpath(PROJECT_ROOT, "example_cases", "IEEE_Test_Cases")
+    
+    if !isdir(cases_dir)
+        return String[]
+    end
+    
+    case_names = String[]
+    for entry in readdir(cases_dir)
+        path = joinpath(cases_dir, entry)
+        if isdir(path) && startswith(entry, "IEEE_")
+            bus_count = try
+                parse_case_name(entry)
+            catch
+                continue
+            end
+            push!(case_names, "$(bus_count)bus")
+        end
+    end
+    
+    sort!(case_names, by = x -> parse_case_name(x))
+    return case_names
+end
+
+"""
+    interactive_mode()
+
+Run PowerLASCOPF in interactive mode where user can select from available cases.
+"""
+function interactive_mode()
+    println("\n" * "=" ^ 70)
+    println("🚀 POWERLASCOPF - INTERACTIVE MODE")
+    println("=" ^ 70)
+    
+    # Get available cases
+    cases_dir = joinpath(PROJECT_ROOT, "example_cases", "IEEE_Test_Cases")
+    
+    if !isdir(cases_dir)
+        println("❌ IEEE_Test_Cases folder not found at: $cases_dir")
+        return nothing
+    end
+    
+    # Collect case information
+    case_info = []
+    for entry in readdir(cases_dir)
+        path = joinpath(cases_dir, entry)
+        if isdir(path) && startswith(entry, "IEEE_")
+            bus_count = try
+                parse_case_name(entry)
+            catch
+                continue
+            end
+            file_format = try
+                detect_file_format(path, bus_count; silent=true)
+            catch
+                :unknown
+            end
+            push!(case_info, (entry, bus_count, file_format))
+        end
+    end
+    
+    sort!(case_info, by = x -> x[2])
+    
+    if isempty(case_info)
+        println("❌ No IEEE test cases found!")
+        println("\n📖 To add a new case, see:")
+        println("   example_cases/IEEE_Test_Cases/ADDING_NEW_CASES.md")
+        return nothing
+    end
+    
+    # Display available cases
+    println("\n📁 AVAILABLE IEEE TEST CASES:")
+    println("-" ^ 70)
+    println("  #   Case Name              Buses    Format      Status")
+    println("-" ^ 70)
+    
+    for (i, (name, buses, fmt)) in enumerate(case_info)
+        status = fmt == :sahar ? "✅ Standard" : (fmt == :legacy ? "⚠️  Legacy" : "❓ Unknown")
+        @printf("  %-3d %-22s %-8d %-10s  %s\n", i, name, buses, fmt, status)
+    end
+    
+    println("-" ^ 70)
+    println("\n📌 OPTIONS:")
+    println("   • Enter a number (1-$(length(case_info))) to select a case")
+    println("   • Enter a case name directly (e.g., '30bus' or 'IEEE_30_bus')")
+    println("   • Enter 'all' to run all cases")
+    println("   • Enter 'q' or 'quit' to exit")
+    println("   • Enter 'add' to see how to add a new case")
+    println("-" ^ 70)
+    
+    while true
+        print("\n🔹 Enter your choice: ")
+        input = readline()
+        input = strip(input)
+        
+        if isempty(input)
+            continue
+        end
+        
+        lower_input = lowercase(input)
+        
+        # Check for quit
+        if lower_input in ["q", "quit", "exit"]
+            println("\n👋 Goodbye!")
+            return nothing
+        end
+        
+        # Check for add new case info
+        if lower_input == "add"
+            println("\n" * "=" ^ 70)
+            println("📖 ADDING A NEW TEST CASE")
+            println("=" ^ 70)
+            println("\nTo add a new IEEE test case (e.g., IEEE 24-bus):")
+            println("\n1️⃣  Create folder: example_cases/IEEE_Test_Cases/IEEE_24_bus/")
+            println("\n2️⃣  Add required files in Sahar format:")
+            println("    • Nodes24_sahar.csv")
+            println("    • ThermalGenerators24_sahar.csv")
+            println("    • Trans24_sahar.csv")
+            println("    • Loads24_sahar.csv")
+            println("\n3️⃣  Optional files:")
+            println("    • RenewableGenerators24_sahar.csv")
+            println("    • HydroGenerators24_sahar.csv")
+            println("    • Storage24_sahar.csv")
+            println("\n📄 Full documentation:")
+            println("   example_cases/IEEE_Test_Cases/ADDING_NEW_CASES.md")
+            println("=" ^ 70)
+            continue
+        end
+        
+        # Check for run all
+        if lower_input == "all"
+            println("\n🔄 Running ALL available cases...")
+            return run_all_cases()
+        end
+        
+        # Try to parse as number
+        selected_case = nothing
+        if all(isdigit, input)
+            idx = parse(Int, input)
+            if 1 <= idx <= length(case_info)
+                selected_case = "$(case_info[idx][2])bus"
+            else
+                println("❌ Invalid number. Please enter 1-$(length(case_info))")
+                continue
+            end
+        else
+            # Try to match case name
+            # Extract bus count from input
+            bus_match = match(r"(\d+)", input)
+            if bus_match !== nothing
+                bus_count = parse(Int, bus_match.captures[1])
+                # Check if this case exists
+                found = false
+                for (name, buses, _) in case_info
+                    if buses == bus_count
+                        selected_case = "$(bus_count)bus"
+                        found = true
+                        break
+                    end
+                end
+                if !found
+                    println("❌ Case with $bus_count buses not found!")
+                    println("   Available: $(join([string(c[2]) for c in case_info], ", ")) buses")
+                    println("\n   To add this case, enter 'add' for instructions.")
+                    continue
+                end
+            else
+                println("❌ Could not understand input: '$input'")
+                println("   Please enter a number or case name (e.g., '30bus')")
+                continue
+            end
+        end
+        
+        if selected_case !== nothing
+            println("\n✅ Selected: $selected_case")
+            
+            # Ask for additional options
+            print("🔹 Max iterations [10]: ")
+            iter_input = strip(readline())
+            iterations = isempty(iter_input) ? 10 : parse(Int, iter_input)
+            
+            print("🔹 Verbose output? (y/n) [n]: ")
+            verbose_input = lowercase(strip(readline()))
+            verbose = verbose_input in ["y", "yes", "true", "1"]
+            
+            println("\n" * "=" ^ 70)
+            
+            # Run the case
+            result = run_case(selected_case; 
+                             iterations=iterations, 
+                             verbose=verbose)
+            
+            # Ask if user wants to run another case
+            print("\n🔹 Run another case? (y/n) [y]: ")
+            again_input = lowercase(strip(readline()))
+            if again_input in ["n", "no"]
+                println("\n👋 Goodbye!")
+                return result
+            end
+            
+            # Redisplay the menu
+            println("\n" * "-" ^ 70)
+            println("📁 AVAILABLE CASES:")
+            for (i, (name, buses, fmt)) in enumerate(case_info)
+                status_icon = fmt == :sahar ? "✅" : "⚠️"
+                @printf("  %d. %s (%d buses) %s\n", i, name, buses, status_icon)
+            end
+            println("-" ^ 70)
+        end
+    end
+end
+
+# ============================================================================
 # MAIN ENTRY POINT
 # ============================================================================
 
@@ -724,6 +960,7 @@ function main()
         println("=" ^ 70)
         println("\nUsage: julia run_reader_generic.jl [command] [case=<name>] [options]")
         println("\nCommands:")
+        println("  (no args)     Interactive mode - select from available cases")
         println("  list          List all available IEEE test cases")
         println("  help          Show this help message")
         println("  all           Run all available test cases")
@@ -735,6 +972,7 @@ function main()
         println("  verbose=bool  Enable verbose output (default: false)")
         println("  output=<file> Output filename (default: <N>bus_lascopf_results.json)")
         println("\nExamples:")
+        println("  julia run_reader_generic.jl                    # Interactive mode")
         println("  julia run_reader_generic.jl case=5bus")
         println("  julia run_reader_generic.jl case=IEEE_30_bus format=JSON")
         println("  julia run_reader_generic.jl case=300bus iterations=20 verbose=true")
@@ -746,13 +984,16 @@ function main()
         return run_all_cases()
     end
     
+    # If no case specified and no command, enter interactive mode
+    if isempty(args["case"]) && isempty(args["command"])
+        return interactive_mode()
+    end
+    
     if isempty(args["case"])
         println("❌ No case specified!")
         println("\nUsage: julia run_reader_generic.jl case=<case_name> [options]")
-        println("\nExamples:")
-        println("  julia run_reader_generic.jl case=5bus")
-        println("  julia run_reader_generic.jl case=IEEE_30_bus format=JSON")
-        println("  julia run_reader_generic.jl case=300bus iterations=20 verbose=true")
+        println("\nOr run without arguments for interactive mode:")
+        println("  julia run_reader_generic.jl")
         println("\n")
         list_available_cases()
         return nothing
