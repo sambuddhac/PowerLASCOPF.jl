@@ -581,7 +581,7 @@ function create_network_from_system(;
         node_object = Node[]                # Empty - use sys.nodes
     )
 
-    push!(network.outaged_line, net_sys.outaged_line)
+    push!(network.outaged_line, network.net_sys.outaged_line)
     # Load network data
     set_network_variables!(network)
     

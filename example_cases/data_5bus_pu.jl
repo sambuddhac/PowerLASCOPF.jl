@@ -11,8 +11,8 @@ using Logging
 # OR if PowerLASCOPF is loaded differently:
 const PowerLASCOPFSystem = PowerLASCOPF.PowerLASCOPFSystem
 const SuperNetwork = PowerLASCOPF.SuperNetwork=#
-const PSY = PowerSystems
-const IS = InfrastructureSystems
+#const PSY = PowerSystems
+#const IS = InfrastructureSystems
 
 const LOG_FILE = joinpath(@__DIR__, "execution_run.log")
 const LOG_IO = open(LOG_FILE, "w")
