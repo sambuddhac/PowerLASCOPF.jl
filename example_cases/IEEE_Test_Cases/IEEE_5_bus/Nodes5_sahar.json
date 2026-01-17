@@ -1,0 +1,52 @@
+[
+  {
+    "BusNumber": 1,
+    "BusName": "nodeA",
+    "BusType": "PV",
+    "Angle": 0,
+    "Voltage": 1.0,
+    "VoltageMin": 0.9,
+    "VoltageMax": 1.05,
+    "BaseVoltage": 230
+  },
+  {
+    "BusNumber": 2,
+    "BusName": "nodeB",
+    "BusType": "PQ",
+    "Angle": 0,
+    "Voltage": 1.0,
+    "VoltageMin": 0.9,
+    "VoltageMax": 1.05,
+    "BaseVoltage": 230
+  },
+  {
+    "BusNumber": 3,
+    "BusName": "nodeC",
+    "BusType": "PV",
+    "Angle": 0,
+    "Voltage": 1.0,
+    "VoltageMin": 0.9,
+    "VoltageMax": 1.05,
+    "BaseVoltage": 230
+  },
+  {
+    "BusNumber": 4,
+    "BusName": "nodeD",
+    "BusType": "REF",
+    "Angle": 0,
+    "Voltage": 1.0,
+    "VoltageMin": 0.9,
+    "VoltageMax": 1.05,
+    "BaseVoltage": 230
+  },
+  {
+    "BusNumber": 5,
+    "BusName": "nodeE",
+    "BusType": "PV",
+    "Angle": 0,
+    "Voltage": 1.0,
+    "VoltageMin": 0.9,
+    "VoltageMax": 1.05,
+    "BaseVoltage": 230
+  }
+]

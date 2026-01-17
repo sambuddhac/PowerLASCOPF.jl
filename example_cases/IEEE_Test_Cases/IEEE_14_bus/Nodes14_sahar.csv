@@ -1,0 +1,15 @@
+BusNumber,BusName,BusType,Angle,Voltage,VoltageMin,VoltageMax,BaseVoltage
+1,nodeA,REF,0,1.0,0.9,1.05,230
+2,nodeB,PV,0,1.0,0.9,1.05,230
+3,nodeC,PV,0,1.0,0.9,1.05,230
+4,nodeD,PQ,0,1.0,0.9,1.05,230
+5,nodeE,PQ,0,1.0,0.9,1.05,230
+6,nodeF,PV,0,1.0,0.9,1.05,230
+7,nodeG,PQ,0,1.0,0.9,1.05,230
+8,nodeH,PV,0,1.0,0.9,1.05,230
+9,nodeI,PQ,0,1.0,0.9,1.05,230
+10,nodeJ,PQ,0,1.0,0.9,1.05,230
+11,nodeK,PQ,0,1.0,0.9,1.05,230
+12,nodeL,PQ,0,1.0,0.9,1.05,230
+13,nodeM,PQ,0,1.0,0.9,1.05,230
+14,nodeN,PQ,0,1.0,0.9,1.05,230

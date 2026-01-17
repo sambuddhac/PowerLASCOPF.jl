@@ -6,19 +6,19 @@
         "name": "Solitude",
         "power": 2.6,
         "node": 3,
-        "angle": 0.0
+        "angle": 9.63462126995e-312
       },
       "thermal_4": {
         "name": "Sundance",
         "power": 1.0,
         "node": 4,
-        "angle": 0.0
+        "angle": 1.91035e-319
       },
       "thermal_2": {
         "name": "Park City",
         "power": 0.85,
         "node": 1,
-        "angle": 0.0
+        "angle": 9.63462389632e-312
       },
       "thermal_1": {
         "name": "Alta",
@@ -30,7 +30,7 @@
         "name": "Brighton",
         "power": 3.0,
         "node": 5,
-        "angle": 0.0
+        "angle": 1.9166e-319
       }
     },
     "iterations": 10,
@@ -122,7 +122,7 @@
     ],
     "status": "FEASIBLE",
     "objective_value": 229.5,
-    "solve_time": 0.31435394287109375
+    "solve_time": 0.9530000686645508
   },
-  "timestamp": "2025-11-28T22:41:01.079"
+  "timestamp": "2025-11-23T17:24:19.889"
 }

@@ -1,0 +1,6 @@
+GeneratorName,BusNumber,GeneratorType,Available,Status,ActivePower,ReactivePower,Rating,PrimeMover,Fuel,ActivePowerMin,ActivePowerMax,ReactivePowerMin,ReactivePowerMax,RampUp,RampDown,TimeLimitUp,TimeLimitDown,CostCurve_a,CostCurve_b,CostCurve_c,FuelCost,VOM_Cost,FixedCost,StartUpCost,ShutDownCost,BasePower
+nodeA_Gen,1,ThermalStandard,true,true,2.0,-0.169,2.324,ST,COAL,0.0,3.332,0.0,0.1,,,,,0.0,14.0,0.043,20.0,3.55,4.0,0.0,0.0,100.0
+nodeB_Gen,2,ThermalStandard,true,true,0.40,0.42,1.4,ST,COAL,0.0,1.40,-0.4,0.5,0.028,0.028,2.0,1.0,0.0,15.0,0.25,20.0,3.55,1.5,0.0,0.0,100.0
+nodeC_Gen,3,ThermalStandard,true,true,0.0,0.23,1.0,ST,COAL,0.0,1.0,0.0,0.4,0.012,0.012,3.0,2.0,0.0,30.0,0.01,40.0,3.55,3.0,0.0,0.0,100.0
+nodeF_Gen,6,ThermalStandard,true,true,0.0,0.12,1.0,ST,COAL,0.0,1.0,-0.06,0.24,0.015,0.015,2.0,1.0,0.0,40.0,0.01,40.0,3.55,4.0,0.0,0.0,100.0
+nodeH_Gen,8,ThermalStandard,true,true,0.0,0.174,1.0,ST,COAL,0.0,1.0,-0.06,0.24,0.015,0.015,5.0,3.0,0.0,10.0,0.01,40.0,3.55,1.5,0.0,0.0,100.0
