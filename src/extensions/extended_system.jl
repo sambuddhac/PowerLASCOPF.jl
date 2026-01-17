@@ -36,7 +36,7 @@ include("../components/ExtendedStorageGenerator.jl")
     outaged_line::Int = 0
     
     # Solver properties
-    solver_choice::Int = 1
+    solver_choice::Int = 1 # 1=IPOPT, 2=Gurobi, etc.
     rho_tuning::Float64 = 1.0
     accuracy::Int = 1
     dummy_zero_flag::Int = 0

@@ -77,6 +77,12 @@ include("../src/pomdp/utils.jl")=#
 
 import PowerSystems: VariableCost, TwoPartCost, MarketBidCost, PrimeMovers, ThermalFuels, Arc
 
+# Include POMDP components
+include("../src/pomdp/PowerLASCOPFPOMDP.jl")
+include("../src/pomdp/belief_updater.jl")
+include("../src/pomdp/policy_interface.jl")
+include("../src/pomdp/utils.jl")
+
 DayAhead = collect(
     DateTime("1/1/2024  0:00:00", "d/m/y  H:M:S"):Hour(1):DateTime(
         "1/1/2024  23:00:00",
