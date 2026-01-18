@@ -1,5 +1,5 @@
 """
-Generic PowerLASCOPF Simulation Runner with CSV/JSON Input
+Generic PowerLASCOPF Simulation Runner with CSV/JSON Input - \run_reader.jl
 
 PURPOSE:
   This file replaces run_5bus_lascopf.jl and run_14bus_lascopf.jl with a 
@@ -136,7 +136,8 @@ function parse_commandline()
         "verbose" => false
     )
     
-    # Parse ARGS array (key=value format)
+    # Parse ARGS array (key=value format) 
+
     for arg in ARGS
         if contains(arg, "=")
             key, value = split(arg, "=", limit=2)
