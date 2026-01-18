@@ -1,0 +1,9 @@
+BatteryName,BusNumber,Available,ActivePower,ReactivePower,Rating,InputActivePowerMin,InputActivePowerMax,OutputActivePowerMin,OutputActivePowerMax,EfficiencyIn,EfficiencyOut,StorageCapacity,InitialEnergy,BasePower
+Battery_Bus1,1,true,0.0,0.0,12.0,0.0,12.0,0.0,12.0,0.85,0.92,12.0,0.5,100.0
+Battery_Bus4,4,true,0.0,0.0,9.0,0.0,9.0,0.0,9.0,0.83,0.91,9.0,0.5,100.0
+Battery_Bus7,7,true,0.0,0.0,10.0,0.0,10.0,0.0,10.0,0.84,0.91,10.0,0.5,100.0
+Battery_Bus11,11,true,0.0,0.0,8.0,0.0,8.0,0.0,8.0,0.82,0.90,8.0,0.5,100.0
+Battery_Bus21,21,true,0.0,0.0,11.0,0.0,11.0,0.0,11.0,0.84,0.92,11.0,0.5,100.0
+Battery_Bus24,24,true,0.0,0.0,10.0,0.0,10.0,0.0,10.0,0.83,0.91,10.0,0.5,100.0
+Battery_Bus34,34,true,0.0,0.0,9.5,0.0,9.5,0.0,9.5,0.83,0.91,9.5,0.5,100.0
+Battery_Bus40,40,true,0.0,0.0,8.5,0.0,8.5,0.0,8.5,0.82,0.90,8.5,0.5,100.0

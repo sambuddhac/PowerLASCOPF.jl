@@ -1,0 +1,16 @@
+GeneratorName,BusNumber,GeneratorType,Available,ActivePower,ReactivePower,Rating,PrimeMover,ActivePowerMin,ActivePowerMax,ReactivePowerMin,ReactivePowerMax,RampUp,RampDown,CostCurve_b,FuelCost,FixedCost,BasePower,StorageCapacity,Inflow,ConversionFactor,InitialStorage,StorageTargetUp,StorageTargetDown,RatingPump,ActivePowerMinPump,ActivePowerMaxPump,ReactivePowerMinPump,ReactivePowerMaxPump,RampUpPump,RampDownPump,StorageCapacityUp,StorageCapacityDown,Outflow,InitialStorageUp,InitialStorageDown,PumpEfficiency
+HydroDispatch_Bus7,7,HydroDispatch,true,0.0,0.0,7.5,HY,0.0,7.5,0.0,7.5,,,9.0,0.0,3.5,100.0,,,,,,,,,,,,,,,,,
+HydroDispatch_Bus15,15,HydroDispatch,true,0.0,0.0,8.0,HY,0.0,8.0,0.0,8.0,,,9.5,0.0,3.8,100.0,,,,,,,,,,,,,,,
+HydroDispatch_Bus23,23,HydroDispatch,true,0.0,0.0,6.8,HY,0.0,6.8,0.0,6.8,,,8.5,0.0,3.2,100.0,,,,,,,,,,,,,,,
+HydroDispatch_Bus28,28,HydroDispatch,true,0.0,0.0,7.2,HY,0.0,7.2,0.0,7.2,,,9.0,0.0,3.5,100.0,,,,,,,,,,,,,,,
+HydroDispatch_Bus35,35,HydroDispatch,true,0.0,0.0,7.0,HY,0.0,7.0,0.0,7.0,,,8.8,0.0,3.4,100.0,,,,,,,,,,,,,,,
+HydroDispatch_Bus50,50,HydroDispatch,true,0.0,0.0,6.5,HY,0.0,6.5,0.0,6.5,,,8.2,0.0,3.1,100.0,,,,,,,,,,,,,,,
+HydroEnergyReservoir_Bus17,17,HydroEnergyReservoir,true,0.0,0.0,8.5,HY,0.0,8.5,0.0,8.5,8.5,8.5,4.8,0.0,3.0,100.0,75.0,4.2,1.0,0.5,,,,,,,,,,,,
+HydroEnergyReservoir_Bus20,20,HydroEnergyReservoir,true,0.0,0.0,8.0,HY,0.0,8.0,0.0,8.0,8.0,8.0,4.5,0.0,2.8,100.0,70.0,4.0,1.0,0.5,,,,,,,,,,,,
+HydroEnergyReservoir_Bus30,30,HydroEnergyReservoir,true,0.0,0.0,7.8,HY,0.0,7.8,0.0,7.8,7.8,7.8,4.3,0.0,2.7,100.0,68.0,3.8,1.0,0.5,,,,,,,,,,,,
+HydroEnergyReservoir_Bus41,41,HydroEnergyReservoir,true,0.0,0.0,7.5,HY,0.0,7.5,0.0,7.5,7.5,7.5,4.0,0.0,2.5,100.0,65.0,3.5,1.0,0.5,,,,,,,,,,,,
+HydroEnergyReservoir_Bus44,44,HydroEnergyReservoir,true,0.0,0.0,8.2,HY,0.0,8.2,0.0,8.2,8.2,8.2,4.6,0.0,2.9,100.0,72.0,4.1,1.0,0.5,,,,,,,,,,,,
+HydroEnergyReservoir_Bus52,52,HydroEnergyReservoir,true,0.0,0.0,7.2,HY,0.0,7.2,0.0,7.2,7.2,7.2,3.8,0.0,2.4,100.0,62.0,3.2,1.0,0.5,,,,,,,,,,,,
+HydroPumpedStorage_Bus25,25,HydroPumpedStorage,true,0.0,0.0,7.0,HY,0.0,7.0,0.0,7.0,7.0,7.0,3.8,0.0,3.2,100.0,,3.2,1.0,,0.5,0.75,0.32,0.0,11.0,0.0,11.0,7.0,7.0,38.0,38.0,1.1,0.5,0.5,0.95
+HydroPumpedStorage_Bus31,31,HydroPumpedStorage,true,0.0,0.0,6.5,HY,0.0,6.5,0.0,6.5,6.5,6.5,3.5,0.0,3.0,100.0,,3.0,1.0,,0.5,0.75,0.30,0.0,10.5,0.0,10.5,6.5,6.5,35.0,35.0,1.0,0.5,0.5,0.95
+HydroPumpedStorage_Bus55,55,HydroPumpedStorage,true,0.0,0.0,6.8,HY,0.0,6.8,0.0,6.8,6.8,6.8,3.6,0.0,3.1,100.0,,3.1,1.0,,0.5,0.75,0.31,0.0,10.8,0.0,10.8,6.8,6.8,36.0,36.0,1.05,0.5,0.5,0.95

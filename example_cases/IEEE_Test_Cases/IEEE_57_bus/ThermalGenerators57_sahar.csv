@@ -1,0 +1,8 @@
+GeneratorName,BusNumber,GeneratorType,Available,ActivePower,ReactivePower,Rating,PrimeMover,ActivePowerMin,ActivePowerMax,ReactivePowerMin,ReactivePowerMax,RampUp,RampDown,CostCurve_a,CostCurve_b,CostCurve_c,FuelCost,FixedCost,BasePower
+ThermalGen_Bus1,1,ThermalStandard,true,0.0,0.0,575.88,ST,0.0,575.88,-431.91,431.91,20.0,20.0,0.0775795,20.0,0.0,1.5,25.0,100.0
+ThermalGen_Bus2,2,ThermalStandard,true,0.0,0.0,100.0,ST,0.0,100.0,-75.0,75.0,15.0,15.0,0.01,40.0,0.0,1.2,18.0,100.0
+ThermalGen_Bus3,3,ThermalStandard,true,0.0,0.0,140.0,ST,0.0,140.0,-105.0,105.0,30.0,30.0,0.25,20.0,0.0,1.8,22.0,100.0
+ThermalGen_Bus6,6,ThermalStandard,true,0.0,0.0,100.0,ST,0.0,100.0,-75.0,75.0,10.0,10.0,0.01,40.0,0.0,1.2,18.0,100.0
+ThermalGen_Bus8,8,ThermalStandard,true,0.0,0.0,550.0,ST,0.0,550.0,-412.5,412.5,20.0,20.0,0.0222222,20.0,0.0,1.5,24.0,100.0
+ThermalGen_Bus9,9,ThermalStandard,true,0.0,0.0,100.0,ST,0.0,100.0,-75.0,75.0,10.0,10.0,0.01,40.0,0.0,1.2,18.0,100.0
+ThermalGen_Bus12,12,ThermalStandard,true,0.0,0.0,410.0,ST,0.0,410.0,-307.5,307.5,40.0,40.0,0.0322581,20.0,0.0,1.4,23.0,100.0
