@@ -31,6 +31,22 @@ include("../components/ExtendedStorageGenerator.jl")
     
     # Network properties
     network_id::Int = 0
+    scenario_index::Int = 0
+    post_contingency_scenario::Int = 0
+    contingency_count::Int = 0
+    interval_id::Int = 0
+    last_flag::Bool = false
+    outaged_line::Int = 0
+    
+    # Solver properties
+    solver_choice::Int = 1 # 1=IPOPT, 2=Gurobi, etc.
+    rho_tuning::Float64 = 1.0
+    accuracy::Int = 1
+    dummy_zero_flag::Int = 0
+    
+    # APP algorithm properties
+    rnd_intervals::Int = 6
+    rsd_intervals::Int = 6
     
     # Time series properties
     time_series_resolution::Dates.Period = Dates.Hour(1)
@@ -565,7 +581,7 @@ function create_network_from_system(;
         node_object = Node[]                # Empty - use sys.nodes
     )
 
-    push!(network.outaged_line, net_sys.outaged_line)
+    push!(network.outaged_line, network.net_sys.outaged_line)
     # Load network data
     set_network_variables!(network)
     
