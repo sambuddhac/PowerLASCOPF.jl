@@ -5,6 +5,7 @@ using Random
 Random.seed!(123)
 using PowerSystems
 using InfrastructureSystems
+using Logging
 const PSY = PowerSystems
 const IS = InfrastructureSystems
 #const PSY = PowerSystems

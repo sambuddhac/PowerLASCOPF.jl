@@ -8,7 +8,7 @@ PURPOSE:
   Features:
   - INTERACTIVE MODE: Run without arguments to see available cases and select one
   - Automatically finds data folder and detects file format
-  - Supports both Sahar (standard) and legacy file formats
+  - Supports both standard and legacy file formats
   - Runs economic dispatch simulation and saves results
 
 USAGE MODES:

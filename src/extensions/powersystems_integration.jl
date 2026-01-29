@@ -141,6 +141,7 @@ function PSI.add_variable!(
     return
 end
 
+function PSI.add_variable!(
     container::PSI.OptimizationContainer,
     ::Type{PgNextVariable},
     ::LASCOPFGeneratorFormulation,

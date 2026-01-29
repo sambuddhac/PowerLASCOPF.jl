@@ -63,6 +63,9 @@ log_success(message::String) = log_both("✅ SUCCESS: $message")
 
 atexit(() -> close(LOG_IO))
 
+log_info("Starting PowerLASCOPF execution script")
+log_info("Log file: $LOG_FILE")
+
 import PowerSystems: PrimeMovers, ThermalFuels, Arc
 
 # ============================================================================
@@ -444,10 +447,13 @@ function read_thermal_generators_data(data_path::String, file_format::String="CS
                     fuel = getfield(ThermalFuels, Symbol(gen_data["Fuel"])),
                     active_power_limits = (min = gen_data["ActivePowerMin"], max = gen_data["ActivePowerMax"]),
                     reactive_power_limits = (min = gen_data["ReactivePowerMin"], max = gen_data["ReactivePowerMax"]),
-                    ramp_limits = isnothing(get(gen_data, "RampUp", nothing)) ? nothing : 
+                    # Ramp limits: MW per time period (e.g., MW/hour)
+                    ramp_limits = isnothing(get(gen_data, "RampUp", nothing)) ? nothing :
                                   (up = gen_data["RampUp"], down = gen_data["RampDown"]),
+                    # Time limits: Minimum up/down time (e.g., must run 4 hours if started)
                     time_limits = isnothing(get(gen_data, "TimeUp", nothing)) ? nothing :
                                   (up = gen_data["TimeUp"], down = gen_data["TimeDown"]),
+                    # Cost structure: Quadratic fuel curve + fixed + startup/shutdown
                     operation_cost = PSY.ThermalGenerationCost(
                         variable = IS.FuelCurve(
                             value_curve = IS.QuadraticCurve(gen_data["CostC0"], gen_data["CostC1"], gen_data["CostC2"]),
@@ -710,3 +716,137 @@ end
 # Omitted for brevity but follow same structure
 
 log_info("Data reader module loaded successfully")
+
+"""
+Case-Specific Data Readers for PowerLASCOPF
+
+Loads data for specific test cases by including their data files.
+Called by data_reader_generic.jl
+"""
+
+"""
+    load_5bus_case(case_path::String)
+
+Load 5-bus test case data.
+"""
+function load_5bus_case(case_path::String)
+    println("  - Loading 5-bus system from data file")
+    
+    # Include the 5-bus data file
+    if isfile(case_path)
+        include(case_path)
+    else
+        data_file = joinpath(@__DIR__, "data_5bus_pu.jl")
+        if isfile(data_file)
+            include(data_file)
+        else
+            error("❌ 5-bus data file not found at $case_path or $data_file")
+        end
+    end
+    
+    # Call the create function from data_5bus_pu.jl
+    system, system_data = create_5bus_powerlascopf_system()
+    
+    return system, system_data
+end
+
+"""
+    load_14bus_case(case_path::String)
+
+Load 14-bus test case data.
+"""
+function load_14bus_case(case_path::String)
+    println("  - Loading 14-bus system from data file")
+    
+    # Include the 14-bus data file
+    if isfile(case_path)
+        include(case_path)
+    else
+        data_file = joinpath(@__DIR__, "data_14bus_pu.jl")
+        if isfile(data_file)
+            include(data_file)
+        else
+            error("❌ 14-bus data file not found at $case_path or $data_file")
+        end
+    end
+    
+    # Call the create function from data_14bus_pu.jl
+    system, system_data = create_14bus_powerlascopf_system()
+    
+    return system, system_data
+end
+
+"""
+    load_118bus_case(case_path::String)
+
+Load 118-bus test case data.
+"""
+function load_118bus_case(case_path::String)
+    println("  - Loading 118-bus system from data file")
+    
+    # Check if data file exists
+    if isfile(case_path)
+        include(case_path)
+    else
+        data_file = joinpath(@__DIR__, "data_118bus_pu.jl")
+        if isfile(data_file)
+            include(data_file)
+        else
+            error("❌ 118-bus data file not found. Please create data_118bus_pu.jl following the pattern of data_5bus_pu.jl and data_14bus_pu.jl")
+        end
+    end
+    
+    # Call the create function (assuming similar naming convention)
+    system, system_data = create_118bus_powerlascopf_system()
+    
+    return system, system_data
+end
+
+"""
+    load_300bus_case(case_path::String)
+
+Load 300-bus test case data.
+"""
+function load_300bus_case(case_path::String)
+    println("  - Loading 300-bus system from data file")
+    
+    # Check if data file exists
+    if isfile(case_path)
+        include(case_path)
+    else
+        data_file = joinpath(@__DIR__, "data_300bus_pu.jl")
+        if isfile(data_file)
+            include(data_file)
+        else
+            error("❌ 300-bus data file not found. Please create data_300bus_pu.jl following the pattern of data_5bus_pu.jl and data_14bus_pu.jl")
+        end
+    end
+    
+    # Call the create function (assuming similar naming convention)
+    system, system_data = create_300bus_powerlascopf_system()
+    
+    return system, system_data
+end
+
+"""
+    load_from_csv_json(case_path::String)
+
+Load case data from CSV/JSON files using generic data reader.
+
+Note: This function requires implementation of CSV/JSON parsing utilities.
+"""
+function load_from_csv_json(case_path::String)
+    println("  - Loading from CSV/JSON files in $case_path")
+    
+    # Check if data_reader.jl exists (the old generic CSV/JSON reader)
+    reader_file = joinpath(@__DIR__, "..", "src", "io", "readers", "data_reader.jl")
+    if isfile(reader_file)
+        include(reader_file)
+        # Use functions from the CSV/JSON reader
+        system_data = read_system_data_from_csv(case_path)
+        system = create_powersystems_from_data(system_data)
+        return system, system_data
+    else
+        error("❌ CSV/JSON data reader not found at $reader_file. Please implement or use case-specific data files.")
+    end
+end

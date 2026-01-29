@@ -42,21 +42,46 @@ using DataFrames
 using Dates
 using Random
 using Printf
+using Logging
 
 Random.seed!(123)
 
 # Note: PowerSystems loading is optional - the data reader works without it
 # Users can load PowerSystems in their own scripts if needed
 
+const LOG_FILE = joinpath(@__DIR__, "execution_run.log")
+const LOG_IO = open(LOG_FILE, "w")
+
 # ============================================================================
 # SECTION 1: LOGGING UTILITIES
 # ============================================================================
 
+"""
+    log_both(message::String)
+
+WHY: Write to both console (user feedback) and file (permanent record)
+WHEN: Every significant operation (reading files, creating objects, errors)
+"""
+function log_both(message::String)
+    timestamp = Dates.format(now(), "yyyy-mm-dd HH:MM:SS")
+    formatted_message = "[$timestamp] $message"
+    println(formatted_message)
+    println(LOG_IO, formatted_message)
+    flush(LOG_IO)  # Ensure immediate write (important if crash occurs)
+end
+
 """Simple logging functions for console output"""
-log_info(msg::String) = println("ℹ️  INFO: $msg")
-log_warn(msg::String) = println("⚠️  WARN: $msg")
-log_error(msg::String) = println("❌ ERROR: $msg")
-log_success(msg::String) = println("✅ SUCCESS: $msg")
+log_info(msg::String) = log_both("ℹ️  INFO: $msg")
+log_warn(msg::String) = log_both("⚠️  WARN: $msg")
+log_error(msg::String) = log_both("❌ ERROR: $msg")
+log_success(msg::String) = log_both("✅ SUCCESS: $msg")
+
+atexit(() -> close(LOG_IO))
+
+log_info("Starting PowerLASCOPF execution script")
+log_info("Log file: $LOG_FILE")
+
+import PowerSystems: PrimeMovers, ThermalFuels, Arc
 
 # ============================================================================
 # SECTION 2: CASE DETECTION AND PATH RESOLUTION
@@ -915,4 +940,74 @@ end
 
 log_info("Generic data reader module loaded successfully")
 log_info("Usage: data = load_case_data(\"IEEE_5_bus\", \"CSV\")")
+
+"""
+Generic Data Reader for PowerLASCOPF Test Cases
+
+Dispatches to case-specific data readers based on case name/path.
+Called by run_reader.jl → calls data_reader.jl
+"""
+
+# Include the case-specific data reader
+include("data_reader.jl")
+
+"""
+    load_case_data(case_name::String, case_path::String)
+
+Load system data for the specified test case.
+
+# Arguments
+- `case_name::String`: Name of the test case (e.g., "5bus_pu", "14bus_pu")
+- `case_path::String`: Path to case data file or directory
+
+# Returns
+- `system`: PowerLASCOPF system object
+- `system_data`: Dictionary containing all system component data
+"""
+function load_case_data(case_name::String, case_path::String)
+    println("  - Loading case: $case_name")
+    println("  - From path: $case_path")
+    
+    # Normalize case name for matching
+    normalized_name = lowercase(replace(case_name, "_" => ""))
+    
+    # Dispatch to appropriate case loader via data_reader.jl
+    if contains(normalized_name, "5bus")
+        println("  - Detected 5-bus test case")
+        return load_5bus_case(case_path)
+    elseif contains(normalized_name, "14bus")
+        println("  - Detected 14-bus test case")
+        return load_14bus_case(case_path)
+    elseif contains(normalized_name, "118bus")
+        println("  - Detected 118-bus test case")
+        return load_118bus_case(case_path)
+    elseif contains(normalized_name, "300bus")
+        println("  - Detected 300-bus test case")
+        return load_300bus_case(case_path)
+    else
+        # Attempt generic CSV/JSON loading
+        println("  - Attempting generic data loading")
+        return load_generic_case(case_path)
+    end
+end
+
+"""
+    load_generic_case(case_path::String)
+
+Generic loader for cases with CSV/JSON data files.
+"""
+function load_generic_case(case_path::String)
+    if isdir(case_path)
+        # Look for standard data files in directory
+        csv_files = filter(f -> endswith(f, ".csv"), readdir(case_path))
+        json_files = filter(f -> endswith(f, ".json"), readdir(case_path))
+        
+        if !isempty(csv_files) || !isempty(json_files)
+            println("  - Found data files in directory, attempting CSV/JSON loading")
+            return load_from_csv_json(case_path)
+        end
+    end
+    
+    error("❌ Unable to load case data from $case_path. Ensure case data file exists or implement case-specific loader.")
+end
 

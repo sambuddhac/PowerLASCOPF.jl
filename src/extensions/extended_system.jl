@@ -27,7 +27,7 @@ include("../components/ExtendedStorageGenerator.jl")
     extended_loads::Vector{Load} = Load[]
 
     # Outage tracking
-    outaged_line::Vector{Int} = Int[]
+    #outaged_line::Vector{Int} = Int[]
     
     # Network properties
     network_id::Int = 0
