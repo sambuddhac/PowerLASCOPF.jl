@@ -80,6 +80,9 @@ using Dates
 # Include the generic data reader
 include(joinpath(PROJECT_ROOT, "example_cases", "data_reader_generic.jl"))
 
+# Include the simulation runner
+include(joinpath(PROJECT_ROOT, "examples", "run_reader.jl"))
+
 # ============================================================================
 # STEP 3: ARGUMENT PARSING
 # ============================================================================
@@ -401,86 +404,135 @@ function run_case(case_name::AbstractString;
     println("\n⚡ RUNNING SIMULATION...")
     println("-" ^ 70)
     
-    # Extract generator data for dispatch simulation
-    thermal_df = data[:thermal]
-    loads_df = data[:loads]
-    branches_df = data[:branches]
+    # Prepare system data for simulation
+    # Convert DataFrames to system_data Dict format expected by execute_simulation
+    system_data = Dict(
+        "name" => case_name,
+        "nodes" => data[:nodes],
+        "branches" => data[:branches],
+        "thermal_generators" => data[:thermal],
+        "renewable_generators" => data[:renewable],
+        "hydro_generators" => data[:hydro],
+        "storage" => data[:storage],
+        "loads" => data[:loads],
+        "base_power" => 100.0
+    )
     
-    # Simple economic dispatch (placeholder for full ADMM/APP algorithm)
-    # This demonstrates how the data would be used
+    # Prepare configuration for simulation
+    config = Dict(
+        "max_iterations" => iterations,
+        "tolerance" => tolerance,
+        "contingencies" => contingencies,
+        "rnd_intervals" => 6,
+        "verbose" => verbose,
+        "solver" => "ipopt"
+    )
     
-    println("  Preparing generator dispatch...")
-    
-    if !isempty(thermal_df) && hasproperty(thermal_df, :GeneratorName)
-        total_load = get_total_load(data)
-        remaining_load = total_load
+    # Call execute_simulation from run_reader.jl
+    try
+        simulation_results = execute_simulation(case_name, nothing, system_data, config)
         
-        # Sort generators by cost (linear cost coefficient)
-        if hasproperty(thermal_df, :CostCurve_b)
-            sorted_gens = sort(thermal_df, :CostCurve_b)
-        else
-            sorted_gens = thermal_df
+        # Update results structure with simulation outcomes
+        results.status = simulation_results["status"]
+        results.iterations = simulation_results["iterations"]
+        results.final_residual = 0.0  # Placeholder
+        results.total_cost = simulation_results["objective_value"]
+        results.converged = (simulation_results["status"] == "FEASIBLE")
+        
+        # Extract generator dispatch and line flows if available
+        if haskey(simulation_results, "generator_dispatch")
+            results.generator_dispatch = simulation_results["generator_dispatch"]
         end
-        
-        total_cost = 0.0
-        
-        for row in eachrow(sorted_gens)
-            gen_name = row.GeneratorName
-            max_power = hasproperty(row, :ActivePowerMax) ? row.ActivePowerMax : 0.0
-            min_power = hasproperty(row, :ActivePowerMin) ? row.ActivePowerMin : 0.0
-            
-            # Dispatch this generator
-            if remaining_load > 0
-                dispatch = min(max_power, remaining_load)
-                dispatch = max(dispatch, min_power)
-            else
-                dispatch = 0.0
-            end
-            
-            remaining_load -= dispatch
-            results.generator_dispatch[gen_name] = dispatch
-            
-            # Calculate cost
-            a = hasproperty(row, :CostCurve_a) ? row.CostCurve_a : 0.0
-            b = hasproperty(row, :CostCurve_b) ? row.CostCurve_b : 0.0
-            c = hasproperty(row, :CostCurve_c) ? row.CostCurve_c : 0.0
-            cost = a * dispatch^2 + b * dispatch + c
-            total_cost += cost
-            
-            if verbose
-                @printf("    %s: %.2f MW (cost: \$%.2f)\n", gen_name, dispatch, cost)
-            end
+        if haskey(simulation_results, "line_flows")
+            results.line_flows = simulation_results["line_flows"]
         end
-        
-        results.total_cost = total_cost
-        results.converged = remaining_load <= tolerance
-        results.iterations = 1
-        results.final_residual = abs(remaining_load)
         
         if results.converged
-            results.status = "converged"
-            println("  ✅ Dispatch converged")
+            println("  ✅ Simulation converged successfully")
         else
-            results.status = "not_converged"
-            println("  ⚠️  Load not fully satisfied (remaining: $(remaining_load) MW)")
+            println("  ⚠️  Simulation completed with status: $(results.status)")
         end
-    else
-        results.status = "no_generators"
-        println("  ⚠️  No generators available for dispatch")
-    end
-    
-    # Calculate line flows (simplified DC power flow approximation)
-    println("  Calculating line flows...")
-    
-    if !isempty(branches_df) && hasproperty(branches_df, :LineID)
-        for row in eachrow(branches_df)
-            line_id = row.LineID
-            # Placeholder - actual power flow calculation would go here
-            results.line_flows[line_id] = 0.0
+    catch e
+        # If simulation fails, fall back to simple economic dispatch
+        println("  ⚠️  Full simulation not available, using simple dispatch: $e")
+        
+        # Extract generator data for simple dispatch
+        thermal_df = data[:thermal]
+        loads_df = data[:loads]
+        branches_df = data[:branches]
+        
+        println("  Preparing simple economic dispatch...")
+        
+        if !isempty(thermal_df) && hasproperty(thermal_df, :GeneratorName)
+            total_load = get_total_load(data)
+            remaining_load = total_load
+            
+            # Sort generators by cost (linear cost coefficient)
+            if hasproperty(thermal_df, :CostCurve_b)
+                sorted_gens = sort(thermal_df, :CostCurve_b)
+            else
+                sorted_gens = thermal_df
+            end
+            
+            total_cost = 0.0
+            
+            for row in eachrow(sorted_gens)
+                gen_name = row.GeneratorName
+                max_power = hasproperty(row, :ActivePowerMax) ? row.ActivePowerMax : 0.0
+                min_power = hasproperty(row, :ActivePowerMin) ? row.ActivePowerMin : 0.0
+                
+                # Dispatch this generator
+                if remaining_load > 0
+                    dispatch = min(max_power, remaining_load)
+                    dispatch = max(dispatch, min_power)
+                else
+                    dispatch = 0.0
+                end
+                
+                remaining_load -= dispatch
+                results.generator_dispatch[gen_name] = dispatch
+                
+                # Calculate cost
+                a = hasproperty(row, :CostCurve_a) ? row.CostCurve_a : 0.0
+                b = hasproperty(row, :CostCurve_b) ? row.CostCurve_b : 0.0
+                c = hasproperty(row, :CostCurve_c) ? row.CostCurve_c : 0.0
+                cost = a * dispatch^2 + b * dispatch + c
+                total_cost += cost
+                
+                if verbose
+                    @printf("    %s: %.2f MW (cost: \$%.2f)\n", gen_name, dispatch, cost)
+                end
+            end
+            
+            results.total_cost = total_cost
+            results.converged = remaining_load <= tolerance
+            results.iterations = 1
+            results.final_residual = abs(remaining_load)
+            
+            if results.converged
+                results.status = "converged"
+                println("  ✅ Dispatch converged")
+            else
+                results.status = "not_converged"
+                println("  ⚠️  Load not fully satisfied (remaining: $(remaining_load) MW)")
+            end
+        else
+            results.status = "no_generators"
+            println("  ⚠️  No generators available for dispatch")
         end
         
-        if verbose
-            println("    Calculated flows for $(length(results.line_flows)) lines")
+        # Calculate line flows (simplified)
+        println("  Calculating line flows...")
+        
+        if !isempty(branches_df) && hasproperty(branches_df, :LineID)
+            for row in eachrow(branches_df)
+                line_id = row.LineID
+                results.line_flows[line_id] = 0.0
+            end
+            
+            if verbose
+                println("    Calculated flows for $(length(results.line_flows)) lines")
+            end
         end
     end
     
