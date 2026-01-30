@@ -4,6 +4,21 @@
 
 To add a new IEEE test case to PowerLASCOPF, you must provide data files in the **Sahar Format** and place them in the correct folder structure. This document describes the required format and folder organization.
 
+### Available Test Cases with Sahar Format
+
+The following IEEE test cases are currently available with complete Sahar format data:
+- **IEEE 2 Bus** - Minimal test system
+- **IEEE 3 Bus** - Simple three-bus system
+- **IEEE 5 Bus** - Small test system
+- **IEEE 14 Bus** - IEEE 14-bus test system
+- **IEEE 30 Bus** - IEEE 30-bus test system
+- **IEEE 48 Bus** - Medium-sized test system
+- **IEEE 57 Bus** - IEEE 57-bus test system (reference example)
+- **IEEE 118 Bus** - Large IEEE test system
+- **IEEE 300 Bus** - Extra-large IEEE test system
+
+All cases include complete Sahar format files and can be loaded using `data_reader_generic.jl`.
+
 ---
 
 ## Folder Structure
