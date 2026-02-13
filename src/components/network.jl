@@ -284,7 +284,7 @@ function update_network_counts_from_system!(network::Network)
     network.gen_number = (get_extended_thermal_generator_count(network.net_sys) + 
                          get_extended_hydro_generator_count(network.net_sys) + 
                          get_extended_renewable_generator_count(network.net_sys) + 
-                         get_extended_storage_unit_count(network.net_sys))
+                         get_extended_storage_generator_count(network.net_sys))
     network.transl_number = get_transmission_line_count(network.net_sys)
     
     # Count loads
@@ -640,16 +640,13 @@ function initialize_coordination_variables!(network::Network)
     resize!(network.p_self_buffer, network.gen_number)
     resize!(network.p_prev_buffer, network.gen_number)
     resize!(network.p_next_buffer, network.gen_number)
-    resize!(network.p_self_buffer_gurobi, network.gen_number)
-    resize!(network.p_next_buffer_gurobi, network.gen_number)
-    resize!(network.p_prev_buffer_gurobi, network.gen_number)
     
     # Initialize generation beliefs
     if network.interval_id == 0
         for i in 1:network.gen_number
             network.p_self_belief_inner[i] = 0.0
             network.p_self_belief[i] = 0.0
-            network.p_prev_belief[i] = network.gen_object[i].P_gen_prev
+            network.p_prev_belief[i] = network.net_sys.extended_thermal_generators[i].P_gen_prev
             network.p_next_belief[i] = 0.0
         end
     else

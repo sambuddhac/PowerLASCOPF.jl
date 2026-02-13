@@ -83,10 +83,10 @@ include("../src/pomdp/utils.jl")=#
 import PowerSystems: VariableCost, TwoPartCost, MarketBidCost, PrimeMovers, ThermalFuels, Arc
 
 # Include POMDP components
-include("../src/pomdp/PowerLASCOPFPOMDP.jl")
+#=include("../src/pomdp/PowerLASCOPFPOMDP.jl")
 include("../src/pomdp/belief_updater.jl")
 include("../src/pomdp/policy_interface.jl")
-include("../src/pomdp/utils.jl")
+include("../src/pomdp/utils.jl")=#
 
 DayAhead = collect(
     DateTime("1/1/2024  0:00:00", "d/m/y  H:M:S"):Hour(1):DateTime(
@@ -2363,8 +2363,9 @@ function create_5bus_powerlascopf_system()
     print("Creating 5-bus PowerLASCOPF system...")
     log_info("Creating 5-bus PowerLASCOPF system...")
     # Create components using existing PowerLASCOPF structs
-    cont_count = 2  # Number of contingencies
-    RND_int = 4     # Number of random intervals for line modeling
+    cont_count = length(branches_5_contingency_list())  # Number of contingencies
+    RND_int = 6     # Number of random intervals for line modeling
+    RSD_int = 6     # Number of random intervals for load modeling
     system = power_lascopf_system5()
     nodes = powerlascopf_nodes5!(system)
     branches = powerlascopf_branches5!(system, nodes, cont_count, RND_int)
@@ -2382,6 +2383,9 @@ function create_5bus_powerlascopf_system()
         "thermal_generators" => thermal_gens,
         "renewable_generators" => renewable_gens,
         "hydro_generators" => hydro_gens,
+        "number_of_contingencies" => cont_count,
+        "RND_intervals" => RND_int,
+        "RSD_intervals" => RSD_int,
         #"storage_generators" => GeneralizedGenerator[],
         "loads" => loads,  # Keep PSY loads for now
         "base_power" => 100.0,
@@ -2656,9 +2660,9 @@ Function to create SuperNetwork objects for PowerLASCOPF systems
 Returns a vector of SuperNetwork objects based on the intervals and contingencies
 """
 function create_supernetwork(system::PowerLASCOPF.PowerLASCOPFSystem, system_data::Dict; 
-    number_of_cont::Int = 6,
-    rnd_intervals::Int = 6,
-    rsd_intervals::Int = 6,
+    number_of_cont::Int = system_data["number_of_contingencies"],
+    rnd_intervals::Int = system_data["RND_intervals"],
+    rsd_intervals::Int = system_data["RSD_intervals"],
     include_dummy_zero::Bool = false,
     choice_solver::Int = 1,
     rho_tuning::Float64 = 1.0,

@@ -27,7 +27,7 @@ include("../components/ExtendedStorageGenerator.jl")
     extended_loads::Vector{Load} = Load[]
 
     # Outage tracking
-    #outaged_line::Vector{Int} = Int[]
+    outaged_line::Vector{Int} = Int[]
     
     # Network properties
     network_id::Int = 0
@@ -36,7 +36,7 @@ include("../components/ExtendedStorageGenerator.jl")
     contingency_count::Int = 0
     interval_id::Int = 0
     last_flag::Bool = false
-    outaged_line::Int = 0
+    outaged_line_single::Int = 0
     
     # Solver properties
     solver_choice::Int = 1 # 1=IPOPT, 2=Gurobi, etc.
@@ -581,7 +581,7 @@ function create_network_from_system(;
         node_object = Node[]                # Empty - use sys.nodes
     )
 
-    push!(network.outaged_line, network.net_sys.outaged_line)
+     push!(network.outaged_line, network.net_sys.outaged_line_single)
     # Load network data
     set_network_variables!(network)
     
