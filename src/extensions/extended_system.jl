@@ -510,6 +510,10 @@ function create_network_from_system(;
                       length(sys.extended_renewable_generators) +
                       length(sys.extended_hydro_generators) +
                       length(sys.extended_storage_generators)
+    thermal_gen_count = length(sys.extended_thermal_generators)
+    renewable_gen_count = length(sys.extended_renewable_generators)
+    hydro_gen_count = length(sys.extended_hydro_generators)
+    storage_gen_count = length(sys.extended_storage_generators)
     
     # Initialize network variables as a lightweight interface
     network = Network(
@@ -524,6 +528,10 @@ function create_network_from_system(;
         
         # Component counts (cached for quick access)
         gen_number = total_generators,
+        thermal_gen_number = thermal_gen_count,
+        renewable_gen_number = renewable_gen_count,
+        hydro_gen_number = hydro_gen_count,
+        storage_gen_number = storage_gen_count,
         load_number = length(sys.extended_loads),
         transl_number = length(sys.transmission_lines),
         node_number = length(sys.nodes),

@@ -140,11 +140,11 @@ results = Dict(
 println("  - Building Supernetwork and Network objects...")
 # Create supernetworks with system-specific parameters
 supernetworks = create_supernetwork(
-    system.psy_system,
+    system,
     system_data,
-    number_of_cont = 2,        # Number of contingency scenarios
-    rnd_intervals = 6,         # Restoration to normal duration intervals
-    rsd_intervals = 6,         # Restoration to secure duration intervals
+    number_of_cont = system_data["number_of_contingencies"],        # Number of contingency scenarios
+    rnd_intervals = system_data["RND_intervals"],         # Restoration to normal duration intervals
+    rsd_intervals = system_data["RSD_intervals"],         # Restoration to secure duration intervals
     include_dummy_zero = true, # Include dummy zero interval
     choice_solver = 1,         # 1=ADMM-PMP-GUROBI
     rho_tuning = 1.0,         # APP rho parameter tuning
@@ -156,9 +156,9 @@ system_data["supernetworks"] = supernetworks
 system_data["number_of_supernetworks"] = length(supernetworks)
     
 # Add additional metadata
-system_data["rnd_intervals"] = 6
-system_data["rsd_intervals"] = 6
-system_data["number_of_contingencies"] = 2
+system_data["RND_intervals"] = system_data["RND_intervals"]
+system_data["RSD_intervals"] = system_data["RSD_intervals"]
+system_data["number_of_contingencies"] = system_data["number_of_contingencies"]
 system_data["include_dummy_zero"] = true
     
 println("System created with $(length(supernetworks)) SuperNetwork objects")
