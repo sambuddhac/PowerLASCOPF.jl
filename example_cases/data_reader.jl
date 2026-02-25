@@ -1861,10 +1861,15 @@ end
     powerlascopf_storage_from_csv!(system, nodes, csv_path, cont_count)
 
 Read storage units from a Storage*_sahar.csv file and create PowerLASCOPF objects.
-Expected CSV columns: BatteryName (or StorageName), BusNumber, Available, ActivePower,
-  ReactivePower, Rating, InputActivePowerMin, InputActivePowerMax,
-  OutputActivePowerMin, OutputActivePowerMax, EfficiencyIn, EfficiencyOut,
-  StorageCapacity, InitialEnergy, BasePower
+Supports two CSV formats:
+  - New format: StorageName, BusNumber, StorageType, PrimeMover, Available, InitialEnergy,
+    SOC_Min, SOC_Max, Rating, ActivePower, InputActivePowerMin, InputActivePowerMax,
+    OutputActivePowerMin, OutputActivePowerMax, EfficiencyIn, EfficiencyOut, ReactivePower,
+    ReactivePowerMin, ReactivePowerMax, BasePower, [StorageTarget, EnergyShortageCost,
+    EnergySurplusCost]
+  - Old format: BatteryName, BusNumber, Available, ActivePower, ReactivePower, Rating,
+    InputActivePowerMin, InputActivePowerMax, OutputActivePowerMin, OutputActivePowerMax,
+    EfficiencyIn, EfficiencyOut, StorageCapacity, InitialEnergy, BasePower
 """
 function powerlascopf_storage_from_csv!(
     system::PowerLASCOPF.PowerLASCOPFSystem,
@@ -1880,9 +1885,12 @@ function powerlascopf_storage_from_csv!(
     generators = PowerLASCOPF.GeneralizedGenerator[]
     cols = names(df)
 
-    # Support both BatteryName and StorageName column headers
-    name_col = "BatteryName" in cols ? :BatteryName :
-               "StorageName" in cols ? :StorageName  : :BatteryName
+    # Detect format: new format has SOC_Min/SOC_Max, old format has StorageCapacity
+    is_new_format = "SOC_Min" in cols
+
+    # Support both BatteryName (old) and StorageName (new) column headers
+    name_col = "StorageName" in cols ? :StorageName :
+               "BatteryName" in cols ? :BatteryName : :StorageName
 
     for (i, row) in enumerate(eachrow(df))
         bus_num = Int(row.BusNumber)
@@ -1892,23 +1900,71 @@ function powerlascopf_storage_from_csv!(
         rating = "Rating" in cols ? Float64(row.Rating) :
                  max(Float64(row.InputActivePowerMax), Float64(row.OutputActivePowerMax))
 
-        gen = PSY.GenericBattery(
-            name                  = String(row[name_col]),
-            available             = Bool(row.Available),
-            bus                   = bus,
-            prime_mover_type      = PrimeMovers.BA,
-            initial_energy        = Float64(row.InitialEnergy),
-            state_of_charge_limits = (min = 0.0, max = 1.0),
-            rating                = rating,
-            active_power          = Float64(row.ActivePower),
-            input_active_power_limits  = (min = Float64(row.InputActivePowerMin),  max = Float64(row.InputActivePowerMax)),
-            output_active_power_limits = (min = Float64(row.OutputActivePowerMin), max = Float64(row.OutputActivePowerMax)),
-            efficiency            = (in = Float64(row.EfficiencyIn), out = Float64(row.EfficiencyOut)),
-            reactive_power        = Float64(row.ReactivePower),
-            reactive_power_limits = (min = 0.0, max = 0.0),
-            base_power            = Float64(row.BasePower),
-            operation_cost        = PSY.StorageCost()
-        )
+        if is_new_format
+            # New format: has SOC_Min, SOC_Max, StorageTarget, etc.
+            soc_min = Float64(row.SOC_Min)
+            soc_max = Float64(row.SOC_Max)
+            rp_min  = "ReactivePowerMin" in cols ? Float64(row.ReactivePowerMin) : 0.0
+            rp_max  = "ReactivePowerMax" in cols ? Float64(row.ReactivePowerMax) : 0.0
+            pm      = "PrimeMover" in cols ? getfield(PrimeMovers, Symbol(row.PrimeMover)) : PrimeMovers.BA
+
+            # Check for storage management cost fields
+            has_cost = "EnergyShortageCost" in cols &&
+                       !ismissing(row.EnergyShortageCost) && !ismissing(row.EnergySurplusCost)
+            has_target = "StorageTarget" in cols && !ismissing(row.StorageTarget)
+
+            if has_cost
+                op_cost = PSY.StorageManagementCost(
+                    variable          = PSY.VariableCost(0.0),
+                    fixed             = 0.0,
+                    start_up          = 0.0,
+                    shut_down         = 0.0,
+                    energy_shortage_cost = Float64(row.EnergyShortageCost),
+                    energy_surplus_cost  = Float64(row.EnergySurplusCost)
+                )
+            else
+                op_cost = PSY.StorageManagementCost()
+            end
+
+            gen = PSY.EnergyReservoirStorage(;
+                name                       = String(row[name_col]),
+                prime_mover_type           = pm,
+                available                  = Bool(row.Available),
+                bus                        = bus,
+                initial_energy             = Float64(row.InitialEnergy),
+                state_of_charge_limits     = (min = soc_min, max = soc_max),
+                rating                     = rating,
+                active_power               = Float64(row.ActivePower),
+                input_active_power_limits  = (min = Float64(row.InputActivePowerMin), max = Float64(row.InputActivePowerMax)),
+                output_active_power_limits = (min = Float64(row.OutputActivePowerMin), max = Float64(row.OutputActivePowerMax)),
+                efficiency                 = (in = Float64(row.EfficiencyIn), out = Float64(row.EfficiencyOut)),
+                reactive_power             = Float64(row.ReactivePower),
+                reactive_power_limits      = (min = rp_min, max = rp_max),
+                base_power                 = Float64(row.BasePower),
+                storage_target             = has_target ? Float64(row.StorageTarget) : 0.0,
+                operation_cost             = op_cost
+            )
+        else
+            # Old format: BatteryName, StorageCapacity, no SOC_Min/Max
+            cap = "StorageCapacity" in cols ? Float64(row.StorageCapacity) : rating
+            gen = PSY.EnergyReservoirStorage(;
+                name                       = String(row[name_col]),
+                prime_mover_type           = PrimeMovers.BA,
+                available                  = Bool(row.Available),
+                bus                        = bus,
+                initial_energy             = Float64(row.InitialEnergy),
+                state_of_charge_limits     = (min = 0.0, max = cap),
+                rating                     = rating,
+                active_power               = Float64(row.ActivePower),
+                input_active_power_limits  = (min = Float64(row.InputActivePowerMin), max = Float64(row.InputActivePowerMax)),
+                output_active_power_limits = (min = Float64(row.OutputActivePowerMin), max = Float64(row.OutputActivePowerMax)),
+                efficiency                 = (in = Float64(row.EfficiencyIn), out = Float64(row.EfficiencyOut)),
+                reactive_power             = Float64(row.ReactivePower),
+                reactive_power_limits      = (min = 0.0, max = 0.0),
+                base_power                 = Float64(row.BasePower),
+                operation_cost             = PSY.StorageManagementCost()
+            )
+        end
 
         PSY.add_component!(system.psy_system, gen)
 
