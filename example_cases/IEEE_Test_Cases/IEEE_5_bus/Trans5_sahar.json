@@ -1,6 +1,6 @@
 [
   {
-    "LineID": "1",
+    "LineName": "1",
     "LineType": "AC",
     "fromNode": 1,
     "toNode": 2,
@@ -14,7 +14,7 @@
     "ContingencyMarked": 1
   },
   {
-    "LineID": "DCL2",
+    "LineName": "DCL2",
     "LineType": "HVDC",
     "fromNode": 1,
     "toNode": 4,
@@ -29,7 +29,7 @@
     "ContingencyMarked": 1
   },
   {
-    "LineID": "3",
+    "LineName": "3",
     "LineType": "AC",
     "fromNode": 1,
     "toNode": 5,
@@ -43,7 +43,7 @@
     "ContingencyMarked": 1
   },
   {
-    "LineID": "4",
+    "LineName": "4",
     "LineType": "AC",
     "fromNode": 2,
     "toNode": 3,
@@ -57,7 +57,7 @@
     "ContingencyMarked": 1
   },
   {
-    "LineID": "5",
+    "LineName": "5",
     "LineType": "AC",
     "fromNode": 3,
     "toNode": 4,
@@ -71,7 +71,7 @@
     "ContingencyMarked": 1
   },
   {
-    "LineID": "6",
+    "LineName": "6",
     "LineType": "AC",
     "fromNode": 4,
     "toNode": 5,

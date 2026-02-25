@@ -1317,3 +1317,1132 @@ function load_from_csv_json(data_dir::String, file_format::String="CSV"; num_bus
     error("❌ Could not auto-detect bus count. No Nodes*_sahar.$ext file found in $data_dir. " *
           "Pass num_buses explicitly.")
 end
+
+# ============================================================
+# SECTION: CONTINGENCY LISTS FOR IEEE TEST CASES
+# Extracted from ContingencyMarked column in Trans*_sahar.csv
+# ============================================================
+
+"""
+    branches_57_contingency_list()
+
+Contingency branch indices for the 57-bus IEEE test case,
+extracted from ContingencyMarked=1 rows in Trans57_sahar.csv.
+Indices correspond to 1-based row positions (excluding header).
+"""
+branches_57_contingency_list() = [20, 30, 46, 63]
+
+"""
+    branches_118_contingency_list()
+
+Contingency branch indices for the 118-bus IEEE test case,
+extracted from ContingencyMarked=1 rows in Trans118_sahar.csv.
+"""
+branches_118_contingency_list() = [2, 3]
+
+"""
+    branches_300_contingency_list()
+
+Contingency branch indices for the 300-bus IEEE test case,
+extracted from ContingencyMarked=1 rows in Trans300_sahar.csv.
+"""
+branches_300_contingency_list() = [18, 320]
+
+# ============================================================
+# SECTION: GENERIC POWERLASCOPF SYSTEM CREATION FROM CSV FILES
+# Following the same pattern as data_5bus_pu.jl / data_14bus_pu.jl
+# but reading from *_sahar.csv files instead of hardcoded arrays.
+# ============================================================
+
+"""
+    powerlascopf_nodes_from_csv!(system, csv_path)
+
+Read nodes from a Nodes*_sahar.csv file and create PowerLASCOPF Nodes.
+Expected CSV columns: BusNumber, BusName, BusType, Angle, Voltage,
+                      VoltageMin, VoltageMax, BaseVoltage
+"""
+function powerlascopf_nodes_from_csv!(system::PowerLASCOPF.PowerLASCOPFSystem, csv_path::String)
+    log_info("Creating PowerLASCOPF Nodes from CSV: $csv_path")
+    df = CSV.read(csv_path, DataFrame)
+    nodes = PowerLASCOPF.Node{PSY.Bus}[]
+
+    for (i, row) in enumerate(eachrow(df))
+        bus = PSY.ACBus(
+            Int(row.BusNumber),
+            String(row.BusName),
+            String(row.BusType),
+            Float64(row.Angle),
+            Float64(row.Voltage),
+            (min = Float64(row.VoltageMin), max = Float64(row.VoltageMax)),
+            Float64(row.BaseVoltage),
+            nothing,
+            nothing
+        )
+        node = PowerLASCOPF.Node{PSY.Bus}(bus, i, 0)
+        PSY.add_component!(system.psy_system, bus)
+        PowerLASCOPF.add_node!(system, node)
+        push!(nodes, node)
+    end
+    log_info("Created $(length(nodes)) PowerLASCOPF Nodes from CSV.")
+    println("Created $(length(nodes)) PowerLASCOPF Nodes from CSV: $csv_path")
+    return nodes
+end
+
+"""
+    powerlascopf_branches_from_csv!(system, nodes, csv_path, contingency_list, cont_count, RND_int)
+
+Read branches from a Trans*_sahar.csv file and create PowerLASCOPF transmission lines.
+Expected CSV columns: LineName, LineType, fromNode, toNode, Resistance, Reactance,
+  Susceptance_from, Susceptance_to, RateLimit, AngleLimit_min, AngleLimit_max,
+  [ActivePowerLimit_min, ActivePowerLimit_max, ReactivePower_from_min,
+   ReactivePower_from_max, ReactivePower_to_min, ReactivePower_to_max,
+   LossCoefficient_l0, LossCoefficient_l1], ContingencyMarked
+"""
+function powerlascopf_branches_from_csv!(
+    system::PowerLASCOPF.PowerLASCOPFSystem,
+    nodes::Vector{PowerLASCOPF.Node{PSY.Bus}},
+    csv_path::String,
+    contingency_list::Vector{Int},
+    cont_count::Int,
+    RND_int::Int
+)
+    log_info("Creating PowerLASCOPF Branches from CSV: $csv_path")
+    df = CSV.read(csv_path, DataFrame)
+
+    # Build fast lookup: bus number -> node/bus
+    node_by_busnum = Dict(PSY.get_number(n.node_type) => n for n in nodes)
+    bus_by_busnum  = Dict(PSY.get_number(n.node_type) => n.node_type for n in nodes)
+
+    transmission_lines = PowerLASCOPF.transmissionLine[]
+    contingency_tracker = 0
+
+    for (i, row) in enumerate(eachrow(df))
+        line_type = String(row.LineType)
+        from_num  = Int(row.fromNode)
+        to_num    = Int(row.toNode)
+        from_bus  = bus_by_busnum[from_num]
+        to_bus    = bus_by_busnum[to_num]
+        from_node = node_by_busnum[from_num]
+        to_node   = node_by_busnum[to_num]
+
+        if i in contingency_list
+            contingency_tracker += 1
+            temp_tracker = contingency_tracker
+        else
+            temp_tracker = 0
+        end
+
+        if line_type == "AC"
+            branch = PSY.Line(
+                String(row.LineName),
+                true,
+                0.0,
+                0.0,
+                Arc(from = from_bus, to = to_bus),
+                Float64(row.Resistance),
+                Float64(row.Reactance),
+                (from = Float64(row.Susceptance_from), to = Float64(row.Susceptance_to)),
+                Float64(row.RateLimit),
+                (min = Float64(row.AngleLimit_min), max = Float64(row.AngleLimit_max))
+            )
+
+            solver_base = PowerLASCOPF.LineSolverBase(
+                lambda_txr    = randn(cont_count * (RND_int - 1)),
+                interval_type = PowerLASCOPF.LineBaseInterval(),
+                E_coeff       = [0.9^j for j in 1:RND_int],
+                Pt_next_nu    = zeros(cont_count * (RND_int - 1)),
+                BSC           = 0.1 * randn(cont_count * (RND_int - 1)),
+                E_temp_coeff  = 0.01 * randn(RND_int, RND_int),
+                alpha_factor  = 0.05,
+                beta_factor   = 0.1,
+                beta          = 0.1,
+                gamma         = 0.2,
+                Pt_max        = 1000.0,
+                temp_init     = 340.0,
+                temp_amb      = 300.0,
+                max_temp      = 473.0,
+                RND_int       = 1,
+                cont_count    = cont_count
+            )
+
+            trans_line = PowerLASCOPF.transmissionLine{PSY.Line}(
+                transl_type       = branch,
+                solver_line_base  = solver_base,
+                transl_id         = i,
+                conn_nodet1_ptr   = from_node,
+                conn_nodet2_ptr   = to_node,
+                cont_scen_tracker = temp_tracker,
+                thetat1 = 0.0, thetat2 = 0.0,
+                pt1 = 0.0,     pt2 = 0.0,
+                v1  = 0.0,     v2  = 0.0
+            )
+
+            PowerLASCOPF.assign_conn_nodes(trans_line)
+            PowerLASCOPF.add_transmission_line!(system, trans_line)
+            push!(transmission_lines, trans_line)
+
+        elseif line_type == "HVDC"
+            branch = PSY.HVDCLine(
+                String(row.LineName),
+                true,
+                0.0,
+                Arc(from = from_bus, to = to_bus),
+                (min = Float64(row.ActivePowerLimit_min),  max = Float64(row.ActivePowerLimit_max)),
+                (min = Float64(row.ReactivePower_from_min), max = Float64(row.ReactivePower_from_max)),
+                (min = Float64(row.ReactivePower_to_min),  max = Float64(row.ReactivePower_to_max)),
+                (min = Float64(row.ReactivePower_to_min),  max = Float64(row.ReactivePower_to_max)),
+                (l0  = Float64(row.LossCoefficient_l0),   l1  = Float64(row.LossCoefficient_l1))
+            )
+
+            solver_base = PowerLASCOPF.LineSolverBase(
+                lambda_txr    = [0.0],
+                interval_type = PowerLASCOPF.LineBaseInterval(),
+                E_coeff       = [1.0],
+                Pt_next_nu    = [0.0],
+                BSC           = [0.0],
+                E_temp_coeff  = reshape([0.1], 1, 1),
+                RND_int       = 1,
+                cont_count    = 1
+            )
+
+            trans_line = PowerLASCOPF.transmissionLine{PSY.HVDCLine}(
+                transl_type       = branch,
+                solver_line_base  = solver_base,
+                transl_id         = i,
+                conn_nodet1_ptr   = from_node,
+                conn_nodet2_ptr   = to_node,
+                cont_scen_tracker = temp_tracker,
+                thetat1 = 0.0, thetat2 = 0.0,
+                pt1 = 0.0,     pt2 = 0.0,
+                v1  = 0.0,     v2  = 0.0
+            )
+
+            PowerLASCOPF.assign_conn_nodes(trans_line)
+            PowerLASCOPF.add_transmission_line!(system, trans_line)
+            push!(transmission_lines, trans_line)
+        end
+    end
+
+    log_info("Created $(length(transmission_lines)) PowerLASCOPF Transmission Lines from CSV.")
+    println("Created $(length(transmission_lines)) PowerLASCOPF Transmission Lines from CSV: $csv_path")
+    return transmission_lines
+end
+
+"""
+    _make_gen_interval(cont_count::Int)
+
+Helper to create a standard GenFirstBaseInterval initialised to zero.
+Uses the same parameter values as data_14bus_pu.jl.
+"""
+function _make_gen_interval(cont_count::Int)
+    return PowerLASCOPF.GenFirstBaseInterval(
+        zeros(cont_count + 1),  # lambda_1
+        zeros(cont_count + 1),  # lambda_2
+        zeros(cont_count + 1),  # B
+        zeros(cont_count + 1),  # D
+        zeros(cont_count),      # BSC
+        cont_count,             # cont_count
+        0.1,                    # rho
+        0.1,                    # beta
+        0.1,                    # beta_inner
+        0.2,                    # gamma
+        0.2,                    # gamma_sc
+        zeros(cont_count),      # lambda_1_sc
+        0.0,                    # Pg_N_init
+        0.0,                    # Pg_N_avg
+        0.0,                    # thetag_N_avg
+        0.0,                    # ug_N
+        1.0,                    # vg_N
+        1.0,                    # Vg_N_avg
+        0.0,                    # Pg_nu
+        0.0,                    # Pg_nu_inner
+        zeros(cont_count),      # Pg_next_nu
+        0.0                     # Pg_prev
+    )
+end
+
+"""
+    powerlascopf_thermal_generators_from_csv!(system, nodes, csv_path, cont_count)
+
+Read thermal generators from a ThermalGenerators*_sahar.csv file and create
+PowerLASCOPF GeneralizedGenerators.
+
+Expected CSV columns: GeneratorName, BusNumber, Available, [Status], ActivePower,
+  ReactivePower, Rating, PrimeMover, Fuel, ActivePowerMin, ActivePowerMax,
+  ReactivePowerMin, ReactivePowerMax, [RampUp, RampDown, TimeLimitUp, TimeLimitDown],
+  CostCurve_a, CostCurve_b, CostCurve_c, FuelCost, [VOM_Cost], FixedCost,
+  [StartUpCost, ShutDownCost], BasePower
+"""
+function powerlascopf_thermal_generators_from_csv!(
+    system::PowerLASCOPF.PowerLASCOPFSystem,
+    nodes::Vector{PowerLASCOPF.Node{PSY.Bus}},
+    csv_path::String,
+    cont_count::Int = 6
+)
+    log_info("Creating PowerLASCOPF Thermal Generators from CSV: $csv_path")
+    df = CSV.read(csv_path, DataFrame)
+
+    node_by_busnum = Dict(PSY.get_number(n.node_type) => n for n in nodes)
+    bus_by_busnum  = Dict(PSY.get_number(n.node_type) => n.node_type for n in nodes)
+    generators = PowerLASCOPF.GeneralizedGenerator[]
+    cols = names(df)
+
+    for (i, row) in enumerate(eachrow(df))
+        bus_num = Int(row.BusNumber)
+        bus     = bus_by_busnum[bus_num]
+        node    = node_by_busnum[bus_num]
+
+        # Handle optional columns with defaults
+        status       = "Status"       in cols ? Bool(row.Status)       : true
+        ramp_up      = "RampUp"       in cols && !ismissing(row.RampUp) ? Float64(row.RampUp) : nothing
+        ramp_down    = "RampDown"     in cols && !ismissing(row.RampDown) ? Float64(row.RampDown) : nothing
+        time_up      = "TimeLimitUp"  in cols && !ismissing(row.TimeLimitUp) ? Float64(row.TimeLimitUp) : nothing
+        time_down    = "TimeLimitDown" in cols && !ismissing(row.TimeLimitDown) ? Float64(row.TimeLimitDown) : nothing
+        vom_cost     = "VOM_Cost"     in cols ? Float64(row.VOM_Cost)  : 0.0
+        startup_cost = "StartUpCost"  in cols ? Float64(row.StartUpCost) : 0.0
+        shutdown_cost = "ShutDownCost" in cols ? Float64(row.ShutDownCost) : 0.0
+
+        ramp_limits = (ramp_up !== nothing && ramp_down !== nothing) ?
+                      (up = ramp_up, down = ramp_down) : nothing
+        time_limits = (time_up !== nothing && time_down !== nothing) ?
+                      (up = time_up, down = time_down) : nothing
+
+        gen = PSY.ThermalStandard(
+            name              = String(row.GeneratorName),
+            available         = Bool(row.Available),
+            status            = status,
+            bus               = bus,
+            active_power      = Float64(row.ActivePower),
+            reactive_power    = Float64(row.ReactivePower),
+            rating            = Float64(row.Rating),
+            prime_mover_type  = getfield(PrimeMovers, Symbol(row.PrimeMover)),
+            fuel              = getfield(ThermalFuels, Symbol(get(row, :Fuel, "COAL"))),
+            active_power_limits   = (min = Float64(row.ActivePowerMin),  max = Float64(row.ActivePowerMax)),
+            reactive_power_limits = (min = Float64(row.ReactivePowerMin), max = Float64(row.ReactivePowerMax)),
+            ramp_limits       = ramp_limits,
+            time_limits       = time_limits,
+            operation_cost    = PSY.ThermalGenerationCost(
+                variable = IS.FuelCurve(
+                    value_curve = IS.QuadraticCurve(
+                        Float64(row.CostCurve_a),
+                        Float64(row.CostCurve_b),
+                        Float64(row.CostCurve_c)
+                    ),
+                    fuel_cost = Float64(row.FuelCost),
+                    vom_cost  = IS.LinearCurve(vom_cost)
+                ),
+                fixed     = Float64(row.FixedCost),
+                start_up  = startup_cost,
+                shut_down = shutdown_cost
+            ),
+            base_power = Float64(row.BasePower)
+        )
+
+        PSY.add_component!(system.psy_system, gen)
+
+        gen_interval = _make_gen_interval(cont_count)
+
+        extended_cost = PowerLASCOPF.ExtendedThermalGenerationCost(gen.operation_cost, gen_interval)
+        extended_gen  = PowerLASCOPF.ExtendedThermalGenerator(
+            gen, extended_cost, i, 1, false, cont_count, cont_count + 1, 1, 0, 1, node, cont_count
+        )
+        PowerLASCOPF.add_extended_thermal_generator!(system, extended_gen)
+
+        lascopf_gen = PowerLASCOPF.GeneralizedGenerator(
+            gen, gen_interval, i, 1, false, cont_count, cont_count + 1, 1, 0, 1, node, cont_count
+        )
+        push!(generators, lascopf_gen)
+    end
+
+    log_info("Created $(length(generators)) PowerLASCOPF Thermal Generators from CSV.")
+    println("Created $(length(generators)) PowerLASCOPF Thermal Generators from CSV: $csv_path")
+    return generators
+end
+
+"""
+    powerlascopf_renewable_generators_from_csv!(system, nodes, csv_path, timeseries_data, cont_count)
+
+Read renewable generators from a RenewableGenerators*_sahar.csv file.
+Expected CSV columns: GeneratorName, BusNumber, Available, ActivePower, ReactivePower,
+  Rating, PrimeMover, ReactivePowerMin, ReactivePowerMax, PowerFactor, VariableCost, BasePower
+"""
+function powerlascopf_renewable_generators_from_csv!(
+    system::PowerLASCOPF.PowerLASCOPFSystem,
+    nodes::Vector{PowerLASCOPF.Node{PSY.Bus}},
+    csv_path::String,
+    timeseries_data::Dict = Dict(),
+    cont_count::Int = 6
+)
+    log_info("Creating PowerLASCOPF Renewable Generators from CSV: $csv_path")
+    df = CSV.read(csv_path, DataFrame)
+
+    node_by_busnum = Dict(PSY.get_number(n.node_type) => n for n in nodes)
+    bus_by_busnum  = Dict(PSY.get_number(n.node_type) => n.node_type for n in nodes)
+    generators = PowerLASCOPF.GeneralizedGenerator[]
+
+    DayAhead = get(timeseries_data, "DayAhead",
+        collect(DateTime("1/1/2024 0:00:00", "d/m/y H:M:S"):Hour(1):
+                DateTime("1/1/2024 23:00:00", "d/m/y H:M:S")))
+    wind_ts  = get(timeseries_data, "wind_ts_DA",  zeros(24))
+    solar_ts = get(timeseries_data, "solar_ts_DA", zeros(24))
+
+    for (i, row) in enumerate(eachrow(df))
+        bus_num = Int(row.BusNumber)
+        bus     = bus_by_busnum[bus_num]
+        node    = node_by_busnum[bus_num]
+
+        gen = PSY.RenewableDispatch(
+            String(row.GeneratorName),
+            Bool(row.Available),
+            bus,
+            Float64(row.ActivePower),
+            Float64(row.ReactivePower),
+            Float64(row.Rating),
+            getfield(PrimeMovers, Symbol(row.PrimeMover)),
+            (min = Float64(row.ReactivePowerMin), max = Float64(row.ReactivePowerMax)),
+            Float64(row.PowerFactor),
+            PSY.RenewableGenerationCost(CostCurve(LinearCurve(Float64(row.VariableCost)))),
+            Float64(row.BasePower)
+        )
+
+        PSY.add_component!(system.psy_system, gen)
+
+        # Add time series
+        if PSY.get_prime_mover_type(gen) == PSY.PrimeMovers.WT
+            ts_data = TimeSeries.TimeArray(DayAhead, wind_ts)
+            PSY.add_time_series!(system.psy_system, gen, PSY.SingleTimeSeries("max_active_power", ts_data))
+        elseif PSY.get_prime_mover_type(gen) == PSY.PrimeMovers.PVe
+            ts_data = TimeSeries.TimeArray(DayAhead, solar_ts)
+            PSY.add_time_series!(system.psy_system, gen, PSY.SingleTimeSeries("max_active_power", ts_data))
+        end
+
+        gen_interval = _make_gen_interval(cont_count)
+
+        extended_cost = PowerLASCOPF.ExtendedRenewableGenerationCost(gen.operation_cost, gen_interval)
+        extended_gen  = PowerLASCOPF.ExtendedRenewableGenerator(
+            gen, extended_cost, i, 1, false, cont_count, cont_count + 1, 1, 0, 1, node, cont_count
+        )
+        PowerLASCOPF.add_extended_renewable_generator!(system, extended_gen)
+
+        lascopf_gen = PowerLASCOPF.GeneralizedGenerator(
+            gen, gen_interval, i, 1, false, cont_count, cont_count + 1, 1, 0, 1, node, cont_count
+        )
+        push!(generators, lascopf_gen)
+    end
+
+    log_info("Created $(length(generators)) PowerLASCOPF Renewable Generators from CSV.")
+    println("Created $(length(generators)) PowerLASCOPF Renewable Generators from CSV: $csv_path")
+    return generators
+end
+
+"""
+    powerlascopf_hydro_generators_from_csv!(system, nodes, csv_path, timeseries_data, cont_count)
+
+Read hydro generators from a HydroGenerators*_sahar.csv file.
+Expected CSV columns: GeneratorName, BusNumber, GeneratorType, Available, ActivePower,
+  ReactivePower, Rating, PrimeMover, ActivePowerMin, ActivePowerMax, ReactivePowerMin,
+  ReactivePowerMax, [RampUp, RampDown], VariableCost, FuelCost, FixedCost, BasePower,
+  [StorageCapacity, Inflow, ConversionFactor, InitialStorage, ...]
+"""
+function powerlascopf_hydro_generators_from_csv!(
+    system::PowerLASCOPF.PowerLASCOPFSystem,
+    nodes::Vector{PowerLASCOPF.Node{PSY.Bus}},
+    csv_path::String,
+    timeseries_data::Dict = Dict(),
+    cont_count::Int = 6
+)
+    log_info("Creating PowerLASCOPF Hydro Generators from CSV: $csv_path")
+    df = CSV.read(csv_path, DataFrame)
+
+    node_by_busnum = Dict(PSY.get_number(n.node_type) => n for n in nodes)
+    bus_by_busnum  = Dict(PSY.get_number(n.node_type) => n.node_type for n in nodes)
+    generators = PowerLASCOPF.GeneralizedGenerator[]
+    cols = names(df)
+
+    DayAhead = get(timeseries_data, "DayAhead",
+        collect(DateTime("1/1/2024 0:00:00", "d/m/y H:M:S"):Hour(1):
+                DateTime("1/1/2024 23:00:00", "d/m/y H:M:S")))
+    hydro_ts = get(timeseries_data, "hydro_inflow_ts_DA", zeros(24))
+
+    for (i, row) in enumerate(eachrow(df))
+        bus_num   = Int(row.BusNumber)
+        bus       = bus_by_busnum[bus_num]
+        node      = node_by_busnum[bus_num]
+        hydro_type = String(row.GeneratorType)
+
+        ramp_up   = "RampUp"   in cols && !ismissing(row.RampUp)   ? Float64(row.RampUp)   : nothing
+        ramp_down = "RampDown" in cols && !ismissing(row.RampDown) ? Float64(row.RampDown) : nothing
+        ramp_limits = (ramp_up !== nothing && ramp_down !== nothing) ?
+                      (up = ramp_up, down = ramp_down) : nothing
+
+        hydro_cost = PSY.HydroGenerationCost(
+            variable = IS.FuelCurve(
+                value_curve = IS.LinearCurve(Float64(row.VariableCost)),
+                fuel_cost = Float64(row.FuelCost)
+            ),
+            fixed = Float64(row.FixedCost)
+        )
+
+        if hydro_type == "HydroDispatch"
+            gen = PSY.HydroDispatch(
+                String(row.GeneratorName),
+                Bool(row.Available),
+                bus,
+                Float64(row.ActivePower),
+                Float64(row.ReactivePower),
+                Float64(row.Rating),
+                getfield(PrimeMovers, Symbol(row.PrimeMover)),
+                (min = Float64(row.ActivePowerMin), max = Float64(row.ActivePowerMax)),
+                (min = Float64(row.ReactivePowerMin), max = Float64(row.ReactivePowerMax)),
+                ramp_limits,
+                nothing,
+                Float64(row.BasePower),
+                hydro_cost,
+                PSY.Device[],
+                nothing,
+                Dict{String, Any}()
+            )
+        elseif hydro_type == "HydroEnergyReservoir"
+            gen = PSY.HydroEnergyReservoir(
+                name                  = String(row.GeneratorName),
+                available             = Bool(row.Available),
+                bus                   = bus,
+                active_power          = Float64(row.ActivePower),
+                reactive_power        = Float64(row.ReactivePower),
+                rating                = Float64(row.Rating),
+                prime_mover_type      = getfield(PrimeMovers, Symbol(row.PrimeMover)),
+                active_power_limits   = (min = Float64(row.ActivePowerMin), max = Float64(row.ActivePowerMax)),
+                reactive_power_limits = (min = Float64(row.ReactivePowerMin), max = Float64(row.ReactivePowerMax)),
+                ramp_limits           = ramp_limits,
+                time_limits           = nothing,
+                operation_cost        = hydro_cost,
+                base_power            = Float64(row.BasePower),
+                storage_capacity      = Float64(row.StorageCapacity),
+                inflow                = Float64(row.Inflow),
+                conversion_factor     = Float64(row.ConversionFactor),
+                initial_storage       = Float64(row.InitialStorage)
+            )
+        else
+            @warn "Unsupported hydro type: $hydro_type for $(row.GeneratorName), skipping."
+            continue
+        end
+
+        PSY.add_component!(system.psy_system, gen)
+
+        # Add inflow time series
+        if isa(gen, PSY.HydroEnergyReservoir)
+            ts_data = TimeSeries.TimeArray(DayAhead, hydro_ts)
+            PSY.add_time_series!(system.psy_system, gen, PSY.SingleTimeSeries("inflow", ts_data))
+        else
+            ts_data = TimeSeries.TimeArray(DayAhead, hydro_ts)
+            PSY.add_time_series!(system.psy_system, gen, PSY.SingleTimeSeries("max_active_power", ts_data))
+        end
+
+        gen_interval = _make_gen_interval(cont_count)
+
+        extended_cost_h = PowerLASCOPF.ExtendedHydroGenerationCost(gen.operation_cost, gen_interval)
+        extended_gen    = PowerLASCOPF.ExtendedHydroGenerator(
+            gen, extended_cost_h, i, 1, false, cont_count, cont_count + 1, 1, 0, 1, node, cont_count
+        )
+        PowerLASCOPF.add_extended_hydro_generator!(system, extended_gen)
+
+        lascopf_gen = PowerLASCOPF.GeneralizedGenerator(
+            gen, gen_interval, i, 1, false, cont_count, cont_count + 1, 1, 0, 1, node, cont_count
+        )
+        push!(generators, lascopf_gen)
+    end
+
+    log_info("Created $(length(generators)) PowerLASCOPF Hydro Generators from CSV.")
+    println("Created $(length(generators)) PowerLASCOPF Hydro Generators from CSV: $csv_path")
+    return generators
+end
+
+"""
+    powerlascopf_storage_from_csv!(system, nodes, csv_path, cont_count)
+
+Read storage units from a Storage*_sahar.csv file and create PowerLASCOPF objects.
+Expected CSV columns: BatteryName (or StorageName), BusNumber, Available, ActivePower,
+  ReactivePower, Rating, InputActivePowerMin, InputActivePowerMax,
+  OutputActivePowerMin, OutputActivePowerMax, EfficiencyIn, EfficiencyOut,
+  StorageCapacity, InitialEnergy, BasePower
+"""
+function powerlascopf_storage_from_csv!(
+    system::PowerLASCOPF.PowerLASCOPFSystem,
+    nodes::Vector{PowerLASCOPF.Node{PSY.Bus}},
+    csv_path::String,
+    cont_count::Int = 6
+)
+    log_info("Creating PowerLASCOPF Storage from CSV: $csv_path")
+    df = CSV.read(csv_path, DataFrame)
+
+    node_by_busnum = Dict(PSY.get_number(n.node_type) => n for n in nodes)
+    bus_by_busnum  = Dict(PSY.get_number(n.node_type) => n.node_type for n in nodes)
+    generators = PowerLASCOPF.GeneralizedGenerator[]
+    cols = names(df)
+
+    # Support both BatteryName and StorageName column headers
+    name_col = "BatteryName" in cols ? :BatteryName :
+               "StorageName" in cols ? :StorageName  : :BatteryName
+
+    for (i, row) in enumerate(eachrow(df))
+        bus_num = Int(row.BusNumber)
+        bus     = bus_by_busnum[bus_num]
+        node    = node_by_busnum[bus_num]
+
+        rating = "Rating" in cols ? Float64(row.Rating) :
+                 max(Float64(row.InputActivePowerMax), Float64(row.OutputActivePowerMax))
+
+        gen = PSY.GenericBattery(
+            name                  = String(row[name_col]),
+            available             = Bool(row.Available),
+            bus                   = bus,
+            prime_mover_type      = PrimeMovers.BA,
+            initial_energy        = Float64(row.InitialEnergy),
+            state_of_charge_limits = (min = 0.0, max = 1.0),
+            rating                = rating,
+            active_power          = Float64(row.ActivePower),
+            input_active_power_limits  = (min = Float64(row.InputActivePowerMin),  max = Float64(row.InputActivePowerMax)),
+            output_active_power_limits = (min = Float64(row.OutputActivePowerMin), max = Float64(row.OutputActivePowerMax)),
+            efficiency            = (in = Float64(row.EfficiencyIn), out = Float64(row.EfficiencyOut)),
+            reactive_power        = Float64(row.ReactivePower),
+            reactive_power_limits = (min = 0.0, max = 0.0),
+            base_power            = Float64(row.BasePower),
+            operation_cost        = PSY.StorageCost()
+        )
+
+        PSY.add_component!(system.psy_system, gen)
+
+        gen_interval = _make_gen_interval(cont_count)
+        lascopf_gen  = PowerLASCOPF.GeneralizedGenerator(
+            gen, gen_interval, i, 1, false, cont_count, cont_count + 1, 1, 0, 1, node, cont_count
+        )
+        push!(generators, lascopf_gen)
+    end
+
+    log_info("Created $(length(generators)) PowerLASCOPF Storage units from CSV.")
+    println("Created $(length(generators)) PowerLASCOPF Storage units from CSV: $csv_path")
+    return generators
+end
+
+"""
+    powerlascopf_loads_from_csv!(system, nodes, csv_path, timeseries_data)
+
+Read loads from a Loads*_sahar.csv file and create PowerLASCOPF Loads.
+Expected CSV columns: LoadName, BusNumber, Available, ActivePower, ReactivePower,
+  MaxActivePower, MaxReactivePower, BasePower
+"""
+function powerlascopf_loads_from_csv!(
+    system::PowerLASCOPF.PowerLASCOPFSystem,
+    nodes::Vector{PowerLASCOPF.Node{PSY.Bus}},
+    csv_path::String,
+    timeseries_data::Dict = Dict()
+)
+    log_info("Creating PowerLASCOPF Loads from CSV: $csv_path")
+    df = CSV.read(csv_path, DataFrame)
+
+    node_by_busnum = Dict(PSY.get_number(n.node_type) => n for n in nodes)
+    bus_by_busnum  = Dict(PSY.get_number(n.node_type) => n.node_type for n in nodes)
+    loads = PowerLASCOPF.Load[]
+
+    DayAhead = get(timeseries_data, "DayAhead",
+        collect(DateTime("1/1/2024 0:00:00", "d/m/y H:M:S"):Hour(1):
+                DateTime("1/1/2024 23:00:00", "d/m/y H:M:S")))
+
+    for (i, row) in enumerate(eachrow(df))
+        bus_num = Int(row.BusNumber)
+        bus     = bus_by_busnum[bus_num]
+        node    = node_by_busnum[bus_num]
+
+        load = PSY.PowerLoad(
+            String(row.LoadName),
+            Bool(row.Available),
+            bus,
+            Float64(row.ActivePower),
+            Float64(row.ReactivePower),
+            Float64(row.BasePower),
+            Float64(row.MaxActivePower),
+            Float64(row.MaxReactivePower)
+        )
+
+        PSY.add_component!(system.psy_system, load)
+
+        # Use load-specific or default time series
+        load_ts_key = "loadbus$(bus_num)_ts_DA"
+        load_ts = get(timeseries_data, load_ts_key,
+                      ones(24) * Float64(row.ActivePower))
+        ts_data = TimeSeries.TimeArray(DayAhead, load_ts)
+        PSY.add_time_series!(system.psy_system, load, PSY.SingleTimeSeries("max_active_power", ts_data))
+
+        lascopf_load = PowerLASCOPF.Load(load, i, Float64(row.ActivePower))
+        PowerLASCOPF.add_extended_load!(system, lascopf_load)
+        push!(loads, lascopf_load)
+    end
+
+    log_info("Created $(length(loads)) PowerLASCOPF Loads from CSV.")
+    println("Created $(length(loads)) PowerLASCOPF Loads from CSV: $csv_path")
+    return loads
+end
+
+# ============================================================
+# SECTION: 57-BUS CASE-SPECIFIC FUNCTIONS
+# Following the same pattern as data_14bus_pu.jl
+# ============================================================
+
+"""
+    power_lascopf_system57()
+
+Create an empty PowerLASCOPF system for the IEEE 57-bus test case.
+"""
+function power_lascopf_system57()
+    log_info("Creating PowerLASCOPF System for 57-bus case...")
+    system = PowerLASCOPF.PowerLASCOPFSystem(PSY.System(100.0))
+    log_info("Created PowerLASCOPF System for 57-bus case.")
+    return system
+end
+
+"""
+    powerlascopf_nodes57!(system)
+
+Create PowerLASCOPF Nodes for the IEEE 57-bus case from CSV data.
+"""
+function powerlascopf_nodes57!(system::PowerLASCOPF.PowerLASCOPFSystem)
+    csv_path = joinpath(@__DIR__, "IEEE_Test_Cases", "IEEE_57_bus", "Nodes57_sahar.csv")
+    return powerlascopf_nodes_from_csv!(system, csv_path)
+end
+
+"""
+    powerlascopf_branches57!(system, nodes, cont_count, RND_int)
+
+Create PowerLASCOPF transmission lines for the IEEE 57-bus case from CSV data.
+"""
+function powerlascopf_branches57!(
+    system::PowerLASCOPF.PowerLASCOPFSystem,
+    nodes::Vector{PowerLASCOPF.Node{PSY.Bus}},
+    cont_count::Int,
+    RND_int::Int
+)
+    csv_path = joinpath(@__DIR__, "IEEE_Test_Cases", "IEEE_57_bus", "Trans57_sahar.csv")
+    return powerlascopf_branches_from_csv!(
+        system, nodes, csv_path, branches_57_contingency_list(), cont_count, RND_int
+    )
+end
+
+"""
+    powerlascopf_thermal_generators57!(system, nodes)
+
+Create PowerLASCOPF thermal generators for the IEEE 57-bus case from CSV data.
+"""
+function powerlascopf_thermal_generators57!(
+    system::PowerLASCOPF.PowerLASCOPFSystem,
+    nodes::Vector{PowerLASCOPF.Node{PSY.Bus}}
+)
+    csv_path   = joinpath(@__DIR__, "IEEE_Test_Cases", "IEEE_57_bus", "ThermalGenerators57_sahar.csv")
+    cont_count = length(branches_57_contingency_list())
+    return powerlascopf_thermal_generators_from_csv!(system, nodes, csv_path, cont_count)
+end
+
+"""
+    powerlascopf_renewable_generators57!(system, nodes)
+
+Create PowerLASCOPF renewable generators for the IEEE 57-bus case from CSV data.
+"""
+function powerlascopf_renewable_generators57!(
+    system::PowerLASCOPF.PowerLASCOPFSystem,
+    nodes::Vector{PowerLASCOPF.Node{PSY.Bus}}
+)
+    csv_path   = joinpath(@__DIR__, "IEEE_Test_Cases", "IEEE_57_bus", "RenewableGenerators57_sahar.csv")
+    cont_count = length(branches_57_contingency_list())
+    return powerlascopf_renewable_generators_from_csv!(system, nodes, csv_path, Dict(), cont_count)
+end
+
+"""
+    powerlascopf_hydro_generators57!(system, nodes)
+
+Create PowerLASCOPF hydro generators for the IEEE 57-bus case from CSV data.
+"""
+function powerlascopf_hydro_generators57!(
+    system::PowerLASCOPF.PowerLASCOPFSystem,
+    nodes::Vector{PowerLASCOPF.Node{PSY.Bus}}
+)
+    csv_path   = joinpath(@__DIR__, "IEEE_Test_Cases", "IEEE_57_bus", "HydroGenerators57_sahar.csv")
+    cont_count = length(branches_57_contingency_list())
+    return powerlascopf_hydro_generators_from_csv!(system, nodes, csv_path, Dict(), cont_count)
+end
+
+"""
+    power_lascopf_storage_generators57!(system, nodes)
+
+Create PowerLASCOPF storage generators for the IEEE 57-bus case from CSV data.
+"""
+function power_lascopf_storage_generators57!(
+    system::PowerLASCOPF.PowerLASCOPFSystem,
+    nodes::Vector{PowerLASCOPF.Node{PSY.Bus}}
+)
+    csv_path   = joinpath(@__DIR__, "IEEE_Test_Cases", "IEEE_57_bus", "Storage57_sahar.csv")
+    cont_count = length(branches_57_contingency_list())
+    return powerlascopf_storage_from_csv!(system, nodes, csv_path, cont_count)
+end
+
+"""
+    powerlascopf_loads57!(system, nodes)
+
+Create PowerLASCOPF loads for the IEEE 57-bus case from CSV data.
+"""
+function powerlascopf_loads57!(
+    system::PowerLASCOPF.PowerLASCOPFSystem,
+    nodes::Vector{PowerLASCOPF.Node{PSY.Bus}}
+)
+    csv_path = joinpath(@__DIR__, "IEEE_Test_Cases", "IEEE_57_bus", "Loads57_sahar.csv")
+    return powerlascopf_loads_from_csv!(system, nodes, csv_path)
+end
+
+"""
+    create_57bus_powerlascopf_system()
+
+Create a complete PowerLASCOPF system for the IEEE 57-bus test case,
+reading all data from *_sahar.csv files.
+"""
+function create_57bus_powerlascopf_system()
+    log_info("Creating 57-bus PowerLASCOPF system...")
+    cont_count = length(branches_57_contingency_list())
+    RND_int    = 6
+    RSD_int    = 6
+
+    nodes_func   = () -> begin
+        system = power_lascopf_system57()
+        nodes  = powerlascopf_nodes57!(system)
+        (system, nodes)
+    end
+    system, nodes = nodes_func()
+
+    branches  = powerlascopf_branches57!(system, nodes, cont_count, RND_int)
+    thermal   = powerlascopf_thermal_generators57!(system, nodes)
+    renewables = powerlascopf_renewable_generators57!(system, nodes)
+    hydro     = powerlascopf_hydro_generators57!(system, nodes)
+    storage   = power_lascopf_storage_generators57!(system, nodes)
+    loads     = powerlascopf_loads57!(system, nodes)
+
+    system_data = Dict(
+        "name"                   => "57-Bus IEEE Test System",
+        "nodes"                  => nodes,
+        "branches"               => branches,
+        "thermal_generators"     => thermal,
+        "renewable_generators"   => renewables,
+        "hydro_generators"       => hydro,
+        "storage_generators"     => storage,
+        "loads"                  => loads,
+        "number_of_contingencies" => cont_count,
+        "RND_intervals"          => RND_int,
+        "RSD_intervals"          => RSD_int,
+        "base_power"             => 100.0
+    )
+
+    log_info("57-bus PowerLASCOPF system created successfully.")
+    return system, system_data
+end
+
+# ============================================================
+# SECTION: 118-BUS CASE-SPECIFIC FUNCTIONS
+# ============================================================
+
+"""
+    power_lascopf_system118()
+
+Create an empty PowerLASCOPF system for the IEEE 118-bus test case.
+"""
+function power_lascopf_system118()
+    log_info("Creating PowerLASCOPF System for 118-bus case...")
+    system = PowerLASCOPF.PowerLASCOPFSystem(PSY.System(100.0))
+    log_info("Created PowerLASCOPF System for 118-bus case.")
+    return system
+end
+
+"""
+    powerlascopf_nodes118!(system)
+
+Create PowerLASCOPF Nodes for the IEEE 118-bus case from CSV data.
+"""
+function powerlascopf_nodes118!(system::PowerLASCOPF.PowerLASCOPFSystem)
+    csv_path = joinpath(@__DIR__, "IEEE_Test_Cases", "IEEE_118_bus", "Nodes118_sahar.csv")
+    return powerlascopf_nodes_from_csv!(system, csv_path)
+end
+
+"""
+    powerlascopf_branches118!(system, nodes, cont_count, RND_int)
+
+Create PowerLASCOPF transmission lines for the IEEE 118-bus case from CSV data.
+"""
+function powerlascopf_branches118!(
+    system::PowerLASCOPF.PowerLASCOPFSystem,
+    nodes::Vector{PowerLASCOPF.Node{PSY.Bus}},
+    cont_count::Int,
+    RND_int::Int
+)
+    csv_path = joinpath(@__DIR__, "IEEE_Test_Cases", "IEEE_118_bus", "Trans118_sahar.csv")
+    return powerlascopf_branches_from_csv!(
+        system, nodes, csv_path, branches_118_contingency_list(), cont_count, RND_int
+    )
+end
+
+"""
+    powerlascopf_thermal_generators118!(system, nodes)
+
+Create PowerLASCOPF thermal generators for the IEEE 118-bus case from CSV data.
+"""
+function powerlascopf_thermal_generators118!(
+    system::PowerLASCOPF.PowerLASCOPFSystem,
+    nodes::Vector{PowerLASCOPF.Node{PSY.Bus}}
+)
+    csv_path   = joinpath(@__DIR__, "IEEE_Test_Cases", "IEEE_118_bus", "ThermalGenerators118_sahar.csv")
+    cont_count = length(branches_118_contingency_list())
+    return powerlascopf_thermal_generators_from_csv!(system, nodes, csv_path, cont_count)
+end
+
+"""
+    powerlascopf_renewable_generators118!(system, nodes)
+
+Create PowerLASCOPF renewable generators for the IEEE 118-bus case from CSV data.
+"""
+function powerlascopf_renewable_generators118!(
+    system::PowerLASCOPF.PowerLASCOPFSystem,
+    nodes::Vector{PowerLASCOPF.Node{PSY.Bus}}
+)
+    csv_path   = joinpath(@__DIR__, "IEEE_Test_Cases", "IEEE_118_bus", "RenewableGenerators118_sahar.csv")
+    cont_count = length(branches_118_contingency_list())
+    return powerlascopf_renewable_generators_from_csv!(system, nodes, csv_path, Dict(), cont_count)
+end
+
+"""
+    powerlascopf_hydro_generators118!(system, nodes)
+
+Create PowerLASCOPF hydro generators for the IEEE 118-bus case from CSV data.
+"""
+function powerlascopf_hydro_generators118!(
+    system::PowerLASCOPF.PowerLASCOPFSystem,
+    nodes::Vector{PowerLASCOPF.Node{PSY.Bus}}
+)
+    csv_path   = joinpath(@__DIR__, "IEEE_Test_Cases", "IEEE_118_bus", "HydroGenerators118_sahar.csv")
+    cont_count = length(branches_118_contingency_list())
+    return powerlascopf_hydro_generators_from_csv!(system, nodes, csv_path, Dict(), cont_count)
+end
+
+"""
+    power_lascopf_storage_generators118!(system, nodes)
+
+Create PowerLASCOPF storage generators for the IEEE 118-bus case from CSV data.
+"""
+function power_lascopf_storage_generators118!(
+    system::PowerLASCOPF.PowerLASCOPFSystem,
+    nodes::Vector{PowerLASCOPF.Node{PSY.Bus}}
+)
+    csv_path   = joinpath(@__DIR__, "IEEE_Test_Cases", "IEEE_118_bus", "Storage118_sahar.csv")
+    cont_count = length(branches_118_contingency_list())
+    return powerlascopf_storage_from_csv!(system, nodes, csv_path, cont_count)
+end
+
+"""
+    powerlascopf_loads118!(system, nodes)
+
+Create PowerLASCOPF loads for the IEEE 118-bus case from CSV data.
+"""
+function powerlascopf_loads118!(
+    system::PowerLASCOPF.PowerLASCOPFSystem,
+    nodes::Vector{PowerLASCOPF.Node{PSY.Bus}}
+)
+    csv_path = joinpath(@__DIR__, "IEEE_Test_Cases", "IEEE_118_bus", "Loads118_sahar.csv")
+    return powerlascopf_loads_from_csv!(system, nodes, csv_path)
+end
+
+"""
+    create_118bus_powerlascopf_system()
+
+Create a complete PowerLASCOPF system for the IEEE 118-bus test case,
+reading all data from *_sahar.csv files.
+"""
+function create_118bus_powerlascopf_system()
+    log_info("Creating 118-bus PowerLASCOPF system...")
+    cont_count = length(branches_118_contingency_list())
+    RND_int    = 6
+    RSD_int    = 6
+
+    system    = power_lascopf_system118()
+    nodes     = powerlascopf_nodes118!(system)
+    branches  = powerlascopf_branches118!(system, nodes, cont_count, RND_int)
+    thermal   = powerlascopf_thermal_generators118!(system, nodes)
+    renewables = powerlascopf_renewable_generators118!(system, nodes)
+    hydro     = powerlascopf_hydro_generators118!(system, nodes)
+    storage   = power_lascopf_storage_generators118!(system, nodes)
+    loads     = powerlascopf_loads118!(system, nodes)
+
+    system_data = Dict(
+        "name"                   => "118-Bus IEEE Test System",
+        "nodes"                  => nodes,
+        "branches"               => branches,
+        "thermal_generators"     => thermal,
+        "renewable_generators"   => renewables,
+        "hydro_generators"       => hydro,
+        "storage_generators"     => storage,
+        "loads"                  => loads,
+        "number_of_contingencies" => cont_count,
+        "RND_intervals"          => RND_int,
+        "RSD_intervals"          => RSD_int,
+        "base_power"             => 100.0
+    )
+
+    log_info("118-bus PowerLASCOPF system created successfully.")
+    return system, system_data
+end
+
+# ============================================================
+# SECTION: 300-BUS CASE-SPECIFIC FUNCTIONS
+# ============================================================
+
+"""
+    power_lascopf_system300()
+
+Create an empty PowerLASCOPF system for the IEEE 300-bus test case.
+"""
+function power_lascopf_system300()
+    log_info("Creating PowerLASCOPF System for 300-bus case...")
+    system = PowerLASCOPF.PowerLASCOPFSystem(PSY.System(100.0))
+    log_info("Created PowerLASCOPF System for 300-bus case.")
+    return system
+end
+
+"""
+    powerlascopf_nodes300!(system)
+
+Create PowerLASCOPF Nodes for the IEEE 300-bus case from CSV data.
+"""
+function powerlascopf_nodes300!(system::PowerLASCOPF.PowerLASCOPFSystem)
+    csv_path = joinpath(@__DIR__, "IEEE_Test_Cases", "IEEE_300_bus", "Nodes300_sahar.csv")
+    return powerlascopf_nodes_from_csv!(system, csv_path)
+end
+
+"""
+    powerlascopf_branches300!(system, nodes, cont_count, RND_int)
+
+Create PowerLASCOPF transmission lines for the IEEE 300-bus case from CSV data.
+"""
+function powerlascopf_branches300!(
+    system::PowerLASCOPF.PowerLASCOPFSystem,
+    nodes::Vector{PowerLASCOPF.Node{PSY.Bus}},
+    cont_count::Int,
+    RND_int::Int
+)
+    csv_path = joinpath(@__DIR__, "IEEE_Test_Cases", "IEEE_300_bus", "Trans300_sahar.csv")
+    return powerlascopf_branches_from_csv!(
+        system, nodes, csv_path, branches_300_contingency_list(), cont_count, RND_int
+    )
+end
+
+"""
+    powerlascopf_thermal_generators300!(system, nodes)
+
+Create PowerLASCOPF thermal generators for the IEEE 300-bus case from CSV data.
+"""
+function powerlascopf_thermal_generators300!(
+    system::PowerLASCOPF.PowerLASCOPFSystem,
+    nodes::Vector{PowerLASCOPF.Node{PSY.Bus}}
+)
+    csv_path   = joinpath(@__DIR__, "IEEE_Test_Cases", "IEEE_300_bus", "ThermalGenerators300_sahar.csv")
+    cont_count = length(branches_300_contingency_list())
+    return powerlascopf_thermal_generators_from_csv!(system, nodes, csv_path, cont_count)
+end
+
+"""
+    powerlascopf_renewable_generators300!(system, nodes)
+
+Create PowerLASCOPF renewable generators for the IEEE 300-bus case from CSV data.
+"""
+function powerlascopf_renewable_generators300!(
+    system::PowerLASCOPF.PowerLASCOPFSystem,
+    nodes::Vector{PowerLASCOPF.Node{PSY.Bus}}
+)
+    csv_path   = joinpath(@__DIR__, "IEEE_Test_Cases", "IEEE_300_bus", "RenewableGenerators300_sahar.csv")
+    cont_count = length(branches_300_contingency_list())
+    return powerlascopf_renewable_generators_from_csv!(system, nodes, csv_path, Dict(), cont_count)
+end
+
+"""
+    powerlascopf_hydro_generators300!(system, nodes)
+
+Create PowerLASCOPF hydro generators for the IEEE 300-bus case from CSV data.
+"""
+function powerlascopf_hydro_generators300!(
+    system::PowerLASCOPF.PowerLASCOPFSystem,
+    nodes::Vector{PowerLASCOPF.Node{PSY.Bus}}
+)
+    csv_path   = joinpath(@__DIR__, "IEEE_Test_Cases", "IEEE_300_bus", "HydroGenerators300_sahar.csv")
+    cont_count = length(branches_300_contingency_list())
+    return powerlascopf_hydro_generators_from_csv!(system, nodes, csv_path, Dict(), cont_count)
+end
+
+"""
+    power_lascopf_storage_generators300!(system, nodes)
+
+Create PowerLASCOPF storage generators for the IEEE 300-bus case from CSV data.
+"""
+function power_lascopf_storage_generators300!(
+    system::PowerLASCOPF.PowerLASCOPFSystem,
+    nodes::Vector{PowerLASCOPF.Node{PSY.Bus}}
+)
+    csv_path   = joinpath(@__DIR__, "IEEE_Test_Cases", "IEEE_300_bus", "Storage300_sahar.csv")
+    cont_count = length(branches_300_contingency_list())
+    return powerlascopf_storage_from_csv!(system, nodes, csv_path, cont_count)
+end
+
+"""
+    powerlascopf_loads300!(system, nodes)
+
+Create PowerLASCOPF loads for the IEEE 300-bus case from CSV data.
+"""
+function powerlascopf_loads300!(
+    system::PowerLASCOPF.PowerLASCOPFSystem,
+    nodes::Vector{PowerLASCOPF.Node{PSY.Bus}}
+)
+    csv_path = joinpath(@__DIR__, "IEEE_Test_Cases", "IEEE_300_bus", "Loads300_sahar.csv")
+    return powerlascopf_loads_from_csv!(system, nodes, csv_path)
+end
+
+"""
+    create_300bus_powerlascopf_system()
+
+Create a complete PowerLASCOPF system for the IEEE 300-bus test case,
+reading all data from *_sahar.csv files.
+"""
+function create_300bus_powerlascopf_system()
+    log_info("Creating 300-bus PowerLASCOPF system...")
+    cont_count = length(branches_300_contingency_list())
+    RND_int    = 6
+    RSD_int    = 6
+
+    system    = power_lascopf_system300()
+    nodes     = powerlascopf_nodes300!(system)
+    branches  = powerlascopf_branches300!(system, nodes, cont_count, RND_int)
+    thermal   = powerlascopf_thermal_generators300!(system, nodes)
+    renewables = powerlascopf_renewable_generators300!(system, nodes)
+    hydro     = powerlascopf_hydro_generators300!(system, nodes)
+    storage   = power_lascopf_storage_generators300!(system, nodes)
+    loads     = powerlascopf_loads300!(system, nodes)
+
+    system_data = Dict(
+        "name"                   => "300-Bus IEEE Test System",
+        "nodes"                  => nodes,
+        "branches"               => branches,
+        "thermal_generators"     => thermal,
+        "renewable_generators"   => renewables,
+        "hydro_generators"       => hydro,
+        "storage_generators"     => storage,
+        "loads"                  => loads,
+        "number_of_contingencies" => cont_count,
+        "RND_intervals"          => RND_int,
+        "RSD_intervals"          => RSD_int,
+        "base_power"             => 100.0
+    )
+
+    log_info("300-bus PowerLASCOPF system created successfully.")
+    return system, system_data
+end
+
+log_info("PowerLASCOPF data reader module with CSV-based system creation loaded.")

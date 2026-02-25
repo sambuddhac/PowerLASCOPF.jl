@@ -1,6 +1,6 @@
-LineID,LineType,fromNode,toNode,Resistance,Reactance,Susceptance_from,Susceptance_to,RateLimit,AngleLimit_min,AngleLimit_max,ActivePowerLimit_min,ActivePowerLimit_max,ReactivePower_from_min,ReactivePower_from_max,ReactivePower_to_min,ReactivePower_to_max,LossCoefficient_l0,LossCoefficient_l1,ContingencyMarked
+LineName,LineType,fromNode,toNode,Resistance,Reactance,Susceptance_from,Susceptance_to,RateLimit,AngleLimit_min,AngleLimit_max,ActivePowerLimit_min,ActivePowerLimit_max,ReactivePower_from_min,ReactivePower_from_max,ReactivePower_to_min,ReactivePower_to_max,LossCoefficient_l0,LossCoefficient_l1,ContingencyMarked
 1,AC,1,2,0.00281,0.0281,0.00356,0.00356,2.0,-0.7,0.7,,,,,,,,,1
-DCL2,HVDC,1,4,,,,,,-3000.0,3000.0,-3000.0,3000.0,-3000.0,3000.0,0.0,0.01,1
+DCL2,HVDC,1,4,,,,,,,,-3000.0,3000.0,-3000.0,3000.0,-3000.0,3000.0,0.0,0.01,1
 3,AC,1,5,0.00064,0.0064,0.01563,0.01563,18.812,-0.7,0.7,,,,,,,,,1
 4,AC,2,3,0.00108,0.0108,0.00926,0.00926,11.148,-0.7,0.7,,,,,,,,,1
 5,AC,3,4,0.00297,0.0297,0.00337,0.00337,40.53,-0.7,0.7,,,,,,,,,1

@@ -11,7 +11,7 @@
     "ReactivePowerMin": 0.0,
     "ReactivePowerMax": 0.0,
     "PowerFactor": 1.0,
-    "CostCurve_b": 0.22,
+    "VariableCost": 0.22,
     "BasePower": 100.0
   },
   {
@@ -26,7 +26,7 @@
     "ReactivePowerMin": 0.0,
     "ReactivePowerMax": 0.0,
     "PowerFactor": 1.0,
-    "CostCurve_b": 0.22,
+    "VariableCost": 0.22,
     "BasePower": 100.0
   },
   {
@@ -41,7 +41,7 @@
     "ReactivePowerMin": -0.800,
     "ReactivePowerMax": 0.800,
     "PowerFactor": 1.0,
-    "CostCurve_b": 0.22,
+    "VariableCost": 0.22,
     "BasePower": 100.0
   }
 ]

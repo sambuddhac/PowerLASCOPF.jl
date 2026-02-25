@@ -1,4 +1,4 @@
-GeneratorName,BusNumber,GeneratorType,Available,ActivePower,ReactivePower,Rating,PrimeMover,ReactivePowerMin,ReactivePowerMax,PowerFactor,CostCurve_b,BasePower
+GeneratorName,BusNumber,GeneratorType,Available,ActivePower,ReactivePower,Rating,PrimeMover,ReactivePowerMin,ReactivePowerMax,PowerFactor,VariableCost,BasePower
 Wind_Bus9,9,RenewableDispatch,true,0.0,0.0,4.6,WT,-2.3,2.3,1.0,0.2,100.0
 Wind_Bus18,18,RenewableDispatch,true,0.0,0.0,4.1,WT,-2.0,2.0,1.0,0.22,100.0
 Wind_Bus32,32,RenewableDispatch,true,0.0,0.0,5.7,WT,-0.0,0.0,1.0,0.2,100.0
