@@ -970,7 +970,10 @@ function load_case_data(case_name::String, case_path::String)
     
     # Normalize case name for matching
     normalized_name = lowercase(replace(case_name, "_" => ""))
-    
+    extracted_bus_count = parse_case_name(normalized_name)
+    println("  - Normalized case name: $normalized_name")
+    println("  - Extracted bus count: $extracted_bus_count")
+    load_case_data(extracted_bus_count, case_path)
     # Dispatch to appropriate case loader via data_reader.jl
     if contains(normalized_name, "5bus")
         println("  - Detected 5-bus test case")
@@ -991,6 +994,14 @@ function load_case_data(case_name::String, case_path::String)
     end
 end
 
+
+function load_case_data(num_buses::Int, file_format::String="CSV")
+
+    data_dir = joinpath(@__DIR__, "IEEE_Test_Cases")
+
+    return load_system(num_buses=num_buses, data_dir=data_dir, file_format=file_format)
+
+end
 """
     load_generic_case(case_path::String)
 
@@ -1009,5 +1020,87 @@ function load_generic_case(case_path::String)
     end
     
     error("❌ Unable to load case data from $case_path. Ensure case data file exists or implement case-specific loader.")
+end
+
+"""
+Generic Data Reader Dispatcher for PowerLASCOPF
+
+Routes to the correct case loader based on configuration.
+Supports: 5, 14, 30, 48, 57, 118, 300 bus IEEE test cases.
+"""
+
+include(joinpath(@__DIR__, "data_reader.jl"))
+
+# Map of supported bus counts to their loader functions
+const CASE_LOADERS = Dict{Int, Function}(
+    5   => load_5bus_case,
+    14  => load_14bus_case,
+    30  => load_30bus_case,
+    48  => load_48bus_case,
+    57  => load_57bus_case,
+    118 => load_118bus_case,
+    300 => load_300bus_case,
+)
+
+"""
+    load_system(; num_buses::Int, data_dir::String="", file_format::String="CSV")
+
+Main entry point for loading a PowerLASCOPF system.
+
+# Arguments
+- `num_buses::Int`: Number of buses (5, 14, 30, 48, 57, 118, or 300)
+- `data_dir::String`: Directory containing `_sahar` data files. 
+   Defaults to `@__DIR__` (the example_cases folder).
+- `file_format::String`: "CSV" or "JSON"
+
+# Returns
+- `(system, system_data)` tuple
+
+# Examples
+```julia
+system, data = load_system(num_buses=118, data_dir="/path/to/data", file_format="CSV")
+system, data = load_system(num_buses=5)  # uses data_5bus_pu.jl if available
+```
+"""
+function load_system(; num_buses::Int, data_dir::String="", file_format::String="CSV")
+    # Default data_dir to the example_cases directory
+    if isempty(data_dir)
+        data_dir = @__DIR__
+    end
+    
+    println("=" ^ 60)
+    println("Loading PowerLASCOPF System")
+    println("  Case:     $(num_buses)-bus")
+    println("  Format:   $file_format")
+    println("  Data dir: $data_dir")
+    println("=" ^ 60)
+    
+    if haskey(CASE_LOADERS, num_buses)
+        loader = CASE_LOADERS[num_buses]
+        system, system_data = loader(data_dir, file_format)
+    else
+        # Try generic CSV/JSON loader for unsupported bus counts
+        println("  ⚠️  No dedicated loader for $(num_buses)-bus. Trying generic loader...")
+        system, system_data = load_from_csv_json(data_dir, file_format; num_buses=num_buses)
+    end
+    
+    println("=" ^ 60)
+    println("✅ System loaded successfully: $(num_buses)-bus")
+    println("=" ^ 60)
+    
+    return system, system_data
+end
+
+"""
+    list_supported_cases()
+
+Print all supported IEEE test cases.
+"""
+function list_supported_cases()
+    println("Supported IEEE test cases:")
+    for n in sort(collect(keys(CASE_LOADERS)))
+        println("  - $(n)-bus")
+    end
+    println("  - Custom (any bus count via CSV/JSON files)")
 end
 

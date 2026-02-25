@@ -67,6 +67,68 @@ const PROJECT_ROOT = abspath(joinpath(SCRIPT_DIR, ".."))
 
 println("🔧 Activating project environment: $PROJECT_ROOT")
 Pkg.activate(PROJECT_ROOT)
+Pkg.instantiate()
+
+#using Pkg;
+# Use relative paths from this file's location
+#project_dir = abspath(joinpath(@__DIR__, "..")) # repository/project root containing Project.toml
+#println("Activating project at: $PROJECT_ROOT")
+
+# Check if this is the first run on this machine
+first_run_marker = joinpath(PROJECT_ROOT, ".first_run_complete")
+if !isfile(first_run_marker)
+    #FOR FIRST TIME USE OR TROUBLESHOOTING
+    # Clear any problematic manifest and reinstantiate
+    println("Checking and fixing environment...")
+    try
+        # Remove the problematic Manifest.toml if it exists
+        manifest_path = joinpath(PROJECT_ROOT, "Manifest.toml")
+        if isfile(manifest_path)
+            println("Removing outdated Manifest.toml...")
+            rm(manifest_path)
+        end
+        
+        # Reinstantiate the project
+        println("Reinstantiating project...")
+        Pkg.instantiate()
+        
+        # Update packages to latest compatible versions
+        println("Updating packages...")
+        Pkg.update()
+        
+        # Create marker file to indicate first run is complete
+        touch(first_run_marker)
+        println("First-time setup complete. Marker file created.")
+        
+    catch e
+        println("Environment setup failed: $e")
+        println("Trying alternative approach...")
+        
+        # Alternative: Create a minimal environment
+        Pkg.activate(temp=true)  # Use temporary environment
+        
+        # Add only essential packages
+        Pkg.add([
+            "PowerSystems", 
+            "TimeSeries", 
+            "Dates", 
+            "LinearAlgebra", 
+            "JuMP", 
+            "Ipopt", 
+            "JSON"
+        ])
+        
+        # Still create marker file even with alternative approach
+        try
+            touch(first_run_marker)
+        catch
+            # Ignore if we can't create marker in temp environment
+        end
+    end
+    #FOR FIRST TIME USE OR TROUBLESHOOTING
+else
+    println("First-time setup already completed. Skipping environment reinstantiation.")
+end
 
 # ============================================================================
 # STEP 2: IMPORT REQUIRED PACKAGES
@@ -386,7 +448,7 @@ function run_case(case_name::AbstractString;
     println("\n📂 LOADING DATA...")
     println("-" ^ 70)
     
-    data = load_case_data(case_name, format)
+    data = load_case_data(case_name, format) ##This is in data_reader_generic.jl
     
     # Validate data
     validate_data(data)

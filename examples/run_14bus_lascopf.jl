@@ -11,7 +11,7 @@ project_dir = abspath(joinpath(@__DIR__, "..")) # repository/project root contai
 println("Activating project at: $project_dir")
 
 # Reset and reinstantiate the environment
-Pkg.activate(project_dir);
+#Pkg.activate(project_dir);
 
 # Check if this is the first run on this machine
 first_run_marker = joinpath(project_dir, ".first_run_complete")

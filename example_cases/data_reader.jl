@@ -281,12 +281,12 @@ function read_branches_data(data_path::String, file_format::String="CSV")
                         true,  # available
                         0.0,   # active_power_flow (initialized by solver)
                         0.0,   # reactive_power_flow (initialized by solver)
-                        Arc(from = nodes[row.FromNode], to = nodes[row.ToNode]),
+                        Arc(from = nodes[row.fromNode], to = nodes[row.toNode]),
                         row.Resistance,
                         row.Reactance,
-                        (from = row.SusceptanceFrom, to = row.SusceptanceTo),
+                        (from = row.Susceptance_from, to = row.Susceptance_to),
                         row.RateLimit,
-                        (min = row.AngleLimitMin, max = row.AngleLimitMax)
+                        (min = row.AngleLimit_min, max = row.AngleLimit_max)
                     )
                     push!(branches, line)
                     
@@ -298,8 +298,8 @@ function read_branches_data(data_path::String, file_format::String="CSV")
                         row.LineName,
                         true,
                         0.0,
-                        Arc(from = nodes[row.FromNode], to = nodes[row.ToNode]),
-                        (min = row.ActivePowerMin, max = row.ActivePowerMax),
+                        Arc(from = nodes[row.fromNode], to = nodes[row.toNode]),
+                        (min = row.ActivePower_min, max = row.ActivePower_max),
                         (min = row.ReactivePowerFromMin, max = row.ReactivePowerFromMax),
                         (min = row.ReactivePowerToMin, max = row.ReactivePowerToMax),
                         (min = row.ReactivePowerToMin, max = row.ReactivePowerToMax),
@@ -323,12 +323,12 @@ function read_branches_data(data_path::String, file_format::String="CSV")
                         true,
                         0.0,
                         0.0,
-                        Arc(from = nodes[branch["FromNode"]], to = nodes[branch["ToNode"]]),
+                        Arc(from = nodes[branch["fromNode"]], to = nodes[branch["toNode"]]),
                         branch["Resistance"],
                         branch["Reactance"],
-                        (from = branch["SusceptanceFrom"], to = branch["SusceptanceTo"]),
+                        (from = branch["Susceptance_from"], to = branch["Susceptance_to"]),
                         branch["RateLimit"],
-                        (min = branch["AngleLimitMin"], max = branch["AngleLimitMax"])
+                        (min = branch["AngleLimit_min"], max = branch["AngleLimit_max"])
                     )
                     push!(branches, line)
                 elseif branch["LineType"] == "HVDC"
@@ -336,11 +336,11 @@ function read_branches_data(data_path::String, file_format::String="CSV")
                         branch["LineName"],
                         true,
                         0.0,
-                        Arc(from = nodes[branch["FromNode"]], to = nodes[branch["ToNode"]]),
-                        (min = branch["ActivePowerMin"], max = branch["ActivePowerMax"]),
-                        (min = branch["ReactivePowerFromMin"], max = branch["ReactivePowerFromMax"]),
-                        (min = branch["ReactivePowerToMin"], max = branch["ReactivePowerToMax"]),
-                        (min = branch["ReactivePowerToMin"], max = branch["ReactivePowerToMax"]),
+                        Arc(from = nodes[branch["fromNode"]], to = nodes[branch["toNode"]]),
+                        (min = branch["ActivePower_min"], max = branch["ActivePower_max"]),
+                        (min = branch["ReactivePowerFrom_min"], max = branch["ReactivePowerFrom_max"]),
+                        (min = branch["ReactivePowerTo_min"], max = branch["ReactivePowerTo_max"]),
+                        (min = branch["ReactivePowerTo_min"], max = branch["ReactivePowerTo_max"]),
                         (l0 = branch["LossL0"], l1 = branch["LossL1"])
                     )
                     push!(branches, hvdc_line)
@@ -374,7 +374,7 @@ WHY: Thermal units have:
   - Min/max power limits: Can't operate below minimum stable generation
 
 STRUCTURE EXPECTED:
-  Columns: GenName, BusNumber, ActivePower, ReactivePower, Rating,
+  Columns: GeneratorName, BusNumber, ActivePower, ReactivePower, Rating,
            PrimeMover, Fuel, ActivePowerMin/Max, ReactivePowerMin/Max,
            RampUp, RampDown, TimeUp, TimeDown,
            CostC0, CostC1, CostC2, FuelCost, VOMCost, FixedCost,
@@ -396,7 +396,7 @@ function read_thermal_generators_data(data_path::String, file_format::String="CS
             generators = PSY.ThermalStandard[]
             for row in eachrow(df)
                 gen = PSY.ThermalStandard(
-                    name = row.GenName,
+                    name = row.GeneratorName,
                     available = row.Available,
                     status = row.Status,
                     bus = nodes[row.BusNumber],
@@ -410,13 +410,13 @@ function read_thermal_generators_data(data_path::String, file_format::String="CS
                     # Ramp limits: MW per time period (e.g., MW/hour)
                     ramp_limits = ismissing(row.RampUp) ? nothing : (up = row.RampUp, down = row.RampDown),
                     # Time limits: Minimum up/down time (e.g., must run 4 hours if started)
-                    time_limits = ismissing(row.TimeUp) ? nothing : (up = row.TimeUp, down = row.TimeDown),
+                    time_limits = ismissing(row.TimeLimitUp) ? nothing : (up = row.TimeLimitUp, down = row.TimeLimitDown),
                     # Cost structure: Quadratic fuel curve + fixed + startup/shutdown
                     operation_cost = PSY.ThermalGenerationCost(
                         variable = IS.FuelCurve(
-                            value_curve = IS.QuadraticCurve(row.CostC0, row.CostC1, row.CostC2),
+                            value_curve = IS.QuadraticCurve(row.CostCurve_c, row.CostCurve_b, row.CostCurve_a),
                             fuel_cost = row.FuelCost,
-                            vom_cost = IS.LinearCurve(row.VOMCost)  # Variable O&M
+                            vom_cost = IS.LinearCurve(row.VOM_Cost)  # Variable O&M
                         ),
                         fixed = row.FixedCost,
                         start_up = row.StartUpCost,
@@ -436,7 +436,7 @@ function read_thermal_generators_data(data_path::String, file_format::String="CS
             generators = PSY.ThermalStandard[]
             for gen_data in json_data
                 gen = PSY.ThermalStandard(
-                    name = gen_data["GenName"],
+                    name = gen_data["GeneratorName"],
                     available = gen_data["Available"],
                     status = gen_data["Status"],
                     bus = nodes[gen_data["BusNumber"]],
@@ -451,14 +451,14 @@ function read_thermal_generators_data(data_path::String, file_format::String="CS
                     ramp_limits = isnothing(get(gen_data, "RampUp", nothing)) ? nothing :
                                   (up = gen_data["RampUp"], down = gen_data["RampDown"]),
                     # Time limits: Minimum up/down time (e.g., must run 4 hours if started)
-                    time_limits = isnothing(get(gen_data, "TimeUp", nothing)) ? nothing :
-                                  (up = gen_data["TimeUp"], down = gen_data["TimeDown"]),
+                    time_limits = isnothing(get(gen_data, "TimeLimitUp", nothing)) ? nothing :
+                                  (up = gen_data["TimeLimitUp"], down = gen_data["TimeLimitDown"]),
                     # Cost structure: Quadratic fuel curve + fixed + startup/shutdown
                     operation_cost = PSY.ThermalGenerationCost(
                         variable = IS.FuelCurve(
-                            value_curve = IS.QuadraticCurve(gen_data["CostC0"], gen_data["CostC1"], gen_data["CostC2"]),
+                            value_curve = IS.QuadraticCurve(gen_data["CostCurve_c"], gen_data["CostCurve_b"], gen_data["CostCurve_a"]),
                             fuel_cost = gen_data["FuelCost"],
-                            vom_cost = IS.LinearCurve(gen_data["VOMCost"])
+                            vom_cost = IS.LinearCurve(gen_data["VOM_Cost"])
                         ),
                         fixed = gen_data["FixedCost"],
                         start_up = gen_data["StartUpCost"],
@@ -496,7 +496,7 @@ WHY: Renewables differ from thermal:
   - No start-up costs (always available)
 
 STRUCTURE EXPECTED:
-  Columns: GenName, BusNumber, ActivePower, ReactivePower, Rating,
+  Columns: GeneratorName, BusNumber, ActivePower, ReactivePower, Rating,
            PrimeMover (PVe=solar, WT=wind), ReactivePowerMin/Max,
            PowerFactor, VariableCost, BasePower
 """
@@ -510,7 +510,7 @@ function read_renewable_generators_data(data_path::String, file_format::String="
             generators = PSY.RenewableDispatch[]
             for row in eachrow(df)
                 gen = PSY.RenewableDispatch(
-                    row.GenName,
+                    row.GeneratorName,
                     row.Available,
                     nodes[row.BusNumber],
                     row.ActivePower,
@@ -535,7 +535,7 @@ function read_renewable_generators_data(data_path::String, file_format::String="
             generators = PSY.RenewableDispatch[]
             for gen_data in json_data
                 gen = PSY.RenewableDispatch(
-                    gen_data["GenName"],
+                    gen_data["GeneratorName"],
                     gen_data["Available"],
                     nodes[gen_data["BusNumber"]],
                     gen_data["ActivePower"],
@@ -595,10 +595,10 @@ function read_hydro_generators_data(data_path::String, file_format::String="CSV"
         hydro_gens_func = function(nodes)
             generators = []
             for row in eachrow(df)
-                if row.HydroType == "Dispatch"
+                if row.GeneratorType == "HydroDispatch"
                     # Run-of-river: No storage, just convert water flow to power
                     gen = PSY.HydroDispatch(
-                        row.GenName,
+                        row.GeneratorName,
                         row.Available,
                         nodes[row.BusNumber],
                         row.ActivePower,
@@ -623,10 +623,10 @@ function read_hydro_generators_data(data_path::String, file_format::String="CSV"
                     )
                     push!(generators, gen)
                     
-                elseif row.HydroType == "EnergyReservoir"
+                elseif row.GeneratorType == "HydroEnergyReservoir"
                     # Reservoir: Can store water, optimize when to generate
                     gen = PSY.HydroEnergyReservoir(
-                        name = row.GenName,
+                        name = row.GeneratorName,
                         available = row.Available,
                         bus = nodes[row.BusNumber],
                         active_power = row.ActivePower,
@@ -652,10 +652,10 @@ function read_hydro_generators_data(data_path::String, file_format::String="CSV"
                     )
                     push!(generators, gen)
                     
-                elseif row.HydroType == "PumpedStorage"
+                elseif row.GeneratorType == "HydroPumpedStorage"
                     # Pumped storage: Can generate AND pump (store energy)
                     gen = PSY.HydroPumpedStorage(
-                        name = row.GenName,
+                        name = row.GeneratorName,
                         available = row.Available,
                         bus = nodes[row.BusNumber],
                         active_power = row.ActivePower,
@@ -675,9 +675,9 @@ function read_hydro_generators_data(data_path::String, file_format::String="CSV"
                             fixed = row.FixedCost
                         ),
                         rating_pump = row.RatingPump,  # Pump capacity (MW)
-                        active_power_limits_pump = (min = row.ActivePowerPumpMin, max = row.ActivePowerPumpMax),
-                        reactive_power_limits_pump = (min = row.ReactivePowerPumpMin, max = row.ReactivePowerPumpMax),
-                        ramp_limits_pump = (up = row.RampPumpUp, down = row.RampPumpDown),
+                        active_power_limits_pump = (min = row.ActivePowerMinPump, max = row.ActivePowerMaxPump),
+                        reactive_power_limits_pump = (min = row.ReactivePowerMinPump, max = row.ReactivePowerMaxPump),
+                        ramp_limits_pump = (up = row.RampUpPump, down = row.RampDownPump),
                         time_limits_pump = nothing,
                         storage_capacity = (up = row.StorageCapacityUp, down = row.StorageCapacityDown),  # Upper/lower reservoir
                         inflow = row.Inflow,
@@ -712,8 +712,352 @@ function read_hydro_generators_data(data_path::String, file_format::String="CSV"
     return hydro_gens_func
 end
 
-# Storage and Loads readers would follow similar patterns...
-# Omitted for brevity but follow same structure
+# ============================================================================
+# SECTION 8: STORAGE (BATTERY) DATA READER
+# WHY: Battery storage can charge/discharge and shift energy across time
+# INPUT: Storage{N}_sahar.csv or .json
+# OUTPUT: Function that creates PSY.EnergyReservoirStorage objects
+# ============================================================================
+
+"""
+    read_storage_data(data_path::String, file_format::String="CSV")
+
+WHAT: Reads battery/storage parameters
+WHY: Storage devices can:
+  - Charge from grid (consume power)
+  - Discharge to grid (produce power)
+  - Shift energy from low-price to high-price hours
+
+STRUCTURE EXPECTED:
+  Columns: StorageName, BusNumber, Available, ActivePower, ReactivePower,
+           Rating, InputActivePowerMin, InputActivePowerMax,
+           OutputActivePowerMin, OutputActivePowerMax,
+           Efficiency, ReactivePowerMin, ReactivePowerMax,
+           StorageCapacity, InitialEnergy, BasePower
+"""
+function read_storage_data(data_path::String, file_format::String="CSV")
+    log_info("Reading storage data from: $data_path")
+    
+    if uppercase(file_format) == "CSV"
+        df = CSV.read(data_path, DataFrame)
+        
+        storage_func = function(nodes)
+            devices = PSY.EnergyReservoirStorage[]
+            for row in eachrow(df)
+                dev = PSY.EnergyReservoirStorage(
+                    name = row.StorageName,
+                    available = row.Available,
+                    bus = nodes[row.BusNumber],
+                    prime_mover_type = PrimeMovers.BA,
+                    storage_technology_type = PSY.StorageTech.OTHER_CHEM,
+                    storage_capacity = row.StorageCapacity,
+                    storage_level_limits = (min = row.SOC_Min, max = row.SOC_Max),
+                    initial_storage_capacity_level = row.InitialEnergy,
+                    rating = row.Rating,
+                    active_power = row.ActivePower,
+                    input_active_power_limits = (min = row.InputActivePowerMin, max = row.InputActivePowerMax),
+                    output_active_power_limits = (min = row.OutputActivePowerMin, max = row.OutputActivePowerMax),
+                    efficiency = (in = row.EfficiencyIn, out = row.EfficiencyOut),
+                    reactive_power = row.ReactivePower,
+                    reactive_power_limits = (min = row.ReactivePowerMin, max = row.ReactivePowerMax),
+                    base_power = row.BasePower,
+                    operation_cost = PSY.StorageCost(
+                        charge_variable_cost = CostCurve(LinearCurve(0.0)),
+                        discharge_variable_cost = CostCurve(LinearCurve(0.0)),
+                        fixed = 0.0,
+                        energy_shortage_cost = row.EnergyShortageCost,
+                        energy_surplus_cost = row.EnergySurplusCost
+                    )
+                )
+                push!(devices, dev)
+            end
+            return devices
+        end
+        
+    elseif uppercase(file_format) == "JSON"
+        json_data = JSON3.read(read(data_path, String))
+        
+        storage_func = function(nodes)
+            devices = PSY.EnergyReservoirStorage[]
+            for s in json_data
+                dev = PSY.EnergyReservoirStorage(
+                    name = s["StorageName"],
+                    available = s["Available"],
+                    bus = nodes[s["BusNumber"]],
+                    prime_mover_type = PrimeMovers.BA,
+                    storage_technology_type = PSY.StorageTech.OTHER_CHEM,
+                    storage_capacity = s["StorageCapacity"],
+                    storage_level_limits = (min = s["StorageLevelMin"], max = s["StorageLevelMax"]),
+                    initial_storage_capacity_level = s["InitialEnergy"],
+                    rating = s["Rating"],
+                    active_power = s["ActivePower"],
+                    input_active_power_limits = (min = s["InputActivePowerMin"], max = s["InputActivePowerMax"]),
+                    output_active_power_limits = (min = s["OutputActivePowerMin"], max = s["OutputActivePowerMax"]),
+                    efficiency = (in = s["EfficiencyIn"], out = s["EfficiencyOut"]),
+                    reactive_power = s["ReactivePower"],
+                    reactive_power_limits = (min = s["ReactivePowerMin"], max = s["ReactivePowerMax"]),
+                    base_power = s["BasePower"],
+                    operation_cost = PSY.StorageCost(
+                        charge_variable_cost = CostCurve(LinearCurve(0.0)),
+                        discharge_variable_cost = CostCurve(LinearCurve(0.0)),
+                        fixed = 0.0,
+                        energy_shortage_cost = s["EnergyShortageCost"],
+                        energy_surplus_cost = s["EnergySurplusCost"]
+                    )
+                )
+                push!(devices, dev)
+            end
+            return devices
+        end
+    else
+        error("Unsupported file format: $file_format")
+    end
+    
+    log_success("Storage data loaded successfully")
+    return storage_func
+end
+
+# ============================================================================
+# SECTION 9: LOADS DATA READER
+# WHY: Loads represent electricity demand at each bus
+# INPUT: Loads{N}_sahar.csv or .json
+# OUTPUT: Function that creates PSY.PowerLoad objects
+# ============================================================================
+
+"""
+    read_loads_data(data_path::String, file_format::String="CSV")
+
+WHAT: Reads electrical load (demand) parameters at each bus
+WHY: Loads are the demand side of the power balance equation.
+  - Each bus can have one or more loads
+  - Loads can be constant or time-varying (via time series)
+  - Load curtailment may be allowed at a penalty cost (VOLL)
+
+STRUCTURE EXPECTED:
+  Columns: LoadName, BusNumber, Available, ActivePower, ReactivePower,
+           MaxActivePower, MaxReactivePower, BasePower, Model
+  
+  Model: "ConstantPower" (P+jQ fixed), "ConstantImpedance" (Z fixed),
+         "ConstantCurrent" (I fixed)
+
+RETURNS: Function(nodes) that creates Vector{PSY.PowerLoad}
+"""
+function read_loads_data(data_path::String, file_format::String="CSV")
+    log_info("Reading loads data from: $data_path")
+    
+    if uppercase(file_format) == "CSV"
+        df = CSV.read(data_path, DataFrame)
+        
+        loads_func = function(nodes)
+            loads = PSY.PowerLoad[]
+            for row in eachrow(df)
+                # Resolve load model enum
+                model = if hasproperty(row, :Model) && !ismissing(row.Model)
+                    getfield(PSY, Symbol(row.Model))
+                else
+                    PSY.ConstantPower  # default
+                end
+                
+                load = PSY.PowerLoad(
+                    row.LoadName,
+                    row.Available,
+                    nodes[row.BusNumber],
+                    model,
+                    row.ActivePower,
+                    row.ReactivePower,
+                    row.MaxActivePower,
+                    row.MaxReactivePower,
+                    row.BasePower
+                )
+                push!(loads, load)
+            end
+            return loads
+        end
+        
+    elseif uppercase(file_format) == "JSON"
+        json_data = JSON3.read(read(data_path, String))
+        
+        loads_func = function(nodes)
+            loads = PSY.PowerLoad[]
+            for ld in json_data
+                model = if haskey(ld, "Model")
+                    getfield(PSY, Symbol(ld["Model"]))
+                else
+                    PSY.ConstantPower
+                end
+                
+                load = PSY.PowerLoad(
+                    ld["LoadName"],
+                    ld["Available"],
+                    nodes[ld["BusNumber"]],
+                    model,
+                    ld["ActivePower"],
+                    ld["ReactivePower"],
+                    ld["MaxActivePower"],
+                    ld["MaxReactivePower"],
+                    ld["BasePower"]
+                )
+                push!(loads, load)
+            end
+            return loads
+        end
+    else
+        error("Unsupported file format: $file_format")
+    end
+    
+    log_success("Loads data loaded successfully")
+    return loads_func
+end
+
+# ============================================================================
+# INTERNAL: Generic loader from CSV/JSON _sahar files
+# ============================================================================
+"""
+    _resolve_sahar_file(data_dir, prefix, num_buses, ext; optional=false)
+
+Find a `_sahar` data file. Tries `{prefix}{num_buses}_sahar.{ext}` in `data_dir`.
+If `optional=true`, returns `nothing` instead of erroring when file is missing.
+"""
+function _resolve_sahar_file(data_dir::String, prefix::String, num_buses::Int, ext::String; optional::Bool=false)
+    filename = "$(prefix)$(num_buses)_sahar.$(ext)"
+    filepath = joinpath(data_dir, filename)
+    if !isfile(filepath)
+        if optional
+            log_warn("Optional data file not found (skipping): $filepath")
+            return nothing
+        else
+            error("❌ Data file not found: $filepath")
+        end
+    end
+    return filepath
+end
+
+"""
+    _load_case_from_files(data_dir::String, file_format::String, num_buses::Int)
+
+Build a PowerSystems.System from the set of `_sahar` CSV/JSON files in `data_dir`.
+
+Expected files (example for 118-bus CSV):
+  - Nodes118_sahar.csv
+  - Trans118_sahar.csv
+  - ThermalGenerators118_sahar.csv
+  - RenewableGenerators118_sahar.csv
+  - HydroGenerators118_sahar.csv  (optional)
+  - Storage118_sahar.csv          (optional)
+  - TimeSeries_DA118_sahar.csv    (optional)
+"""
+function _load_case_from_files(data_dir::String, file_format::String, num_buses::Int)
+    ext = uppercase(file_format) == "JSON" ? "json" : "csv"
+    fmt = uppercase(file_format)
+    case_label = "$(num_buses)bus"
+    
+    log_info("Loading $case_label case from $fmt files in: $data_dir")
+    
+    # Resolve required data files (with bus count in filename)
+    nodes_path      = _resolve_sahar_file(data_dir, "Nodes", num_buses, ext)
+    branches_path   = _resolve_sahar_file(data_dir, "Trans", num_buses, ext)
+    thermal_path    = _resolve_sahar_file(data_dir, "ThermalGenerators", num_buses, ext)
+    
+    # Resolve optional data files
+    renewable_path  = _resolve_sahar_file(data_dir, "RenewableGenerators", num_buses, ext; optional=true)
+    hydro_path      = _resolve_sahar_file(data_dir, "HydroGenerators", num_buses, ext; optional=true)
+    storage_path    = _resolve_sahar_file(data_dir, "Storage", num_buses, ext; optional=true)
+    loads_path      = _resolve_sahar_file(data_dir, "Loads", num_buses, ext; optional=true)
+    timeseries_path = _resolve_sahar_file(data_dir, "TimeSeries_DA", num_buses, ext; optional=true)
+    
+    # Read required data
+    nodes_func          = read_nodes_data(nodes_path, fmt)
+    branches_func       = read_branches_data(branches_path, fmt)
+    thermal_gens_func   = read_thermal_generators_data(thermal_path, fmt)
+    
+    # Read optional data
+    renewable_gens_func = isnothing(renewable_path) ? (_->PSY.RenewableDispatch[]) : read_renewable_generators_data(renewable_path, fmt)
+    hydro_gens_func     = isnothing(hydro_path) ? (_->[]) : read_hydro_generators_data(hydro_path, fmt)
+    storage_func        = isnothing(storage_path) ? (_->PSY.EnergyReservoirStorage[]) : read_storage_data(storage_path, fmt)
+    loads_func          = isnothing(loads_path) ? (_->PSY.PowerLoad[]) : read_loads_data(loads_path, fmt)
+    timeseries_data     = isnothing(timeseries_path) ? Dict{String,Any}() : read_timeseries_data(timeseries_path, fmt)
+    
+    # Create objects
+    nodes       = nodes_func()
+    branches    = branches_func(nodes)
+    thermal     = thermal_gens_func(nodes)
+    renewables  = renewable_gens_func(nodes)
+    hydro       = hydro_gens_func(nodes)
+    storage     = storage_func(nodes)
+    loads       = loads_func(nodes)
+    
+    # Bundle into a system data dict
+    system_data = Dict(
+        "nodes"       => nodes,
+        "branches"    => branches,
+        "thermal"     => thermal,
+        "renewables"  => renewables,
+        "hydro"       => hydro,
+        "storage"     => storage,
+        "loads"       => loads,
+        "timeseries"  => timeseries_data,
+        "case_label"  => case_label,
+        "num_buses"   => num_buses
+    )
+    
+    # Build PowerSystems.System
+    system = PSY.System(100.0)  # 100 MVA base
+    for bus in nodes
+        PSY.add_component!(system, bus)
+    end
+    for branch in branches
+        PSY.add_component!(system, branch)
+    end
+    for gen in thermal
+        PSY.add_component!(system, gen)
+    end
+    for gen in renewables
+        PSY.add_component!(system, gen)
+    end
+    for gen in hydro
+        PSY.add_component!(system, gen)
+    end
+    for dev in storage
+        PSY.add_component!(system, dev)
+    end
+    for ld in loads
+        PSY.add_component!(system, ld)
+    end
+    
+    log_success("$case_label system created: $(length(nodes)) buses, $(length(branches)) branches, " *
+                "$(length(thermal)) thermal, $(length(renewables)) renewable, $(length(hydro)) hydro, " *
+                "$(length(storage)) storage, $(length(loads)) loads")
+    
+    return system, system_data
+end
+
+"""
+    load_from_csv_json(data_dir::String, file_format::String="CSV"; num_buses::Int=0)
+
+Load case data from CSV/JSON files using generic data reader.
+If `num_buses` is 0, tries to auto-detect from files in `data_dir`.
+"""
+function load_from_csv_json(data_dir::String, file_format::String="CSV"; num_buses::Int=0)
+    println("  - Loading from $file_format files in $data_dir")
+    
+    if num_buses > 0
+        return _load_case_from_files(data_dir, file_format, num_buses)
+    end
+    
+    # Auto-detect bus count from Nodes*_sahar files
+    ext = uppercase(file_format) == "JSON" ? "json" : "csv"
+    for f in readdir(data_dir)
+        m = match(r"Nodes(\d+)_sahar\.", f)
+        if !isnothing(m)
+            detected = parse(Int, m.captures[1])
+            log_info("Auto-detected $(detected)-bus case from file: $f")
+            return _load_case_from_files(data_dir, file_format, detected)
+        end
+    end
+    
+    error("❌ Could not auto-detect bus count. No Nodes*_sahar.$ext file found in $data_dir. " *
+          "Pass num_buses explicitly.")
+end
 
 log_info("Data reader module loaded successfully")
 
@@ -722,131 +1066,254 @@ Case-Specific Data Readers for PowerLASCOPF
 
 Loads data for specific test cases by including their data files.
 Called by data_reader_generic.jl
+
+Supported cases: 5-bus, 14-bus, 30-bus, 48-bus, 57-bus, 118-bus, 300-bus
 """
 
 """
-    load_5bus_case(case_path::String)
+    load_5bus_case(data_dir::String, file_format::String="CSV")
 
 Load 5-bus test case data.
+- If data_5bus_pu.jl exists, use it directly.
+- Otherwise, read from CSV/JSON files with `_sahar` suffix in `data_dir`.
 """
-function load_5bus_case(case_path::String)
-    println("  - Loading 5-bus system from data file")
+function load_5bus_case(data_dir::String, file_format::String="CSV")
+    println("  - Loading 5-bus system (format: $file_format, dir: $data_dir)")
     
-    # Include the 5-bus data file
-    if isfile(case_path)
-        include(case_path)
-    else
-        data_file = joinpath(@__DIR__, "data_5bus_pu.jl")
-        if isfile(data_file)
-            include(data_file)
-        else
-            error("❌ 5-bus data file not found at $case_path or $data_file")
-        end
+    # Try the Julia data file first
+    data_file = joinpath(@__DIR__, "data_5bus_pu.jl")
+    if isfile(data_file)
+        include(data_file)
+        system, system_data = create_5bus_powerlascopf_system()
+        return system, system_data
     end
     
-    # Call the create function from data_5bus_pu.jl
-    system, system_data = create_5bus_powerlascopf_system()
-    
-    return system, system_data
+    # Fall back to CSV/JSON in data_dir
+    return _load_case_from_files(data_dir, file_format, 5)
 end
 
 """
-    load_14bus_case(case_path::String)
+    load_14bus_case(data_dir::String, file_format::String="CSV")
 
 Load 14-bus test case data.
 """
-function load_14bus_case(case_path::String)
-    println("  - Loading 14-bus system from data file")
+function load_14bus_case(data_dir::String, file_format::String="CSV")
+    println("  - Loading 14-bus system (format: $file_format, dir: $data_dir)")
     
-    # Include the 14-bus data file
-    if isfile(case_path)
-        include(case_path)
-    else
-        data_file = joinpath(@__DIR__, "data_14bus_pu.jl")
-        if isfile(data_file)
-            include(data_file)
-        else
-            error("❌ 14-bus data file not found at $case_path or $data_file")
-        end
+    data_file = joinpath(@__DIR__, "data_14bus_pu.jl")
+    if isfile(data_file)
+        include(data_file)
+        system, system_data = create_14bus_powerlascopf_system()
+        return system, system_data
     end
     
-    # Call the create function from data_14bus_pu.jl
-    system, system_data = create_14bus_powerlascopf_system()
+    return _load_case_from_files(data_dir, file_format, 14)
+end
+
+"""
+    load_30bus_case(data_dir::String, file_format::String="CSV")
+
+Load IEEE 30-bus test case data from CSV/JSON files with `_sahar` suffix.
+"""
+function load_30bus_case(data_dir::String, file_format::String="CSV")
+    println("  - Loading 30-bus system (format: $file_format, dir: $data_dir)")
+
+    data_folder = joinpath(data_dir, "IEEE_30_bus")
+    
+    return _load_case_from_files(data_folder, file_format, 30)
+end
+
+"""
+    load_48bus_case(data_dir::String, file_format::String="CSV")
+
+Load IEEE 48-bus (reliability test system) case data from CSV/JSON files with `_sahar` suffix.
+"""
+function load_48bus_case(data_dir::String, file_format::String="CSV")
+    println("  - Loading 48-bus system (format: $file_format, dir: $data_dir)")
+
+    data_folder = joinpath(data_dir, "IEEE_48_bus")
+    return _load_case_from_files(data_folder, file_format, 48)
+end
+
+"""
+    load_57bus_case(data_dir::String, file_format::String="CSV")
+
+Load IEEE 57-bus test case data from CSV/JSON files with `_sahar` suffix.
+"""
+function load_57bus_case(data_dir::String, file_format::String="CSV")
+    println("  - Loading 57-bus system (format: $file_format, dir: $data_dir)")
+    data_folder = joinpath(data_dir, "IEEE_57_bus")
+    return _load_case_from_files(data_folder, file_format, 57)
+end
+
+"""
+    load_118bus_case(data_dir::String, file_format::String="CSV")
+
+Load IEEE 118-bus test case data from CSV/JSON files with `_sahar` suffix.
+"""
+function load_118bus_case(data_dir::String, file_format::String="CSV")
+    println("  - Loading 118-bus system (format: $file_format, dir: $data_dir)")
+    data_folder = joinpath(data_dir, "IEEE_118_bus")
+    return _load_case_from_files(data_folder, file_format, 118)
+end
+
+"""
+    load_300bus_case(data_dir::String, file_format::String="CSV")
+
+Load IEEE 300-bus test case data from CSV/JSON files with `_sahar` suffix.
+"""
+function load_300bus_case(data_dir::String, file_format::String="CSV")
+    println("  - Loading 300-bus system (format: $file_format, dir: $data_dir)")
+    data_folder = joinpath(data_dir, "IEEE_300_bus")
+    return _load_case_from_files(data_folder, file_format, 300)
+end
+
+# ============================================================================
+# INTERNAL: Generic loader from CSV/JSON _sahar files
+# ============================================================================
+"""
+    _resolve_sahar_file(data_dir, prefix, num_buses, ext; optional=false)
+
+Find a `_sahar` data file. Tries `{prefix}{num_buses}_sahar.{ext}` in `data_dir`.
+If `optional=true`, returns `nothing` instead of erroring when file is missing.
+"""
+function _resolve_sahar_file(data_dir::String, prefix::String, num_buses::Int, ext::String; optional::Bool=false)
+    filename = "$(prefix)$(num_buses)_sahar.$(ext)"
+    filepath = joinpath(data_dir, filename)
+    if !isfile(filepath)
+        if optional
+            log_warn("Optional data file not found (skipping): $filepath")
+            return nothing
+        else
+            error("❌ Data file not found: $filepath")
+        end
+    end
+    return filepath
+end
+
+"""
+    _load_case_from_files(data_dir::String, file_format::String, num_buses::Int)
+
+Build a PowerSystems.System from the set of `_sahar` CSV/JSON files in `data_dir`.
+
+Expected files (example for 118-bus CSV):
+  - Nodes118_sahar.csv
+  - Trans118_sahar.csv
+  - ThermalGenerators118_sahar.csv
+  - RenewableGenerators118_sahar.csv
+  - HydroGenerators118_sahar.csv  (optional)
+  - Storage118_sahar.csv          (optional)
+  - TimeSeries_DA118_sahar.csv    (optional)
+"""
+function _load_case_from_files(data_dir::String, file_format::String, num_buses::Int)
+    ext = uppercase(file_format) == "JSON" ? "json" : "csv"
+    fmt = uppercase(file_format)
+    case_label = "$(num_buses)bus"
+    
+    log_info("Loading $case_label case from $fmt files in: $data_dir")
+    
+    # Resolve required data files (with bus count in filename)
+    nodes_path      = _resolve_sahar_file(data_dir, "Nodes", num_buses, ext)
+    branches_path   = _resolve_sahar_file(data_dir, "Trans", num_buses, ext)
+    thermal_path    = _resolve_sahar_file(data_dir, "ThermalGenerators", num_buses, ext)
+    
+    # Resolve optional data files
+    renewable_path  = _resolve_sahar_file(data_dir, "RenewableGenerators", num_buses, ext; optional=true)
+    hydro_path      = _resolve_sahar_file(data_dir, "HydroGenerators", num_buses, ext; optional=true)
+    storage_path    = _resolve_sahar_file(data_dir, "Storage", num_buses, ext; optional=true)
+    loads_path      = _resolve_sahar_file(data_dir, "Loads", num_buses, ext; optional=true)
+    timeseries_path = _resolve_sahar_file(data_dir, "TimeSeries_DA", num_buses, ext; optional=true)
+    
+    # Read required data
+    nodes_func          = read_nodes_data(nodes_path, fmt)
+    branches_func       = read_branches_data(branches_path, fmt)
+    thermal_gens_func   = read_thermal_generators_data(thermal_path, fmt)
+    
+    # Read optional data
+    renewable_gens_func = isnothing(renewable_path) ? (_->PSY.RenewableDispatch[]) : read_renewable_generators_data(renewable_path, fmt)
+    hydro_gens_func     = isnothing(hydro_path) ? (_->[]) : read_hydro_generators_data(hydro_path, fmt)
+    storage_func        = isnothing(storage_path) ? (_->PSY.EnergyReservoirStorage[]) : read_storage_data(storage_path, fmt)
+    loads_func          = isnothing(loads_path) ? (_->PSY.PowerLoad[]) : read_loads_data(loads_path, fmt)
+    timeseries_data     = isnothing(timeseries_path) ? Dict{String,Any}() : read_timeseries_data(timeseries_path, fmt)
+    
+    # Create objects
+    nodes       = nodes_func()
+    branches    = branches_func(nodes)
+    thermal     = thermal_gens_func(nodes)
+    renewables  = renewable_gens_func(nodes)
+    hydro       = hydro_gens_func(nodes)
+    storage     = storage_func(nodes)
+    loads       = loads_func(nodes)
+    
+    # Bundle into a system data dict
+    system_data = Dict(
+        "nodes"       => nodes,
+        "branches"    => branches,
+        "thermal"     => thermal,
+        "renewables"  => renewables,
+        "hydro"       => hydro,
+        "storage"     => storage,
+        "loads"       => loads,
+        "timeseries"  => timeseries_data,
+        "case_label"  => case_label,
+        "num_buses"   => num_buses
+    )
+    
+    # Build PowerSystems.System
+    system = PSY.System(100.0)  # 100 MVA base
+    for bus in nodes
+        PSY.add_component!(system, bus)
+    end
+    for branch in branches
+        PSY.add_component!(system, branch)
+    end
+    for gen in thermal
+        PSY.add_component!(system, gen)
+    end
+    for gen in renewables
+        PSY.add_component!(system, gen)
+    end
+    for gen in hydro
+        PSY.add_component!(system, gen)
+    end
+    for dev in storage
+        PSY.add_component!(system, dev)
+    end
+    for ld in loads
+        PSY.add_component!(system, ld)
+    end
+    
+    log_success("$case_label system created: $(length(nodes)) buses, $(length(branches)) branches, " *
+                "$(length(thermal)) thermal, $(length(renewables)) renewable, $(length(hydro)) hydro, " *
+                "$(length(storage)) storage, $(length(loads)) loads")
     
     return system, system_data
 end
 
 """
-    load_118bus_case(case_path::String)
-
-Load 118-bus test case data.
-"""
-function load_118bus_case(case_path::String)
-    println("  - Loading 118-bus system from data file")
-    
-    # Check if data file exists
-    if isfile(case_path)
-        include(case_path)
-    else
-        data_file = joinpath(@__DIR__, "data_118bus_pu.jl")
-        if isfile(data_file)
-            include(data_file)
-        else
-            error("❌ 118-bus data file not found. Please create data_118bus_pu.jl following the pattern of data_5bus_pu.jl and data_14bus_pu.jl")
-        end
-    end
-    
-    # Call the create function (assuming similar naming convention)
-    system, system_data = create_118bus_powerlascopf_system()
-    
-    return system, system_data
-end
-
-"""
-    load_300bus_case(case_path::String)
-
-Load 300-bus test case data.
-"""
-function load_300bus_case(case_path::String)
-    println("  - Loading 300-bus system from data file")
-    
-    # Check if data file exists
-    if isfile(case_path)
-        include(case_path)
-    else
-        data_file = joinpath(@__DIR__, "data_300bus_pu.jl")
-        if isfile(data_file)
-            include(data_file)
-        else
-            error("❌ 300-bus data file not found. Please create data_300bus_pu.jl following the pattern of data_5bus_pu.jl and data_14bus_pu.jl")
-        end
-    end
-    
-    # Call the create function (assuming similar naming convention)
-    system, system_data = create_300bus_powerlascopf_system()
-    
-    return system, system_data
-end
-
-"""
-    load_from_csv_json(case_path::String)
+    load_from_csv_json(data_dir::String, file_format::String="CSV"; num_buses::Int=0)
 
 Load case data from CSV/JSON files using generic data reader.
-
-Note: This function requires implementation of CSV/JSON parsing utilities.
+If `num_buses` is 0, tries to auto-detect from files in `data_dir`.
 """
-function load_from_csv_json(case_path::String)
-    println("  - Loading from CSV/JSON files in $case_path")
+function load_from_csv_json(data_dir::String, file_format::String="CSV"; num_buses::Int=0)
+    println("  - Loading from $file_format files in $data_dir")
     
-    # Check if data_reader.jl exists (the old generic CSV/JSON reader)
-    reader_file = joinpath(@__DIR__, "..", "src", "io", "readers", "data_reader.jl")
-    if isfile(reader_file)
-        include(reader_file)
-        # Use functions from the CSV/JSON reader
-        system_data = read_system_data_from_csv(case_path)
-        system = create_powersystems_from_data(system_data)
-        return system, system_data
-    else
-        error("❌ CSV/JSON data reader not found at $reader_file. Please implement or use case-specific data files.")
+    if num_buses > 0
+        return _load_case_from_files(data_dir, file_format, num_buses)
     end
+    
+    # Auto-detect bus count from Nodes*_sahar files
+    ext = uppercase(file_format) == "JSON" ? "json" : "csv"
+    for f in readdir(data_dir)
+        m = match(r"Nodes(\d+)_sahar\.", f)
+        if !isnothing(m)
+            detected = parse(Int, m.captures[1])
+            log_info("Auto-detected $(detected)-bus case from file: $f")
+            return _load_case_from_files(data_dir, file_format, detected)
+        end
+    end
+    
+    error("❌ Could not auto-detect bus count. No Nodes*_sahar.$ext file found in $data_dir. " *
+          "Pass num_buses explicitly.")
 end

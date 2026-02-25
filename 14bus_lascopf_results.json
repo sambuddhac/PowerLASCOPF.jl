@@ -15,31 +15,31 @@
         "name": "nodeC_Gen",
         "power": 0.6,
         "node": 3,
-        "angle": 1.9242e-319
+        "angle": 9.4e-323
       },
       "thermal_4": {
         "name": "nodeF_Gen",
         "power": 0.6,
         "node": 6,
-        "angle": 7.0e-323
+        "angle": 2.671566803e-314
       },
       "thermal_2": {
         "name": "nodeB_Gen",
         "power": 0.84,
         "node": 2,
-        "angle": 8.0e-323
+        "angle": 2.370595616e-314
       },
       "thermal_1": {
         "name": "nodeA_Gen",
         "power": 1.9991999999999999,
         "node": 1,
-        "angle": 2.0e-323
+        "angle": 1.3528e-320
       },
       "thermal_5": {
         "name": "nodeH_Gen",
         "power": 0.6,
         "node": 8,
-        "angle": 2.462553478e-314
+        "angle": 3.177e-321
       }
     },
     "iterations": 15,
@@ -162,19 +162,19 @@
         "name": "WindBusC",
         "power": 0.84,
         "node": 11,
-        "angle": 1.873477e-318
+        "angle": 4.7e-322
       },
       "renewable_1": {
         "name": "WindBusA",
         "power": 0.84,
         "node": 5,
-        "angle": 1.90881e-318
+        "angle": 1.90996e-319
       },
       "renewable_2": {
         "name": "WindBusB",
         "power": 0.84,
         "node": 9,
-        "angle": 1.873467e-318
+        "angle": 2.370595616e-314
       }
     },
     "status": "FEASIBLE",
@@ -183,31 +183,31 @@
         "name": "HydroEnergyReservoir_1",
         "power": 3.5,
         "node": 7,
-        "angle": 2.3867365907e-314
+        "angle": 3.0e-323
       },
       "hydro_3": {
         "name": "HydroDispatch_2 ",
         "power": 3.0,
         "node": 4,
-        "angle": 0.0
+        "angle": 2.255824965e-314
       },
       "hydro_4": {
         "name": "HydroEnergyReservoir_2",
         "power": 3.5,
         "node": 7,
-        "angle": 2.4274238373e-314
+        "angle": 1.388e-320
       },
       "hydro_5": {
         "name": "HydroPumpedStorage",
         "power": 2.5,
         "node": 10,
-        "angle": 5.425e-321
+        "angle": 4.0e-323
       },
       "hydro_1": {
         "name": "HydroDispatch_1",
         "power": 3.0,
         "node": 4,
-        "angle": 1.0e-323
+        "angle": 1.90996e-319
       }
     },
     "convergence_history": [
@@ -273,7 +273,7 @@
       }
     ],
     "objective_value": 306.77599999999995,
-    "solve_time": 0.09464812278747559
+    "solve_time": 0.13760113716125488
   },
-  "timestamp": "2026-02-16T02:57:51.925"
+  "timestamp": "2026-02-17T22:53:34.703"
 }
