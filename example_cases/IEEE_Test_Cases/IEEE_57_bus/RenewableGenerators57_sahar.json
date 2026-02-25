@@ -13,7 +13,7 @@
     "ReactivePowerMin": 0.0,
     "ReactivePowerMax": 0.0,
     "PowerFactor": 1.0,
-    "CostCurve_b": 0.20,
+    "VariableCost": 0.20,
     "BasePower": 100.0
   },
   {
@@ -30,7 +30,7 @@
     "ReactivePowerMin": 0.0,
     "ReactivePowerMax": 0.0,
     "PowerFactor": 1.0,
-    "CostCurve_b": 0.21,
+    "VariableCost": 0.21,
     "BasePower": 100.0
   },
   {
@@ -47,7 +47,7 @@
     "ReactivePowerMin": 0.0,
     "ReactivePowerMax": 0.0,
     "PowerFactor": 1.0,
-    "CostCurve_b": 0.20,
+    "VariableCost": 0.20,
     "BasePower": 100.0
   },
   {
@@ -64,7 +64,7 @@
     "ReactivePowerMin": 0.0,
     "ReactivePowerMax": 0.0,
     "PowerFactor": 1.0,
-    "CostCurve_b": 0.21,
+    "VariableCost": 0.21,
     "BasePower": 100.0
   },
   {
@@ -81,7 +81,7 @@
     "ReactivePowerMin": 0.0,
     "ReactivePowerMax": 0.0,
     "PowerFactor": 1.0,
-    "CostCurve_b": 0.19,
+    "VariableCost": 0.19,
     "BasePower": 100.0
   },
   {
@@ -98,7 +98,7 @@
     "ReactivePowerMin": 0.0,
     "ReactivePowerMax": 0.0,
     "PowerFactor": 1.0,
-    "CostCurve_b": 0.20,
+    "VariableCost": 0.20,
     "BasePower": 100.0
   },
   {
@@ -115,7 +115,7 @@
     "ReactivePowerMin": 0.0,
     "ReactivePowerMax": 0.0,
     "PowerFactor": 1.0,
-    "CostCurve_b": 0.19,
+    "VariableCost": 0.19,
     "BasePower": 100.0
   },
   {
@@ -132,7 +132,7 @@
     "ReactivePowerMin": 0.0,
     "ReactivePowerMax": 0.0,
     "PowerFactor": 1.0,
-    "CostCurve_b": 0.20,
+    "VariableCost": 0.20,
     "BasePower": 100.0
   },
   {
@@ -149,7 +149,7 @@
     "ReactivePowerMin": 0.0,
     "ReactivePowerMax": 0.0,
     "PowerFactor": 1.0,
-    "CostCurve_b": 0.22,
+    "VariableCost": 0.22,
     "BasePower": 100.0
   },
   {
@@ -166,7 +166,7 @@
     "ReactivePowerMin": 0.0,
     "ReactivePowerMax": 0.0,
     "PowerFactor": 1.0,
-    "CostCurve_b": 0.19,
+    "VariableCost": 0.19,
     "BasePower": 100.0
   },
   {
@@ -183,7 +183,7 @@
     "ReactivePowerMin": 0.0,
     "ReactivePowerMax": 0.0,
     "PowerFactor": 1.0,
-    "CostCurve_b": 0.20,
+    "VariableCost": 0.20,
     "BasePower": 100.0
   },
   {
@@ -200,7 +200,7 @@
     "ReactivePowerMin": 0.0,
     "ReactivePowerMax": 0.0,
     "PowerFactor": 1.0,
-    "CostCurve_b": 0.19,
+    "VariableCost": 0.19,
     "BasePower": 100.0
   },
   {
@@ -217,7 +217,7 @@
     "ReactivePowerMin": 0.0,
     "ReactivePowerMax": 0.0,
     "PowerFactor": 1.0,
-    "CostCurve_b": 0.15,
+    "VariableCost": 0.15,
     "BasePower": 100.0
   },
   {
@@ -234,7 +234,7 @@
     "ReactivePowerMin": 0.0,
     "ReactivePowerMax": 0.0,
     "PowerFactor": 1.0,
-    "CostCurve_b": 0.15,
+    "VariableCost": 0.15,
     "BasePower": 100.0
   },
   {
@@ -251,7 +251,7 @@
     "ReactivePowerMin": 0.0,
     "ReactivePowerMax": 0.0,
     "PowerFactor": 1.0,
-    "CostCurve_b": 0.14,
+    "VariableCost": 0.14,
     "BasePower": 100.0
   },
   {
@@ -268,7 +268,7 @@
     "ReactivePowerMin": 0.0,
     "ReactivePowerMax": 0.0,
     "PowerFactor": 1.0,
-    "CostCurve_b": 0.14,
+    "VariableCost": 0.14,
     "BasePower": 100.0
   },
   {
@@ -285,7 +285,7 @@
     "ReactivePowerMin": 0.0,
     "ReactivePowerMax": 0.0,
     "PowerFactor": 1.0,
-    "CostCurve_b": 0.16,
+    "VariableCost": 0.16,
     "BasePower": 100.0
   },
   {
@@ -302,7 +302,7 @@
     "ReactivePowerMin": 0.0,
     "ReactivePowerMax": 0.0,
     "PowerFactor": 1.0,
-    "CostCurve_b": 0.15,
+    "VariableCost": 0.15,
     "BasePower": 100.0
   },
   {
@@ -319,7 +319,7 @@
     "ReactivePowerMin": 0.0,
     "ReactivePowerMax": 0.0,
     "PowerFactor": 1.0,
-    "CostCurve_b": 0.15,
+    "VariableCost": 0.15,
     "BasePower": 100.0
   },
   {
@@ -336,7 +336,7 @@
     "ReactivePowerMin": 0.0,
     "ReactivePowerMax": 0.0,
     "PowerFactor": 1.0,
-    "CostCurve_b": 0.15,
+    "VariableCost": 0.15,
     "BasePower": 100.0
   }
 ]

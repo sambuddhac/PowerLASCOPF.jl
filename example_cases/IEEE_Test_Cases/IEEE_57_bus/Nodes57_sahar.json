@@ -1,458 +1,572 @@
 [
   {
     "BusNumber": 1,
+    "BusName": "Bus1",
     "BusType": "REF",
+    "Angle": 0,
+    "Voltage": 1.0,
     "VoltageMin": 0.95,
     "VoltageMax": 1.05,
-    "BaseVoltage": 132.0,
-    "BasePower": 100.0
+    "BaseVoltage": 132.0
   },
   {
     "BusNumber": 2,
+    "BusName": "Bus2",
     "BusType": "PV",
+    "Angle": 0,
+    "Voltage": 1.0,
     "VoltageMin": 0.95,
     "VoltageMax": 1.05,
-    "BaseVoltage": 132.0,
-    "BasePower": 100.0
+    "BaseVoltage": 132.0
   },
   {
     "BusNumber": 3,
+    "BusName": "Bus3",
     "BusType": "PV",
+    "Angle": 0,
+    "Voltage": 1.0,
     "VoltageMin": 0.95,
     "VoltageMax": 1.05,
-    "BaseVoltage": 132.0,
-    "BasePower": 100.0
+    "BaseVoltage": 132.0
   },
   {
     "BusNumber": 4,
+    "BusName": "Bus4",
     "BusType": "PQ",
+    "Angle": 0,
+    "Voltage": 1.0,
     "VoltageMin": 0.95,
     "VoltageMax": 1.05,
-    "BaseVoltage": 132.0,
-    "BasePower": 100.0
+    "BaseVoltage": 132.0
   },
   {
     "BusNumber": 5,
+    "BusName": "Bus5",
     "BusType": "PQ",
+    "Angle": 0,
+    "Voltage": 1.0,
     "VoltageMin": 0.95,
     "VoltageMax": 1.05,
-    "BaseVoltage": 132.0,
-    "BasePower": 100.0
+    "BaseVoltage": 132.0
   },
   {
     "BusNumber": 6,
+    "BusName": "Bus6",
     "BusType": "PV",
+    "Angle": 0,
+    "Voltage": 1.0,
     "VoltageMin": 0.95,
     "VoltageMax": 1.05,
-    "BaseVoltage": 132.0,
-    "BasePower": 100.0
+    "BaseVoltage": 132.0
   },
   {
     "BusNumber": 7,
+    "BusName": "Bus7",
     "BusType": "PQ",
+    "Angle": 0,
+    "Voltage": 1.0,
     "VoltageMin": 0.95,
     "VoltageMax": 1.05,
-    "BaseVoltage": 132.0,
-    "BasePower": 100.0
+    "BaseVoltage": 132.0
   },
   {
     "BusNumber": 8,
+    "BusName": "Bus8",
     "BusType": "PV",
+    "Angle": 0,
+    "Voltage": 1.0,
     "VoltageMin": 0.95,
     "VoltageMax": 1.05,
-    "BaseVoltage": 132.0,
-    "BasePower": 100.0
+    "BaseVoltage": 132.0
   },
   {
     "BusNumber": 9,
+    "BusName": "Bus9",
     "BusType": "PV",
+    "Angle": 0,
+    "Voltage": 1.0,
     "VoltageMin": 0.95,
     "VoltageMax": 1.05,
-    "BaseVoltage": 132.0,
-    "BasePower": 100.0
+    "BaseVoltage": 132.0
   },
   {
     "BusNumber": 10,
+    "BusName": "Bus10",
     "BusType": "PQ",
+    "Angle": 0,
+    "Voltage": 1.0,
     "VoltageMin": 0.95,
     "VoltageMax": 1.05,
-    "BaseVoltage": 132.0,
-    "BasePower": 100.0
+    "BaseVoltage": 132.0
   },
   {
     "BusNumber": 11,
+    "BusName": "Bus11",
     "BusType": "PQ",
+    "Angle": 0,
+    "Voltage": 1.0,
     "VoltageMin": 0.95,
     "VoltageMax": 1.05,
-    "BaseVoltage": 132.0,
-    "BasePower": 100.0
+    "BaseVoltage": 132.0
   },
   {
     "BusNumber": 12,
+    "BusName": "Bus12",
     "BusType": "PV",
+    "Angle": 0,
+    "Voltage": 1.0,
     "VoltageMin": 0.95,
     "VoltageMax": 1.05,
-    "BaseVoltage": 132.0,
-    "BasePower": 100.0
+    "BaseVoltage": 132.0
   },
   {
     "BusNumber": 13,
+    "BusName": "Bus13",
     "BusType": "PQ",
+    "Angle": 0,
+    "Voltage": 1.0,
     "VoltageMin": 0.95,
     "VoltageMax": 1.05,
-    "BaseVoltage": 132.0,
-    "BasePower": 100.0
+    "BaseVoltage": 132.0
   },
   {
     "BusNumber": 14,
+    "BusName": "Bus14",
     "BusType": "PQ",
+    "Angle": 0,
+    "Voltage": 1.0,
     "VoltageMin": 0.95,
     "VoltageMax": 1.05,
-    "BaseVoltage": 132.0,
-    "BasePower": 100.0
+    "BaseVoltage": 132.0
   },
   {
     "BusNumber": 15,
+    "BusName": "Bus15",
     "BusType": "PQ",
+    "Angle": 0,
+    "Voltage": 1.0,
     "VoltageMin": 0.95,
     "VoltageMax": 1.05,
-    "BaseVoltage": 132.0,
-    "BasePower": 100.0
+    "BaseVoltage": 132.0
   },
   {
     "BusNumber": 16,
+    "BusName": "Bus16",
     "BusType": "PQ",
+    "Angle": 0,
+    "Voltage": 1.0,
     "VoltageMin": 0.95,
     "VoltageMax": 1.05,
-    "BaseVoltage": 132.0,
-    "BasePower": 100.0
+    "BaseVoltage": 132.0
   },
   {
     "BusNumber": 17,
+    "BusName": "Bus17",
     "BusType": "PQ",
+    "Angle": 0,
+    "Voltage": 1.0,
     "VoltageMin": 0.95,
     "VoltageMax": 1.05,
-    "BaseVoltage": 132.0,
-    "BasePower": 100.0
+    "BaseVoltage": 132.0
   },
   {
     "BusNumber": 18,
+    "BusName": "Bus18",
     "BusType": "PQ",
+    "Angle": 0,
+    "Voltage": 1.0,
     "VoltageMin": 0.95,
     "VoltageMax": 1.05,
-    "BaseVoltage": 132.0,
-    "BasePower": 100.0
+    "BaseVoltage": 132.0
   },
   {
     "BusNumber": 19,
+    "BusName": "Bus19",
     "BusType": "PQ",
+    "Angle": 0,
+    "Voltage": 1.0,
     "VoltageMin": 0.95,
     "VoltageMax": 1.05,
-    "BaseVoltage": 132.0,
-    "BasePower": 100.0
+    "BaseVoltage": 132.0
   },
   {
     "BusNumber": 20,
+    "BusName": "Bus20",
     "BusType": "PQ",
+    "Angle": 0,
+    "Voltage": 1.0,
     "VoltageMin": 0.95,
     "VoltageMax": 1.05,
-    "BaseVoltage": 132.0,
-    "BasePower": 100.0
+    "BaseVoltage": 132.0
   },
   {
     "BusNumber": 21,
+    "BusName": "Bus21",
     "BusType": "PQ",
+    "Angle": 0,
+    "Voltage": 1.0,
     "VoltageMin": 0.95,
     "VoltageMax": 1.05,
-    "BaseVoltage": 132.0,
-    "BasePower": 100.0
+    "BaseVoltage": 132.0
   },
   {
     "BusNumber": 22,
+    "BusName": "Bus22",
     "BusType": "PQ",
+    "Angle": 0,
+    "Voltage": 1.0,
     "VoltageMin": 0.95,
     "VoltageMax": 1.05,
-    "BaseVoltage": 132.0,
-    "BasePower": 100.0
+    "BaseVoltage": 132.0
   },
   {
     "BusNumber": 23,
+    "BusName": "Bus23",
     "BusType": "PQ",
+    "Angle": 0,
+    "Voltage": 1.0,
     "VoltageMin": 0.95,
     "VoltageMax": 1.05,
-    "BaseVoltage": 132.0,
-    "BasePower": 100.0
+    "BaseVoltage": 132.0
   },
   {
     "BusNumber": 24,
+    "BusName": "Bus24",
     "BusType": "PQ",
+    "Angle": 0,
+    "Voltage": 1.0,
     "VoltageMin": 0.95,
     "VoltageMax": 1.05,
-    "BaseVoltage": 132.0,
-    "BasePower": 100.0
+    "BaseVoltage": 132.0
   },
   {
     "BusNumber": 25,
+    "BusName": "Bus25",
     "BusType": "PQ",
+    "Angle": 0,
+    "Voltage": 1.0,
     "VoltageMin": 0.95,
     "VoltageMax": 1.05,
-    "BaseVoltage": 132.0,
-    "BasePower": 100.0
+    "BaseVoltage": 132.0
   },
   {
     "BusNumber": 26,
+    "BusName": "Bus26",
     "BusType": "PQ",
+    "Angle": 0,
+    "Voltage": 1.0,
     "VoltageMin": 0.95,
     "VoltageMax": 1.05,
-    "BaseVoltage": 132.0,
-    "BasePower": 100.0
+    "BaseVoltage": 132.0
   },
   {
     "BusNumber": 27,
+    "BusName": "Bus27",
     "BusType": "PQ",
+    "Angle": 0,
+    "Voltage": 1.0,
     "VoltageMin": 0.95,
     "VoltageMax": 1.05,
-    "BaseVoltage": 132.0,
-    "BasePower": 100.0
+    "BaseVoltage": 132.0
   },
   {
     "BusNumber": 28,
+    "BusName": "Bus28",
     "BusType": "PQ",
+    "Angle": 0,
+    "Voltage": 1.0,
     "VoltageMin": 0.95,
     "VoltageMax": 1.05,
-    "BaseVoltage": 132.0,
-    "BasePower": 100.0
+    "BaseVoltage": 132.0
   },
   {
     "BusNumber": 29,
+    "BusName": "Bus29",
     "BusType": "PQ",
+    "Angle": 0,
+    "Voltage": 1.0,
     "VoltageMin": 0.95,
     "VoltageMax": 1.05,
-    "BaseVoltage": 132.0,
-    "BasePower": 100.0
+    "BaseVoltage": 132.0
   },
   {
     "BusNumber": 30,
+    "BusName": "Bus30",
     "BusType": "PQ",
+    "Angle": 0,
+    "Voltage": 1.0,
     "VoltageMin": 0.95,
     "VoltageMax": 1.05,
-    "BaseVoltage": 132.0,
-    "BasePower": 100.0
+    "BaseVoltage": 132.0
   },
   {
     "BusNumber": 31,
+    "BusName": "Bus31",
     "BusType": "PQ",
+    "Angle": 0,
+    "Voltage": 1.0,
     "VoltageMin": 0.95,
     "VoltageMax": 1.05,
-    "BaseVoltage": 132.0,
-    "BasePower": 100.0
+    "BaseVoltage": 132.0
   },
   {
     "BusNumber": 32,
+    "BusName": "Bus32",
     "BusType": "PQ",
+    "Angle": 0,
+    "Voltage": 1.0,
     "VoltageMin": 0.95,
     "VoltageMax": 1.05,
-    "BaseVoltage": 132.0,
-    "BasePower": 100.0
+    "BaseVoltage": 132.0
   },
   {
     "BusNumber": 33,
+    "BusName": "Bus33",
     "BusType": "PQ",
+    "Angle": 0,
+    "Voltage": 1.0,
     "VoltageMin": 0.95,
     "VoltageMax": 1.05,
-    "BaseVoltage": 132.0,
-    "BasePower": 100.0
+    "BaseVoltage": 132.0
   },
   {
     "BusNumber": 34,
+    "BusName": "Bus34",
     "BusType": "PQ",
+    "Angle": 0,
+    "Voltage": 1.0,
     "VoltageMin": 0.95,
     "VoltageMax": 1.05,
-    "BaseVoltage": 132.0,
-    "BasePower": 100.0
+    "BaseVoltage": 132.0
   },
   {
     "BusNumber": 35,
+    "BusName": "Bus35",
     "BusType": "PQ",
+    "Angle": 0,
+    "Voltage": 1.0,
     "VoltageMin": 0.95,
     "VoltageMax": 1.05,
-    "BaseVoltage": 132.0,
-    "BasePower": 100.0
+    "BaseVoltage": 132.0
   },
   {
     "BusNumber": 36,
+    "BusName": "Bus36",
     "BusType": "PQ",
+    "Angle": 0,
+    "Voltage": 1.0,
     "VoltageMin": 0.95,
     "VoltageMax": 1.05,
-    "BaseVoltage": 132.0,
-    "BasePower": 100.0
+    "BaseVoltage": 132.0
   },
   {
     "BusNumber": 37,
+    "BusName": "Bus37",
     "BusType": "PQ",
+    "Angle": 0,
+    "Voltage": 1.0,
     "VoltageMin": 0.95,
     "VoltageMax": 1.05,
-    "BaseVoltage": 132.0,
-    "BasePower": 100.0
+    "BaseVoltage": 132.0
   },
   {
     "BusNumber": 38,
+    "BusName": "Bus38",
     "BusType": "PQ",
+    "Angle": 0,
+    "Voltage": 1.0,
     "VoltageMin": 0.95,
     "VoltageMax": 1.05,
-    "BaseVoltage": 132.0,
-    "BasePower": 100.0
+    "BaseVoltage": 132.0
   },
   {
     "BusNumber": 39,
+    "BusName": "Bus39",
     "BusType": "PQ",
+    "Angle": 0,
+    "Voltage": 1.0,
     "VoltageMin": 0.95,
     "VoltageMax": 1.05,
-    "BaseVoltage": 132.0,
-    "BasePower": 100.0
+    "BaseVoltage": 132.0
   },
   {
     "BusNumber": 40,
+    "BusName": "Bus40",
     "BusType": "PQ",
+    "Angle": 0,
+    "Voltage": 1.0,
     "VoltageMin": 0.95,
     "VoltageMax": 1.05,
-    "BaseVoltage": 132.0,
-    "BasePower": 100.0
+    "BaseVoltage": 132.0
   },
   {
     "BusNumber": 41,
+    "BusName": "Bus41",
     "BusType": "PQ",
+    "Angle": 0,
+    "Voltage": 1.0,
     "VoltageMin": 0.95,
     "VoltageMax": 1.05,
-    "BaseVoltage": 132.0,
-    "BasePower": 100.0
+    "BaseVoltage": 132.0
   },
   {
     "BusNumber": 42,
+    "BusName": "Bus42",
     "BusType": "PQ",
+    "Angle": 0,
+    "Voltage": 1.0,
     "VoltageMin": 0.95,
     "VoltageMax": 1.05,
-    "BaseVoltage": 132.0,
-    "BasePower": 100.0
+    "BaseVoltage": 132.0
   },
   {
     "BusNumber": 43,
+    "BusName": "Bus43",
     "BusType": "PQ",
+    "Angle": 0,
+    "Voltage": 1.0,
     "VoltageMin": 0.95,
     "VoltageMax": 1.05,
-    "BaseVoltage": 132.0,
-    "BasePower": 100.0
+    "BaseVoltage": 132.0
   },
   {
     "BusNumber": 44,
+    "BusName": "Bus44",
     "BusType": "PQ",
+    "Angle": 0,
+    "Voltage": 1.0,
     "VoltageMin": 0.95,
     "VoltageMax": 1.05,
-    "BaseVoltage": 132.0,
-    "BasePower": 100.0
+    "BaseVoltage": 132.0
   },
   {
     "BusNumber": 45,
+    "BusName": "Bus45",
     "BusType": "PQ",
+    "Angle": 0,
+    "Voltage": 1.0,
     "VoltageMin": 0.95,
     "VoltageMax": 1.05,
-    "BaseVoltage": 132.0,
-    "BasePower": 100.0
+    "BaseVoltage": 132.0
   },
   {
     "BusNumber": 46,
+    "BusName": "Bus46",
     "BusType": "PQ",
+    "Angle": 0,
+    "Voltage": 1.0,
     "VoltageMin": 0.95,
     "VoltageMax": 1.05,
-    "BaseVoltage": 132.0,
-    "BasePower": 100.0
+    "BaseVoltage": 132.0
   },
   {
     "BusNumber": 47,
+    "BusName": "Bus47",
     "BusType": "PQ",
+    "Angle": 0,
+    "Voltage": 1.0,
     "VoltageMin": 0.95,
     "VoltageMax": 1.05,
-    "BaseVoltage": 132.0,
-    "BasePower": 100.0
+    "BaseVoltage": 132.0
   },
   {
     "BusNumber": 48,
+    "BusName": "Bus48",
     "BusType": "PQ",
+    "Angle": 0,
+    "Voltage": 1.0,
     "VoltageMin": 0.95,
     "VoltageMax": 1.05,
-    "BaseVoltage": 132.0,
-    "BasePower": 100.0
+    "BaseVoltage": 132.0
   },
   {
     "BusNumber": 49,
+    "BusName": "Bus49",
     "BusType": "PQ",
+    "Angle": 0,
+    "Voltage": 1.0,
     "VoltageMin": 0.95,
     "VoltageMax": 1.05,
-    "BaseVoltage": 132.0,
-    "BasePower": 100.0
+    "BaseVoltage": 132.0
   },
   {
     "BusNumber": 50,
+    "BusName": "Bus50",
     "BusType": "PQ",
+    "Angle": 0,
+    "Voltage": 1.0,
     "VoltageMin": 0.95,
     "VoltageMax": 1.05,
-    "BaseVoltage": 132.0,
-    "BasePower": 100.0
+    "BaseVoltage": 132.0
   },
   {
     "BusNumber": 51,
+    "BusName": "Bus51",
     "BusType": "PQ",
+    "Angle": 0,
+    "Voltage": 1.0,
     "VoltageMin": 0.95,
     "VoltageMax": 1.05,
-    "BaseVoltage": 132.0,
-    "BasePower": 100.0
+    "BaseVoltage": 132.0
   },
   {
     "BusNumber": 52,
+    "BusName": "Bus52",
     "BusType": "PQ",
+    "Angle": 0,
+    "Voltage": 1.0,
     "VoltageMin": 0.95,
     "VoltageMax": 1.05,
-    "BaseVoltage": 132.0,
-    "BasePower": 100.0
+    "BaseVoltage": 132.0
   },
   {
     "BusNumber": 53,
+    "BusName": "Bus53",
     "BusType": "PQ",
+    "Angle": 0,
+    "Voltage": 1.0,
     "VoltageMin": 0.95,
     "VoltageMax": 1.05,
-    "BaseVoltage": 132.0,
-    "BasePower": 100.0
+    "BaseVoltage": 132.0
   },
   {
     "BusNumber": 54,
+    "BusName": "Bus54",
     "BusType": "PQ",
+    "Angle": 0,
+    "Voltage": 1.0,
     "VoltageMin": 0.95,
     "VoltageMax": 1.05,
-    "BaseVoltage": 132.0,
-    "BasePower": 100.0
+    "BaseVoltage": 132.0
   },
   {
     "BusNumber": 55,
+    "BusName": "Bus55",
     "BusType": "PQ",
+    "Angle": 0,
+    "Voltage": 1.0,
     "VoltageMin": 0.95,
     "VoltageMax": 1.05,
-    "BaseVoltage": 132.0,
-    "BasePower": 100.0
+    "BaseVoltage": 132.0
   },
   {
     "BusNumber": 56,
+    "BusName": "Bus56",
     "BusType": "PQ",
+    "Angle": 0,
+    "Voltage": 1.0,
     "VoltageMin": 0.95,
     "VoltageMax": 1.05,
-    "BaseVoltage": 132.0,
-    "BasePower": 100.0
+    "BaseVoltage": 132.0
   },
   {
     "BusNumber": 57,
+    "BusName": "Bus57",
     "BusType": "PQ",
+    "Angle": 0,
+    "Voltage": 1.0,
     "VoltageMin": 0.95,
     "VoltageMax": 1.05,
-    "BaseVoltage": 132.0,
-    "BasePower": 100.0
+    "BaseVoltage": 132.0
   }
 ]
