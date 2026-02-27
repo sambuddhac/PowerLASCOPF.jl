@@ -403,8 +403,8 @@ function read_thermal_generators_data(data_path::String, file_format::String="CS
                     active_power = row.ActivePower,
                     reactive_power = row.ReactivePower,
                     rating = row.Rating,
-                    prime_mover_type = getfield(PrimeMovers, Symbol(row.PrimeMover)),  # e.g., "ST" -> PrimeMovers.ST
-                    fuel = getfield(ThermalFuels, Symbol(row.Fuel)),  # e.g., "COAL" -> ThermalFuels.COAL
+                    prime_mover_type = getfield(PSY.PrimeMovers, Symbol(row.PrimeMover)),  # e.g., "ST" -> PrimeMovers.ST
+                    fuel = getfield(PSY.ThermalFuels, Symbol(row.Fuel)),  # e.g., "COAL" -> ThermalFuels.COAL
                     active_power_limits = (min = row.ActivePowerMin, max = row.ActivePowerMax),
                     reactive_power_limits = (min = row.ReactivePowerMin, max = row.ReactivePowerMax),
                     # Ramp limits: MW per time period (e.g., MW/hour)
@@ -443,7 +443,7 @@ function read_thermal_generators_data(data_path::String, file_format::String="CS
                     active_power = gen_data["ActivePower"],
                     reactive_power = gen_data["ReactivePower"],
                     rating = gen_data["Rating"],
-                    prime_mover_type = getfield(PrimeMovers, Symbol(gen_data["PrimeMover"])),
+                    prime_mover_type = getfield(PSY.PrimeMovers, Symbol(gen_data["PrimeMover"])),
                     fuel = getfield(ThermalFuels, Symbol(gen_data["Fuel"])),
                     active_power_limits = (min = gen_data["ActivePowerMin"], max = gen_data["ActivePowerMax"]),
                     reactive_power_limits = (min = gen_data["ReactivePowerMin"], max = gen_data["ReactivePowerMax"]),
@@ -1168,156 +1168,6 @@ function load_300bus_case(data_dir::String, file_format::String="CSV")
     return _load_case_from_files(data_folder, file_format, 300)
 end
 
-# ============================================================================
-# INTERNAL: Generic loader from CSV/JSON _sahar files
-# ============================================================================
-"""
-    _resolve_sahar_file(data_dir, prefix, num_buses, ext; optional=false)
-
-Find a `_sahar` data file. Tries `{prefix}{num_buses}_sahar.{ext}` in `data_dir`.
-If `optional=true`, returns `nothing` instead of erroring when file is missing.
-"""
-function _resolve_sahar_file(data_dir::String, prefix::String, num_buses::Int, ext::String; optional::Bool=false)
-    filename = "$(prefix)$(num_buses)_sahar.$(ext)"
-    filepath = joinpath(data_dir, filename)
-    if !isfile(filepath)
-        if optional
-            log_warn("Optional data file not found (skipping): $filepath")
-            return nothing
-        else
-            error("❌ Data file not found: $filepath")
-        end
-    end
-    return filepath
-end
-
-"""
-    _load_case_from_files(data_dir::String, file_format::String, num_buses::Int)
-
-Build a PowerSystems.System from the set of `_sahar` CSV/JSON files in `data_dir`.
-
-Expected files (example for 118-bus CSV):
-  - Nodes118_sahar.csv
-  - Trans118_sahar.csv
-  - ThermalGenerators118_sahar.csv
-  - RenewableGenerators118_sahar.csv
-  - HydroGenerators118_sahar.csv  (optional)
-  - Storage118_sahar.csv          (optional)
-  - TimeSeries_DA118_sahar.csv    (optional)
-"""
-function _load_case_from_files(data_dir::String, file_format::String, num_buses::Int)
-    ext = uppercase(file_format) == "JSON" ? "json" : "csv"
-    fmt = uppercase(file_format)
-    case_label = "$(num_buses)bus"
-    
-    log_info("Loading $case_label case from $fmt files in: $data_dir")
-    
-    # Resolve required data files (with bus count in filename)
-    nodes_path      = _resolve_sahar_file(data_dir, "Nodes", num_buses, ext)
-    branches_path   = _resolve_sahar_file(data_dir, "Trans", num_buses, ext)
-    thermal_path    = _resolve_sahar_file(data_dir, "ThermalGenerators", num_buses, ext)
-    
-    # Resolve optional data files
-    renewable_path  = _resolve_sahar_file(data_dir, "RenewableGenerators", num_buses, ext; optional=true)
-    hydro_path      = _resolve_sahar_file(data_dir, "HydroGenerators", num_buses, ext; optional=true)
-    storage_path    = _resolve_sahar_file(data_dir, "Storage", num_buses, ext; optional=true)
-    loads_path      = _resolve_sahar_file(data_dir, "Loads", num_buses, ext; optional=true)
-    timeseries_path = _resolve_sahar_file(data_dir, "TimeSeries_DA", num_buses, ext; optional=true)
-    
-    # Read required data
-    nodes_func          = read_nodes_data(nodes_path, fmt)
-    branches_func       = read_branches_data(branches_path, fmt)
-    thermal_gens_func   = read_thermal_generators_data(thermal_path, fmt)
-    
-    # Read optional data
-    renewable_gens_func = isnothing(renewable_path) ? (_->PSY.RenewableDispatch[]) : read_renewable_generators_data(renewable_path, fmt)
-    hydro_gens_func     = isnothing(hydro_path) ? (_->[]) : read_hydro_generators_data(hydro_path, fmt)
-    storage_func        = isnothing(storage_path) ? (_->PSY.EnergyReservoirStorage[]) : read_storage_data(storage_path, fmt)
-    loads_func          = isnothing(loads_path) ? (_->PSY.PowerLoad[]) : read_loads_data(loads_path, fmt)
-    timeseries_data     = isnothing(timeseries_path) ? Dict{String,Any}() : read_timeseries_data(timeseries_path, fmt)
-    
-    # Create objects
-    nodes       = nodes_func()
-    branches    = branches_func(nodes)
-    thermal     = thermal_gens_func(nodes)
-    renewables  = renewable_gens_func(nodes)
-    hydro       = hydro_gens_func(nodes)
-    storage     = storage_func(nodes)
-    loads       = loads_func(nodes)
-    
-    # Bundle into a system data dict
-    system_data = Dict(
-        "nodes"       => nodes,
-        "branches"    => branches,
-        "thermal"     => thermal,
-        "renewables"  => renewables,
-        "hydro"       => hydro,
-        "storage"     => storage,
-        "loads"       => loads,
-        "timeseries"  => timeseries_data,
-        "case_label"  => case_label,
-        "num_buses"   => num_buses
-    )
-    
-    # Build PowerSystems.System
-    system = PSY.System(100.0)  # 100 MVA base
-    for bus in nodes
-        PSY.add_component!(system, bus)
-    end
-    for branch in branches
-        PSY.add_component!(system, branch)
-    end
-    for gen in thermal
-        PSY.add_component!(system, gen)
-    end
-    for gen in renewables
-        PSY.add_component!(system, gen)
-    end
-    for gen in hydro
-        PSY.add_component!(system, gen)
-    end
-    for dev in storage
-        PSY.add_component!(system, dev)
-    end
-    for ld in loads
-        PSY.add_component!(system, ld)
-    end
-    
-    log_success("$case_label system created: $(length(nodes)) buses, $(length(branches)) branches, " *
-                "$(length(thermal)) thermal, $(length(renewables)) renewable, $(length(hydro)) hydro, " *
-                "$(length(storage)) storage, $(length(loads)) loads")
-    
-    return system, system_data
-end
-
-"""
-    load_from_csv_json(data_dir::String, file_format::String="CSV"; num_buses::Int=0)
-
-Load case data from CSV/JSON files using generic data reader.
-If `num_buses` is 0, tries to auto-detect from files in `data_dir`.
-"""
-function load_from_csv_json(data_dir::String, file_format::String="CSV"; num_buses::Int=0)
-    println("  - Loading from $file_format files in $data_dir")
-    
-    if num_buses > 0
-        return _load_case_from_files(data_dir, file_format, num_buses)
-    end
-    
-    # Auto-detect bus count from Nodes*_sahar files
-    ext = uppercase(file_format) == "JSON" ? "json" : "csv"
-    for f in readdir(data_dir)
-        m = match(r"Nodes(\d+)_sahar\.", f)
-        if !isnothing(m)
-            detected = parse(Int, m.captures[1])
-            log_info("Auto-detected $(detected)-bus case from file: $f")
-            return _load_case_from_files(data_dir, file_format, detected)
-        end
-    end
-    
-    error("❌ Could not auto-detect bus count. No Nodes*_sahar.$ext file found in $data_dir. " *
-          "Pass num_buses explicitly.")
-end
-
 # ============================================================
 # SECTION: CONTINGENCY LISTS FOR IEEE TEST CASES
 # Extracted from ContingencyMarked column in Trans*_sahar.csv
@@ -1353,6 +1203,19 @@ branches_300_contingency_list() = [18, 320]
 # Following the same pattern as data_5bus_pu.jl / data_14bus_pu.jl
 # but reading from *_sahar.csv files instead of hardcoded arrays.
 # ============================================================
+
+"""
+Create PowerLASCOPF System from PSY System
+"""
+function power_lascopf_system_generic()
+    println("Creating PowerLASCOPF System from PSY System...")
+    log_info("Creating PowerLASCOPF System from PSY System...")
+    system = PowerLASCOPF.PowerLASCOPFSystem(PSY.System(100.0))
+    
+    println("Created PowerLASCOPF System ")
+    log_info("Created PowerLASCOPF System ")
+    return system
+end
 
 """
     powerlascopf_nodes_from_csv!(system, csv_path)

@@ -85,9 +85,9 @@ using Printf
 # WHY: Load the PowerLASCOPF algorithm implementation
 # ============================================================================
 
-include("../src/PowerLASCOPF.jl")
+#=include("../src/PowerLASCOPF.jl")
 include("../src/components/supernetwork.jl")
-include("../example_cases/data_reader.jl")  # Our new data reader
+include("../example_cases/data_reader.jl")  # Our new data reader=#
 
 # WHY include instead of using:
 # - PowerLASCOPF is not a registered package (local development)

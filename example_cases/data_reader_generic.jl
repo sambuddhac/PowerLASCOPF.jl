@@ -949,7 +949,9 @@ Called by run_reader.jl → calls data_reader.jl
 """
 
 # Include the case-specific data reader
-include("data_reader.jl")
+include("../src/PowerLASCOPF.jl")
+include("../src/components/supernetwork.jl")
+include("../example_cases/data_reader.jl")
 
 """
     load_case_data(case_name::String, case_path::String)
