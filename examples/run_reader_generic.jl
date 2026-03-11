@@ -1,58 +1,66 @@
 """
-Generic PowerLASCOPF Simulation Runner
-=======================================
+Generic PowerLASCOPF Simulation Runner — run_reader_generic.jl
+===============================================================
 
 PURPOSE:
-  A SINGLE runner that works for ANY IEEE test case (5-bus, 30-bus, 48-bus, 57-bus, 300-bus, etc.)
-  
+  Single entry-point runner for ANY case in example_cases/, including:
+    • IEEE test cases  (Sahar CSV or legacy CSV format)
+    • RTS-GMLC         (bus.csv / gen.csv / branch.csv)
+    • PSS/E RAW        (*.RAW via PowerSystems.jl parser)
+    • MATPOWER         (*.m   via PowerSystems.jl parser)
+
   Features:
-  - INTERACTIVE MODE: Run without arguments to see available cases and select one
-  - Automatically finds data folder and detects file format
-  - Supports both standard and legacy file formats
-  - Runs economic dispatch simulation and saves results
+    - Interactive mode: browse available cases and set parameters via prompts
+    - Auto-detects file format from folder contents (no manual flag needed)
+    - Reads per-case ADMM settings from LASCOPF_settings.yml
+    - Falls back to a DataFrame-based dispatch stub when PowerLASCOPF is not
+      yet compiled (safe during development)
 
 USAGE MODES:
 
-  1. INTERACTIVE MODE (recommended for new users):
-     julia run_reader_generic.jl
-     
-     This will:
-     - Display all available IEEE test cases
-     - Let you select a case by number or name
-     - Ask for simulation parameters
-     - Run the simulation and offer to run more cases
+  1. INTERACTIVE MODE (recommended for first use):
+       julia run_reader_generic.jl
+     — lists all discovered cases, prompts for selection and parameters.
 
-  2. COMMAND LINE MODE:
-     julia run_reader_generic.jl case=5bus
-     julia run_reader_generic.jl case=30bus format=JSON
-     julia run_reader_generic.jl case=IEEE_300_bus iterations=20 verbose=true
+  2. COMMAND-LINE MODE:
+       julia run_reader_generic.jl case=5bus
+       julia run_reader_generic.jl case=14bus format=JSON verbose=true
+       julia run_reader_generic.jl case=RTS_GMLC contingencies=10
+       julia run_reader_generic.jl case=ACTIVSg2000 iterations=50
+       julia run_reader_generic.jl case=SyntheticUSA output=synusa_results.json
 
   3. SPECIAL COMMANDS:
-     julia run_reader_generic.jl list    # List all available cases
-     julia run_reader_generic.jl help    # Show help
-     julia run_reader_generic.jl all     # Run all available cases
+       julia run_reader_generic.jl list    # list all available cases + formats
+       julia run_reader_generic.jl help    # argument reference
+       julia run_reader_generic.jl all     # run every discovered case
 
   4. FROM JULIA REPL:
-     include("run_reader_generic.jl")
-     results = run_case("IEEE_5_bus")
-     results = run_case("IEEE_30_bus", verbose=true)
-     interactive_mode()  # Start interactive mode
+       include("run_reader_generic.jl")
+       run_case("14bus")
+       run_case("RTS_GMLC", verbose=true)
+       run_case("ACTIVSg2000", contingencies=10)
+       interactive_mode()
+       list_available_cases()
+       run_all_cases()
 
-ADDING NEW TEST CASES:
-  To add a new IEEE test case (e.g., IEEE 24-bus):
-  1. Create folder: example_cases/IEEE_Test_Cases/IEEE_24_bus/
-  2. Add CSV files in Sahar format (see ADDING_NEW_CASES.md)
-  3. The case will automatically appear in the list
+CASE DISCOVERY:
+  IEEE cases  →  example_cases/IEEE_Test_Cases/IEEE_<N>_bus/
+                 Refer to as "5bus", "14bus", "IEEE_14_bus", etc.
+  Other cases →  any top-level folder inside example_cases/ that contains
+                 a LASCOPF_settings.yml file.
+                 Refer to by folder name: "RTS_GMLC", "ACTIVSg2000", etc.
 
-  Full documentation: example_cases/IEEE_Test_Cases/ADDING_NEW_CASES.md
+COMMAND-LINE ARGUMENTS:
+  case=<name>           Case name (e.g., 5bus, RTS_GMLC, ACTIVSg2000)
+  format=<CSV|JSON>     File format for sahar/legacy cases (default: CSV)
+  iterations=<n>        Max ADMM outer iterations (default: 10)
+  tolerance=<x>         Convergence tolerance (default: 1e-3)
+  contingencies=<n>     N-1 contingency scenarios (default: 2)
+  output=<file>         Output JSON path (default: <case>_lascopf_results.json)
+  verbose=<true|false>  Print iteration detail (default: false)
 
-COMMAND LINE ARGUMENTS:
-  case=<name>          Case name (e.g., 5bus, 30bus, IEEE_300_bus)
-  format=<CSV|JSON>    File format (default: CSV)
-  iterations=<n>       Max ADMM iterations (default: 10)
-  tolerance=<x>        Convergence tolerance (default: 1e-3)
-  output=<file>        Output JSON file (default: <case>_results.json)
-  verbose=<true|false> Verbose output (default: false)
+FULL DOCUMENTATION:
+  example_cases/RUNNING_CASES.md
 """
 
 using Pkg
@@ -206,10 +214,11 @@ function parse_arguments()
         end
     end
     
-    # Set default output filename based on case name
+    # Set default output filename based on case name.
+    # Use the case name directly rather than extracting a bus count, so that
+    # non-numeric names like "RTS_GMLC" or "ACTIVSg2000" work without error.
     if isempty(args["output"]) && !isempty(args["case"]) && isempty(args["command"])
-        bus_count = parse_case_name(args["case"])
-        args["output"] = "$(bus_count)bus_lascopf_results.json"
+        args["output"] = "$(args["case"])_lascopf_results.json"
     end
     
     return args
@@ -257,56 +266,80 @@ end
 
 Validate that loaded data is complete and consistent.
 """
-function validate_data(data::Dict{Symbol, DataFrame})
+function validate_data(data::Dict{Symbol, Any})
     println("\n🔍 Validating data...")
-    
-    valid = true
+
+    valid    = true
     warnings = String[]
-    
-    # Check nodes exist
+    file_fmt = get(data, :file_format, :unknown)
+
+    # --- PSS/E RAW and MATPOWER: component DataFrames are intentionally empty ---
+    # Validation is limited to checking that the network file exists on disk.
+    if file_fmt in (:psse_raw, :matpower)
+        network_file = get(data, :network_file, "")
+        if isempty(network_file) || !isfile(network_file)
+            push!(warnings, "PSS/E RAW / MATPOWER: network file not found: '$network_file'")
+            valid = false
+        else
+            println("  ✅ Network file found: $network_file")
+        end
+        if valid
+            println("  ✅ Data validation passed (PSS/E RAW / MATPOWER — components loaded at system-build time)")
+        else
+            println("  ⚠️  Data validation warnings:")
+            for w in warnings; println("     - $w"); end
+        end
+        return valid
+    end
+
+    # --- RTS-GMLC: component DataFrames are loaded; check case_path as fallback ---
+    if file_fmt == :rts_gmlc
+        case_path = get(data, :case_path, "")
+        if !isempty(case_path)
+            isfile(joinpath(case_path, "gen.csv"))    || push!(warnings, "RTS-GMLC gen.csv not found in $case_path")
+            isfile(joinpath(case_path, "bus.csv"))    || push!(warnings, "RTS-GMLC bus.csv not found in $case_path")
+            isfile(joinpath(case_path, "branch.csv")) || push!(warnings, "RTS-GMLC branch.csv not found in $case_path")
+        end
+    end
+
+    # --- Standard DataFrame checks (sahar / legacy / rts_gmlc) ---
     if isempty(data[:nodes])
         push!(warnings, "No nodes data found!")
         valid = false
     end
-    
-    # Check at least one generator type exists
+
     has_generation = !isempty(data[:thermal]) || !isempty(data[:renewable]) || !isempty(data[:hydro])
     if !has_generation
         push!(warnings, "No generators found (thermal, renewable, or hydro)")
         valid = false
     end
-    
-    # Check loads exist
+
     if isempty(data[:loads])
         push!(warnings, "No loads data found!")
         valid = false
     end
-    
-    # Check branches exist
+
     if isempty(data[:branches])
         push!(warnings, "No branches/transmission lines found!")
         valid = false
     end
-    
-    # Check generation-load balance
+
+    # Generation-load balance check
     total_gen_cap = get_total_generation_capacity(data)
-    total_load = get_total_load(data)
-    
+    total_load    = get_total_load(data)
+
     if total_load > 0 && total_gen_cap < total_load
-        push!(warnings, @sprintf("Generation capacity (%.2f) may be insufficient for load (%.2f)", 
+        push!(warnings, @sprintf("Generation capacity (%.2f) may be insufficient for load (%.2f)",
                                   total_gen_cap, total_load))
     end
-    
-    # Print validation results
-    if valid
+
+    if valid && isempty(warnings)
         println("  ✅ Data validation passed")
     else
         println("  ⚠️  Data validation warnings:")
-        for w in warnings
-            println("     - $w")
-        end
+        for w in warnings; println("     - $w"); end
     end
-    
+
     return valid
 end
 
@@ -351,29 +384,33 @@ mutable struct SimulationResults
     line_flows::Dict{String, Float64}
 end
 
-function SimulationResults(case_name::String, data::Dict{Symbol, DataFrame})
+function SimulationResults(case_name::String, data::Dict{Symbol, Any})
     bus_count = parse_case_name(case_name)
-    
+
+    # For PSS/E RAW / MATPOWER, component DataFrames are empty at this stage;
+    # counts will be updated once the PowerLASCOPFSystem is built (Phase 2.5).
+    _nrow(df) = (df isa AbstractDataFrame) ? nrow(df) : 0
+
     return SimulationResults(
         case_name,
         bus_count,
         Dates.format(now(), "yyyy-mm-dd HH:MM:SS"),
         "initialized",
-        
-        nrow(data[:nodes]),
-        nrow(data[:thermal]),
-        nrow(data[:renewable]),
-        nrow(data[:hydro]),
-        nrow(data[:storage]),
-        nrow(data[:loads]),
-        nrow(data[:branches]),
-        
+
+        _nrow(data[:nodes]),
+        _nrow(data[:thermal]),
+        _nrow(data[:renewable]),
+        _nrow(data[:hydro]),
+        _nrow(data[:storage]),
+        _nrow(data[:loads]),
+        _nrow(data[:branches]),
+
         get_total_generation_capacity(data),
         get_total_load(data),
-        
+
         0, false, Inf,
         0.0,
-        
+
         Dict{String, Float64}(),
         Dict{String, Float64}()
     )
@@ -396,7 +433,7 @@ Keyword Arguments:
   - iterations: Max ADMM iterations, default 10
   - tolerance: Convergence tolerance, default 1e-3
   - verbose: Print detailed output, default false
-  - output: Output file path, default "<case>_results.json"
+  - output: Output file path, default "<case>_lascopf_results.json"
 
 Returns:
   SimulationResults struct with all results
@@ -427,7 +464,7 @@ function run_case(case_name::AbstractString;
     bus_count = parse_case_name(case_name)
     
     if isempty(output)
-        output = "$(bus_count)bus_lascopf_results.json"
+        output = "$(case_name)_lascopf_results.json"
     end
     
     println("\n📋 CONFIGURATION:")
@@ -449,16 +486,116 @@ function run_case(case_name::AbstractString;
     println("-" ^ 70)
     
     data = load_case_data(case_name, format) ##This is in data_reader_generic.jl
-    
+
     # Validate data
     validate_data(data)
-    
+
+    # ========================================================================
+    # PHASE 2.5: POWERLASCOPF SYSTEM CONSTRUCTION
+    # Builds the real PowerLASCOPFSystem from the loaded data.
+    # For PSS/E RAW / MATPOWER: calls PSY.System(network_file) then B8.
+    # For RTS-GMLC:             calls B9 powerlascopf_from_rts_gmlc!().
+    # For Sahar / Legacy:       calls the existing CSV-based functions.
+    # This phase requires data_reader.jl to be included (PowerLASCOPF in scope).
+    # ========================================================================
+
+    println("\n🏗️  BUILDING POWERLASCOPF SYSTEM...")
+    println("-" ^ 70)
+
+    lascopf_system  = nothing   # will hold PowerLASCOPFSystem if construction succeeds
+    system_result   = nothing   # named tuple returned by B8/B9
+
+    file_fmt        = get(data, :file_format, :unknown)
+    settings        = get(data, :lascopf_settings, Dict{String, Any}())
+    case_path_val   = get(data, :case_path, "")
+
+    # Read LASCOPF settings for system construction parameters (B12)
+    rnd_intervals   = Int(get(settings, "RNDIntervals", 3))
+    rsd_intervals   = Int(get(settings, "RSDIntervals", 3))
+
+    try
+        if file_fmt in (:psse_raw, :matpower)
+            # --- B8 path: PSY.System → powerlascopf_from_psy_system! ---
+            network_file = data[:network_file]
+            println("  Loading PSY.System from: $network_file")
+            psy_sys = PSY.System(network_file)
+            lascopf_system = PowerLASCOPF.PowerLASCOPFSystem(PSY.System(100.0))
+            system_result  = powerlascopf_from_psy_system!(
+                lascopf_system, psy_sys, contingencies;
+                RND_int = rnd_intervals
+            )
+            println("  ✅ PSS/E RAW / MATPOWER system built via PSY bridge.")
+
+        elseif file_fmt == :rts_gmlc
+            # --- B9 path: powerlascopf_from_rts_gmlc! ---
+            println("  Building system from RTS-GMLC CSVs at: $case_path_val")
+            lascopf_system = PowerLASCOPF.PowerLASCOPFSystem(PSY.System(100.0))
+            system_result  = powerlascopf_from_rts_gmlc!(
+                lascopf_system, case_path_val, contingencies;
+                RND_int          = rnd_intervals,
+                lascopf_settings = settings
+            )
+            println("  ✅ RTS-GMLC system built.")
+
+        elseif file_fmt in (:sahar, :legacy)
+            # --- CSV path: existing powerlascopf_*_from_csv! functions ---
+            println("  Building system from sahar / legacy CSVs.")
+            bus_count_val = get(data, :bus_count, 0)
+            ext = (uppercase(format) == "JSON") ? ".json" : ".csv"
+            sfx = file_fmt == :sahar ? "_sahar" : ""
+            nodes_path    = joinpath(case_path_val, "Nodes$(bus_count_val)$(sfx)$(ext)")
+            thermal_path  = joinpath(case_path_val, (file_fmt == :sahar ?
+                "ThermalGenerators$(bus_count_val)$(sfx)$(ext)" : "Gen$(bus_count_val)$(ext)"))
+            renew_path    = joinpath(case_path_val, "RenewableGenerators$(bus_count_val)$(sfx)$(ext)")
+            hydro_path    = joinpath(case_path_val, "HydroGenerators$(bus_count_val)$(sfx)$(ext)")
+            storage_path  = joinpath(case_path_val, "Storage$(bus_count_val)$(sfx)$(ext)")
+            loads_path    = joinpath(case_path_val, (file_fmt == :sahar ?
+                "Loads$(bus_count_val)$(sfx)$(ext)" : "Load$(bus_count_val)$(ext)"))
+            branches_path = joinpath(case_path_val, (file_fmt == :sahar ?
+                "Trans$(bus_count_val)$(sfx)$(ext)" : "Tran$(bus_count_val)$(ext)"))
+
+            lascopf_system = PowerLASCOPF.PowerLASCOPFSystem(PSY.System(100.0))
+            nodes_v = isfile(nodes_path) ?
+                powerlascopf_nodes_from_csv!(lascopf_system, nodes_path) :
+                PowerLASCOPF.Node{PSY.Bus}[]
+
+            branches_v = isfile(branches_path) ?
+                powerlascopf_branches_from_csv!(lascopf_system, nodes_v, branches_path,
+                    collect(1:contingencies), contingencies, rnd_intervals) :
+                PowerLASCOPF.transmissionLine[]
+
+            thermal_v   = isfile(thermal_path)  ?
+                powerlascopf_thermal_generators_from_csv!(lascopf_system, nodes_v, thermal_path, contingencies) : []
+            renew_v     = isfile(renew_path)    ?
+                powerlascopf_renewable_generators_from_csv!(lascopf_system, nodes_v, renew_path, Dict(), contingencies) : []
+            hydro_v     = isfile(hydro_path)    ?
+                powerlascopf_hydro_generators_from_csv!(lascopf_system, nodes_v, hydro_path, Dict(), contingencies) : []
+            storage_v   = isfile(storage_path)  ?
+                powerlascopf_storage_from_csv!(lascopf_system, nodes_v, storage_path, contingencies) : []
+            loads_v     = isfile(loads_path)    ?
+                powerlascopf_loads_from_csv!(lascopf_system, nodes_v, loads_path) : []
+
+            system_result = (
+                nodes=nodes_v, branches=branches_v,
+                thermal_generators=thermal_v, renewable_generators=renew_v,
+                hydro_generators=hydro_v, storage=storage_v, loads=loads_v
+            )
+            println("  ✅ Sahar / legacy system built.")
+        else
+            println("  ⚠️  Unknown format '$file_fmt': skipping PowerLASCOPFSystem construction.")
+        end
+
+    catch e
+        println("  ⚠️  PowerLASCOPFSystem construction unavailable: $e")
+        println("      (Falling back to DataFrame-based simulation stub.)")
+    end
+
     # ========================================================================
     # PHASE 3: INITIALIZE RESULTS
     # ========================================================================
-    
+
     results = SimulationResults(case_name, data)
-    
+
     # ========================================================================
     # PHASE 4: SIMULATION
     # ========================================================================
@@ -481,18 +618,23 @@ function run_case(case_name::AbstractString;
     )
     
     # Prepare configuration for simulation
+    # B12: propagate LASCOPF_settings.yml values into solver config
     config = Dict(
         "max_iterations" => iterations,
-        "tolerance" => tolerance,
-        "contingencies" => contingencies,
-        "rnd_intervals" => 6,
-        "verbose" => verbose,
-        "solver" => "ipopt"
+        "tolerance"      => tolerance,
+        "contingencies"  => contingencies,
+        "rnd_intervals"  => Int(get(settings, "RNDIntervals",    3)),
+        "rsd_intervals"  => Int(get(settings, "RSDIntervals",    3)),
+        "solver_choice"  => Int(get(settings, "solverChoice",    1)),
+        "rho_tuning"     => Int(get(settings, "setRhoTuning",    3)),
+        "dummy_interval" => Bool(Int(get(settings, "dummyIntervalChoice", 1))),
+        "verbose"        => verbose,
+        "solver"         => "ipopt"
     )
-    
-    # Call execute_simulation from run_reader.jl
+
+    # Call execute_simulation from run_reader.jl, passing the real system if built (B12)
     try
-        simulation_results = execute_simulation(case_name, nothing, system_data, config)
+        simulation_results = execute_simulation(case_name, lascopf_system, system_data, config)
         
         # Update results structure with simulation outcomes
         results.status = simulation_results["status"]
@@ -726,44 +868,48 @@ end
 """
     run_all_cases(; kwargs...) -> Dict{String, SimulationResults}
 
-Run all available test cases automatically discovered from IEEE_Test_Cases folder.
+Run all available test cases: IEEE cases from IEEE_Test_Cases/ plus any
+non-IEEE cases in example_cases/ that contain a LASCOPF_settings.yml file.
 
 Example:
   results = run_all_cases()
 """
 function run_all_cases(; kwargs...)
-    cases_dir = joinpath(PROJECT_ROOT, "example_cases", "IEEE_Test_Cases")
-    
-    if !isdir(cases_dir)
-        println("⚠️  IEEE_Test_Cases folder not found at: $cases_dir")
-        return Dict{String, SimulationResults}()
-    end
-    
-    # Find all IEEE case folders
-    all_items = readdir(cases_dir)
-    case_folders = filter(item -> isdir(joinpath(cases_dir, item)) && startswith(item, "IEEE_"), all_items)
-    
-    # Extract bus numbers and sort
-    case_info = []
-    for folder in case_folders
-        bus_match = match(r"IEEE_(\d+)_bus", folder)
-        if bus_match !== nothing
-            bus_count = parse(Int, bus_match.captures[1])
-            push!(case_info, (folder, bus_count))
+    examples_dir = joinpath(PROJECT_ROOT, "example_cases")
+    ieee_dir     = joinpath(examples_dir, "IEEE_Test_Cases")
+
+    cases = String[]
+
+    # Discover IEEE cases (IEEE_N_bus folders)
+    if isdir(ieee_dir)
+        for folder in readdir(ieee_dir)
+            m = match(r"IEEE_(\d+)_bus", folder)
+            if m !== nothing && isdir(joinpath(ieee_dir, folder))
+                push!(cases, "$(parse(Int, m.captures[1]))bus")
+            end
         end
     end
-    sort!(case_info, by=x->x[2])
-    
-    # Convert to case names (just use bus number)
-    cases = ["$(info[2])bus" for info in case_info]
-    
+
+    # Discover non-IEEE cases: top-level example_cases/ folders that carry
+    # LASCOPF_settings.yml and are not the IEEE_Test_Cases tree itself.
+    if isdir(examples_dir)
+        skip = Set(["IEEE_Test_Cases"])
+        for entry in readdir(examples_dir)
+            candidate = joinpath(examples_dir, entry)
+            if isdir(candidate) &&
+               !(entry in skip) &&
+               isfile(joinpath(candidate, "LASCOPF_settings.yml"))
+                push!(cases, entry)   # use folder name as case name
+            end
+        end
+    end
+
     if isempty(cases)
-        println("⚠️  No IEEE test cases found in: $cases_dir")
+        println("⚠️  No cases found under: $examples_dir")
         return Dict{String, SimulationResults}()
     end
-    
-    println("\n📁 Found $(length(cases)) test cases: $(join(cases, ", "))")
-    
+
+    println("\n📁 Found $(length(cases)) cases: $(join(cases, ", "))")
     return run_all_cases(cases; kwargs...)
 end
 
@@ -774,65 +920,74 @@ end
 """
     list_available_cases() -> Vector{String}
 
-List all available test cases in the IEEE_Test_Cases folder.
-Shows format type (sahar = standard, legacy = deprecated).
+List all available test cases: IEEE cases (from IEEE_Test_Cases/) and non-IEEE
+cases (top-level example_cases/ folders that contain LASCOPF_settings.yml).
+Shows format type (sahar, legacy, psse_raw, matpower, rts_gmlc) for each case.
 """
 function list_available_cases()
-    cases_dir = joinpath(PROJECT_ROOT, "example_cases", "IEEE_Test_Cases")
-    
-    if !isdir(cases_dir)
-        println("⚠️  IEEE_Test_Cases folder not found")
-        return String[]
-    end
-    
-    cases = String[]
-    for entry in readdir(cases_dir)
-        path = joinpath(cases_dir, entry)
-        if isdir(path) && startswith(entry, "IEEE_")
-            push!(cases, entry)
+    examples_dir = joinpath(PROJECT_ROOT, "example_cases")
+    ieee_dir     = joinpath(examples_dir, "IEEE_Test_Cases")
+
+    # Collect (display_name, case_path, bus_count) for all discoverable cases
+    case_entries = []   # (display_name::String, case_path::String, bus_count::Int)
+
+    # IEEE cases
+    if isdir(ieee_dir)
+        for entry in readdir(ieee_dir)
+            path = joinpath(ieee_dir, entry)
+            if isdir(path) && startswith(entry, "IEEE_")
+                bc = try parse_case_name(entry) catch; 0 end
+                push!(case_entries, (entry, path, bc))
+            end
         end
     end
-    
-    sort!(cases, by = x -> parse_case_name(x))
-    
-    println("\n📁 Available IEEE Test Cases:")
-    println("-" ^ 55)
-    println("  Case Name              Format      Status")
-    println("-" ^ 55)
-    
-    sahar_count = 0
-    legacy_count = 0
-    
-    for case_name in cases
-        bus_count = parse_case_name(case_name)
-        case_path = joinpath(cases_dir, case_name)
-        file_format = try
-            detect_file_format(case_path, bus_count; silent=true)
-        catch
-            :unknown
+
+    # Non-IEEE cases (folders with LASCOPF_settings.yml)
+    if isdir(examples_dir)
+        skip = Set(["IEEE_Test_Cases"])
+        for entry in readdir(examples_dir)
+            candidate = joinpath(examples_dir, entry)
+            if isdir(candidate) &&
+               !(entry in skip) &&
+               isfile(joinpath(candidate, "LASCOPF_settings.yml"))
+                bc = try parse_case_name(entry) catch; 0 end
+                push!(case_entries, (entry, candidate, bc))
+            end
         end
-        
-        # Don't print the warning during list
-        if file_format == :sahar
-            status = "✅ Standard"
-            sahar_count += 1
-        elseif file_format == :legacy
-            status = "⚠️  Deprecated"
-            legacy_count += 1
-        else
-            status = "❓ Unknown"
-        end
-        
-        @printf("  %-22s %-10s  %s\n", case_name, file_format, status)
     end
-    
-    println("-" ^ 55)
-    println("  Standard (sahar): $sahar_count  |  Legacy (deprecated): $legacy_count")
-    println("\n📖 For adding new cases, see:")
-    println("   example_cases/IEEE_Test_Cases/ADDING_NEW_CASES.md")
-    println("-" ^ 55)
-    
-    return cases
+
+    # Sort: IEEE cases (bc > 0) first by bus count, then non-numeric cases alphabetically
+    sort!(case_entries, by = x -> (x[3] == 0 ? 1 : 0, x[3], x[1]))
+
+    println("\n📁 Available PowerLASCOPF Cases:")
+    println("-" ^ 65)
+    println("  Case Name                    Format        Status")
+    println("-" ^ 65)
+
+    format_counts = Dict{Symbol, Int}()
+
+    for (name, path, bc) in case_entries
+        fmt = try detect_file_format(path, bc; silent=true) catch; :unknown end
+        get!(format_counts, fmt, 0)
+        format_counts[fmt] += 1
+
+        status = if fmt == :sahar;     "✅ Sahar"
+                 elseif fmt == :legacy;    "⚠️  Legacy"
+                 elseif fmt == :psse_raw;  "🔷 PSS/E RAW"
+                 elseif fmt == :matpower;  "🔷 MATPOWER"
+                 elseif fmt == :rts_gmlc;  "🔷 RTS-GMLC"
+                 else                      "❓ Unknown" end
+
+        @printf("  %-28s %-12s  %s\n", name, fmt, status)
+    end
+
+    println("-" ^ 65)
+    for (fmt, cnt) in sort(collect(format_counts), by=x->string(x[1]))
+        println("  $fmt: $cnt")
+    end
+    println("-" ^ 65)
+
+    return [e[1] for e in case_entries]
 end
 
 # ============================================================================
@@ -845,213 +1000,233 @@ end
 Get list of available case names (just the short names like "5bus", "30bus").
 """
 function get_available_case_names()
-    cases_dir = joinpath(PROJECT_ROOT, "example_cases", "IEEE_Test_Cases")
-    
-    if !isdir(cases_dir)
-        return String[]
-    end
-    
+    examples_dir = joinpath(PROJECT_ROOT, "example_cases")
+    ieee_dir     = joinpath(examples_dir, "IEEE_Test_Cases")
+
     case_names = String[]
-    for entry in readdir(cases_dir)
-        path = joinpath(cases_dir, entry)
-        if isdir(path) && startswith(entry, "IEEE_")
-            bus_count = try
-                parse_case_name(entry)
-            catch
-                continue
+
+    # IEEE cases → short numeric names ("5bus", "30bus", ...)
+    if isdir(ieee_dir)
+        for entry in readdir(ieee_dir)
+            path = joinpath(ieee_dir, entry)
+            if isdir(path) && startswith(entry, "IEEE_")
+                bc = try parse_case_name(entry) catch; continue end
+                push!(case_names, "$(bc)bus")
             end
-            push!(case_names, "$(bus_count)bus")
         end
     end
-    
-    sort!(case_names, by = x -> parse_case_name(x))
+
+    # Non-IEEE cases → use folder name directly ("RTS_GMLC", "ACTIVSg2000", ...)
+    if isdir(examples_dir)
+        skip = Set(["IEEE_Test_Cases"])
+        for entry in readdir(examples_dir)
+            candidate = joinpath(examples_dir, entry)
+            if isdir(candidate) &&
+               !(entry in skip) &&
+               isfile(joinpath(candidate, "LASCOPF_settings.yml"))
+                push!(case_names, entry)
+            end
+        end
+    end
+
+    # Sort: numeric-named cases first (by bus count), then alphabetically
+    sort!(case_names, by = x -> begin
+        bc = try parse_case_name(x) catch; 0 end
+        (bc == 0 ? 1 : 0, bc, x)
+    end)
+
     return case_names
 end
 
 """
     interactive_mode()
 
-Run PowerLASCOPF in interactive mode where user can select from available cases.
+Run PowerLASCOPF in interactive mode where user can select from all available
+cases (IEEE sahar/legacy, RTS-GMLC, PSS/E RAW, MATPOWER).
 """
 function interactive_mode()
     println("\n" * "=" ^ 70)
     println("🚀 POWERLASCOPF - INTERACTIVE MODE")
     println("=" ^ 70)
-    
-    # Get available cases
-    cases_dir = joinpath(PROJECT_ROOT, "example_cases", "IEEE_Test_Cases")
-    
-    if !isdir(cases_dir)
-        println("❌ IEEE_Test_Cases folder not found at: $cases_dir")
-        return nothing
-    end
-    
-    # Collect case information
+
+    examples_dir = joinpath(PROJECT_ROOT, "example_cases")
+    ieee_dir     = joinpath(examples_dir, "IEEE_Test_Cases")
+
+    # Collect ALL cases: (display_name, run_name, bus_count, case_path, file_format)
+    # run_name is the name to pass to run_case(): "5bus", "RTS_GMLC", etc.
     case_info = []
-    for entry in readdir(cases_dir)
-        path = joinpath(cases_dir, entry)
-        if isdir(path) && startswith(entry, "IEEE_")
-            bus_count = try
-                parse_case_name(entry)
-            catch
-                continue
+
+    # IEEE cases → short numeric run names ("5bus", "30bus", …)
+    if isdir(ieee_dir)
+        for entry in readdir(ieee_dir)
+            path = joinpath(ieee_dir, entry)
+            if isdir(path) && startswith(entry, "IEEE_")
+                bc  = try parse_case_name(entry) catch; continue end
+                fmt = try detect_file_format(path, bc; silent=true) catch; :unknown end
+                push!(case_info, (entry, "$(bc)bus", bc, path, fmt))
             end
-            file_format = try
-                detect_file_format(path, bus_count; silent=true)
-            catch
-                :unknown
-            end
-            push!(case_info, (entry, bus_count, file_format))
         end
     end
-    
-    sort!(case_info, by = x -> x[2])
-    
+
+    # Non-IEEE cases → folder name is both display name and run name
+    if isdir(examples_dir)
+        skip = Set(["IEEE_Test_Cases"])
+        for entry in readdir(examples_dir)
+            candidate = joinpath(examples_dir, entry)
+            if isdir(candidate) && !(entry in skip) &&
+               isfile(joinpath(candidate, "LASCOPF_settings.yml"))
+                bc  = try parse_case_name(entry) catch; 0 end
+                fmt = try detect_file_format(candidate, bc; silent=true) catch; :unknown end
+                push!(case_info, (entry, entry, bc, candidate, fmt))
+            end
+        end
+    end
+
+    # Sort: IEEE cases first (by bus count), then non-IEEE alphabetically
+    sort!(case_info, by = x -> (x[3] == 0 ? 1 : 0, x[3], x[1]))
+
     if isempty(case_info)
-        println("❌ No IEEE test cases found!")
-        println("\n📖 To add a new case, see:")
-        println("   example_cases/IEEE_Test_Cases/ADDING_NEW_CASES.md")
+        println("❌ No test cases found in: $examples_dir")
+        println("   Add cases per example_cases/RUNNING_CASES.md")
         return nothing
     end
-    
-    # Display available cases
-    println("\n📁 AVAILABLE IEEE TEST CASES:")
-    println("-" ^ 70)
-    println("  #   Case Name              Buses    Format      Status")
-    println("-" ^ 70)
-    
-    for (i, (name, buses, fmt)) in enumerate(case_info)
-        status = fmt == :sahar ? "✅ Standard" : (fmt == :legacy ? "⚠️  Legacy" : "❓ Unknown")
-        @printf("  %-3d %-22s %-8d %-10s  %s\n", i, name, buses, fmt, status)
+
+    # ── Display table ──────────────────────────────────────────────────────
+    println("\n📁 AVAILABLE TEST CASES:")
+    println("-" ^ 75)
+    println("  #   Folder / Display Name       Run Name         Buses    Status")
+    println("-" ^ 75)
+
+    for (i, (display, run, bc, path, fmt)) in enumerate(case_info)
+        status = if fmt == :sahar;    "✅ Sahar"
+                 elseif fmt == :legacy;   "⚠️  Legacy"
+                 elseif fmt == :psse_raw; "🔷 PSS/E RAW"
+                 elseif fmt == :matpower; "🔷 MATPOWER"
+                 elseif fmt == :rts_gmlc; "🔷 RTS-GMLC"
+                 else                     "❓ Unknown" end
+        buses_str = bc > 0 ? string(bc) : "—"
+        @printf("  %-3d %-28s %-16s %-8s %s\n", i, display, run, buses_str, status)
     end
-    
-    println("-" ^ 70)
+
+    println("-" ^ 75)
     println("\n📌 OPTIONS:")
     println("   • Enter a number (1-$(length(case_info))) to select a case")
-    println("   • Enter a case name directly (e.g., '30bus' or 'IEEE_30_bus')")
-    println("   • Enter 'all' to run all cases")
+    println("   • Enter a run name directly  (e.g., '30bus', 'RTS_GMLC', 'ACTIVSg2000')")
+    println("   • Enter 'all'  to run all discovered cases")
+    println("   • Enter 'list' for the detailed case listing")
+    println("   • Enter 'add'  to see how to add a new case")
     println("   • Enter 'q' or 'quit' to exit")
-    println("   • Enter 'add' to see how to add a new case")
-    println("-" ^ 70)
-    
+    println("-" ^ 75)
+
+    _show_compact_menu(case_info) = begin
+        println("\n" * "-" ^ 75)
+        println("📁 AVAILABLE CASES:")
+        for (i, (display, run, bc, path, fmt)) in enumerate(case_info)
+            icon = fmt == :sahar ? "✅" : (fmt == :legacy ? "⚠️" :
+                   fmt in (:psse_raw, :matpower, :rts_gmlc) ? "🔷" : "❓")
+            @printf("  %d. %-28s %-16s %s\n", i, display, run, icon)
+        end
+        println("-" ^ 75)
+    end
+
     while true
         print("\n🔹 Enter your choice: ")
-        input = readline()
-        input = strip(input)
-        
-        if isempty(input)
-            continue
-        end
-        
+        input = strip(readline())
+
+        isempty(input) && continue
+
         lower_input = lowercase(input)
-        
-        # Check for quit
+
+        # ── quit ──────────────────────────────────────────────────────────
         if lower_input in ["q", "quit", "exit"]
             println("\n👋 Goodbye!")
             return nothing
         end
-        
-        # Check for add new case info
+
+        # ── list ──────────────────────────────────────────────────────────
+        if lower_input == "list"
+            list_available_cases()
+            continue
+        end
+
+        # ── add ───────────────────────────────────────────────────────────
         if lower_input == "add"
             println("\n" * "=" ^ 70)
             println("📖 ADDING A NEW TEST CASE")
             println("=" ^ 70)
-            println("\nTo add a new IEEE test case (e.g., IEEE 24-bus):")
-            println("\n1️⃣  Create folder: example_cases/IEEE_Test_Cases/IEEE_24_bus/")
-            println("\n2️⃣  Add required files in Sahar format:")
-            println("    • Nodes24_sahar.csv")
-            println("    • ThermalGenerators24_sahar.csv")
-            println("    • Trans24_sahar.csv")
-            println("    • Loads24_sahar.csv")
-            println("\n3️⃣  Optional files:")
-            println("    • RenewableGenerators24_sahar.csv")
-            println("    • HydroGenerators24_sahar.csv")
-            println("    • Storage24_sahar.csv")
-            println("\n📄 Full documentation:")
-            println("   example_cases/IEEE_Test_Cases/ADDING_NEW_CASES.md")
+            println("\nOption A — IEEE Sahar CSV (e.g., IEEE 24-bus):")
+            println("  1. Create  example_cases/IEEE_Test_Cases/IEEE_24_bus/")
+            println("  2. Add:    Nodes24_sahar.csv  ThermalGenerators24_sahar.csv")
+            println("             Trans24_sahar.csv  Loads24_sahar.csv")
+            println("  3. Run:    julia run_reader_generic.jl case=24bus")
+            println("\nOption B — PSS/E RAW or MATPOWER:")
+            println("  1. Create  example_cases/MyCaseName/")
+            println("  2. Add:    MyCaseName.RAW  (or .m)  +  LASCOPF_settings.yml")
+            println("  3. Run:    julia run_reader_generic.jl case=MyCaseName")
+            println("\nOption C — RTS-GMLC CSV:")
+            println("  1. Create  example_cases/MyCaseName/")
+            println("  2. Add:    bus.csv  gen.csv  branch.csv  +  LASCOPF_settings.yml")
+            println("  3. Run:    julia run_reader_generic.jl case=MyCaseName")
+            println("\n📄 Full documentation: example_cases/RUNNING_CASES.md")
             println("=" ^ 70)
             continue
         end
-        
-        # Check for run all
+
+        # ── all ───────────────────────────────────────────────────────────
         if lower_input == "all"
             println("\n🔄 Running ALL available cases...")
             return run_all_cases()
         end
-        
-        # Try to parse as number
-        selected_case = nothing
+
+        # ── select by number or name ───────────────────────────────────────
+        selected_run = nothing
+
         if all(isdigit, input)
             idx = parse(Int, input)
             if 1 <= idx <= length(case_info)
-                selected_case = "$(case_info[idx][2])bus"
+                selected_run = case_info[idx][2]   # run_name
             else
                 println("❌ Invalid number. Please enter 1-$(length(case_info))")
                 continue
             end
         else
-            # Try to match case name
-            # Extract bus count from input
-            bus_match = match(r"(\d+)", input)
-            if bus_match !== nothing
-                bus_count = parse(Int, bus_match.captures[1])
-                # Check if this case exists
-                found = false
-                for (name, buses, _) in case_info
-                    if buses == bus_count
-                        selected_case = "$(bus_count)bus"
-                        found = true
-                        break
-                    end
+            # Match against run_name or display_name (case-insensitive)
+            for (display, run, bc, path, fmt) in case_info
+                if lowercase(input) == lowercase(run) || lowercase(input) == lowercase(display)
+                    selected_run = run
+                    break
                 end
-                if !found
-                    println("❌ Case with $bus_count buses not found!")
-                    println("   Available: $(join([string(c[2]) for c in case_info], ", ")) buses")
-                    println("\n   To add this case, enter 'add' for instructions.")
-                    continue
-                end
-            else
-                println("❌ Could not understand input: '$input'")
-                println("   Please enter a number or case name (e.g., '30bus')")
+            end
+            if selected_run === nothing
+                println("❌ Case not found: '$input'")
+                println("   Available run names: $(join([c[2] for c in case_info], ", "))")
                 continue
             end
         end
-        
-        if selected_case !== nothing
-            println("\n✅ Selected: $selected_case")
-            
-            # Ask for additional options
+
+        if selected_run !== nothing
+            println("\n✅ Selected: $selected_run")
+
             print("🔹 Max iterations [10]: ")
             iter_input = strip(readline())
             iterations = isempty(iter_input) ? 10 : parse(Int, iter_input)
-            
+
             print("🔹 Verbose output? (y/n) [n]: ")
             verbose_input = lowercase(strip(readline()))
             verbose = verbose_input in ["y", "yes", "true", "1"]
-            
+
             println("\n" * "=" ^ 70)
-            
-            # Run the case
-            result = run_case(selected_case; 
-                             iterations=iterations, 
-                             verbose=verbose)
-            
-            # Ask if user wants to run another case
+
+            result = run_case(selected_run; iterations=iterations, verbose=verbose)
+
             print("\n🔹 Run another case? (y/n) [y]: ")
             again_input = lowercase(strip(readline()))
             if again_input in ["n", "no"]
                 println("\n👋 Goodbye!")
                 return result
             end
-            
-            # Redisplay the menu
-            println("\n" * "-" ^ 70)
-            println("📁 AVAILABLE CASES:")
-            for (i, (name, buses, fmt)) in enumerate(case_info)
-                status_icon = fmt == :sahar ? "✅" : "⚠️"
-                @printf("  %d. %s (%d buses) %s\n", i, name, buses, status_icon)
-            end
-            println("-" ^ 70)
+
+            _show_compact_menu(case_info)
         end
     end
 end
@@ -1084,7 +1259,7 @@ function main()
         println("  iterations=N  Maximum ADMM iterations (default: 10)")
         println("  tolerance=T   Convergence tolerance (default: 1e-3)")
         println("  verbose=bool  Enable verbose output (default: false)")
-        println("  output=<file> Output filename (default: <N>bus_lascopf_results.json)")
+        println("  output=<file> Output filename (default: <case>_lascopf_results.json)")
         println("\nExamples:")
         println("  julia run_reader_generic.jl                    # Interactive mode")
         println("  julia run_reader_generic.jl case=5bus")

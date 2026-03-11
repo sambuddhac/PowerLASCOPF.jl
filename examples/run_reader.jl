@@ -1,47 +1,53 @@
 """
-Generic PowerLASCOPF Simulation Runner with CSV/JSON Input - \run_reader.jl
+PowerLASCOPF Simulation Backend — run_reader.jl
+================================================
 
 PURPOSE:
-  This file replaces run_5bus_lascopf.jl and run_14bus_lascopf.jl with a 
-  SINGLE generic runner that works for ANY case (5-bus, 14-bus, 118-bus, custom)
+  Provides execute_simulation() — the ADMM/APP dispatch loop called by
+  run_reader_generic.jl after Phase 2.5 builds the PowerLASCOPFSystem.
 
-KEY DESIGN DECISIONS:
+  Also optionally loads data_reader.jl (the system-builder library) so that
+  powerlascopf_from_psy_system!(), powerlascopf_from_rts_gmlc!(), and the
+  CSV builder functions are available in run_reader_generic.jl's Phase 2.5.
 
-1. WHY Command Line Arguments?
-   - Different users need different configurations
-   - Easy to automate (scripts can call with different parameters)
-   - No need to edit code for each run
-   - Industry standard (Unix philosophy)
+ROLE IN THE PIPELINE:
+  run_reader_generic.jl
+    │  includes data_reader_generic.jl  (pure data layer, no PowerLASCOPF)
+    └─ includes run_reader.jl           (this file)
+          │  try-includes data_reader.jl  (system builders — needs PowerLASCOPF)
+          └─ defines execute_simulation()
 
-2. WHY Separate from data_reader.jl?
-   - Separation of concerns: Data loading vs. Execution
-   - data_reader.jl = LIBRARY (reusable functions)
-   - run_reader.jl = APPLICATION (specific use case)
-   - Easier to test components independently
+execute_simulation(case_name, system, system_data, config):
+  • If `system` is a real PowerLASCOPFSystem: delegates to the ADMM/APP solver.
+    (Requires PowerLASCOPF src/ to be compiled — uncomment the include block below.)
+  • If `system` is nothing: runs a simple merit-order economic dispatch on the
+    DataFrames in system_data as a fallback.
 
-3. WHY Make It Generic?
-   - Write once, use many times
-   - Easy to add new test cases (just add data files)
-   - Reduces code duplication and maintenance burden
-   - Matches industry best practices (DRY principle)
+ENABLING FULL SOLVER SUPPORT:
+  Uncomment the PowerLASCOPF source block in STEP 3 below:
+    include("../src/PowerLASCOPF.jl")
+    include("../src/components/supernetwork.jl")
+  Then data_reader.jl will load automatically and Phase 2.5 in run_case()
+  will construct real PowerLASCOPFSystem objects for all case formats.
 
-WORKFLOW:
-  1. Parse command line arguments (case name, file format, paths)
-  2. Include data_reader.jl to load data reading functions
-  3. Call data reading functions with specified paths
-  4. Create PowerLASCOPF system from loaded data
-  5. Run simulation with specified parameters
-  6. Save results to JSON file
+INCLUSION BY run_reader_generic.jl (standard usage):
+  run_reader_generic.jl includes this file, inheriting execute_simulation().
+  → Preferred entry point for all case types.
 
-USAGE EXAMPLES:
-  # 5-bus system with CSV files
-  julia run_reader.jl --case "5bus" --format "CSV"
-  
-  # 14-bus system with JSON files
-  julia run_reader.jl --case "14bus" --format "JSON" --iterations 20
-  
-  # Custom case with specific path
-  julia run_reader.jl --case "my_grid" --path "/path/to/data" --output "my_results.json"
+LEGACY STANDALONE USAGE (direct invocation):
+  This file can also be run directly:
+    julia run_reader.jl case=5bus
+    julia run_reader.jl case=14bus format=JSON iterations=20
+  When run directly, it invokes run_simulation() — the original standalone
+  runner for IEEE sahar/legacy cases.  Functions present for this mode:
+    parse_commandline()  — key=value CLI parser
+    get_data_path()      — IEEE case path resolver
+    run_simulation(args) — standalone ADMM stub (calls data_reader.jl readers)
+  Note: run_simulation() is superseded by run_case() in run_reader_generic.jl
+  for new usage; it is retained here for backward compatibility.
+
+FULL DOCUMENTATION:
+  example_cases/RUNNING_CASES.md
 """
 
 using Pkg
@@ -81,35 +87,54 @@ using Printf
 # - JSON3: Fast JSON reading/writing (save results)
 
 # ============================================================================
-# STEP 3: INCLUDE POWERLASCOPF SOURCE
-# WHY: Load the PowerLASCOPF algorithm implementation
+# STEP 3: LOAD POWERLASCOPF SOURCE AND SYSTEM BUILDERS
 # ============================================================================
 
-#=include("../src/PowerLASCOPF.jl")
+# ── PowerLASCOPF algorithm source ──────────────────────────────────────────
+# Uncomment when PowerLASCOPF is available as a local source tree:
+#=
+include("../src/PowerLASCOPF.jl")
 include("../src/components/supernetwork.jl")
-include("../example_cases/data_reader.jl")  # Our new data reader=#
+=#
+# Alternatively, if PowerLASCOPF is installed as a registered package:
+#   using PowerLASCOPF
 
-# WHY include instead of using:
-# - PowerLASCOPF is not a registered package (local development)
-# - include() loads source code directly
-# - Allows modifications without package reinstall
+# ── System builder library (data_reader.jl) ────────────────────────────────
+# Provides: powerlascopf_from_psy_system!()  — PSS/E RAW / MATPOWER bridge
+#           powerlascopf_from_rts_gmlc!()    — RTS-GMLC CSV builder
+#           powerlascopf_*_from_csv!()       — Sahar / legacy CSV builders
+#           apply_lascopf_settings()         — LASCOPF_settings.yml mapping
+#
+# Requires PowerSystems (imported above) and PowerLASCOPF (block above).
+# Loaded inside try/catch so that run_reader_generic.jl degrades gracefully
+# to the DataFrame-based dispatch stub when PowerLASCOPF is not yet compiled.
+try
+    include(joinpath(@__DIR__, "..", "example_cases", "data_reader.jl"))
+catch e
+    @warn "data_reader.jl could not be loaded (PowerLASCOPF not in scope?): $e"
+    @warn "Phase 2.5 system construction in run_case() will fall back to the DataFrame stub."
+    @warn "To enable full solver support, uncomment the PowerLASCOPF source block above."
+end
 
 # ============================================================================
-# STEP 4: SIMPLE ARGUMENT PARSER
-# WHY: Make the script configurable without editing code
+# STEP 4: SIMPLE ARGUMENT PARSER (legacy standalone mode)
+# Used when run_reader.jl is invoked directly (julia run_reader.jl).
+# Not used when included by run_reader_generic.jl — that file has its own
+# parse_arguments() function.
 # ============================================================================
 
 """
     parse_commandline()
 
-WHAT: Parses command-line arguments from ARGS array
-WHY: Users can configure runs without editing code
+WHAT: Parses command-line arguments from ARGS array (legacy standalone mode)
+WHY: Used when run_reader.jl is run directly (not via run_reader_generic.jl)
 HOW: Uses simple key=value parsing of ARGS
 
-USAGE EXAMPLES:
+USAGE EXAMPLES (direct invocation):
   julia run_reader.jl case=5bus format=CSV
   julia run_reader.jl case=14bus format=JSON iterations=20
   julia run_reader.jl case=custom path=/my/data verbose=true
+NOTE: For new usage, prefer run_reader_generic.jl which supports all formats.
 
 ARGUMENTS:
   case=<name>          Case name: '5bus', '14bus', or custom (default: 5bus)
@@ -710,25 +735,40 @@ function execute_simulation(
     println("-" * "-"^69)
     
     # Extract configuration
-    max_iterations = get(config, "max_iterations", 10)
-    tolerance = get(config, "tolerance", 1e-3)
-    num_contingencies = get(config, "contingencies", 2)
-    rnd_intervals = get(config, "rnd_intervals", 6)
-    verbose = get(config, "verbose", false)
-    solver_choice = get(config, "solver", "ipopt")
-    
-    # Configure ADMM/APP parameters
+    max_iterations    = get(config, "max_iterations", 10)
+    tolerance         = get(config, "tolerance",      1e-3)
+    num_contingencies = get(config, "contingencies",  2)
+    rnd_intervals     = get(config, "rnd_intervals",  3)
+    rsd_intervals     = get(config, "rsd_intervals",  3)
+    solver_choice_int = get(config, "solver_choice",  1)   # 1=GUROBI-APMP, 2=CVXGEN-APMP, ...
+    rho_tuning        = get(config, "rho_tuning",     3)   # ADMM ρ update mode
+    dummy_interval    = get(config, "dummy_interval", true) # include GenFirstBaseIntervalDZ?
+    verbose           = get(config, "verbose",        false)
+    solver_choice     = get(config, "solver",         "ipopt")
+
+    # B12: Log whether a real PowerLASCOPFSystem was provided
+    if system !== nothing
+        println("  Real PowerLASCOPFSystem provided — ADMM solver will use it when available.")
+        println("  System type: $(typeof(system))")
+    else
+        println("  No PowerLASCOPFSystem provided — using DataFrame-based dispatch stub.")
+    end
+
+    # Configure ADMM/APP parameters (B12: propagate settings from LASCOPF_settings.yml)
     admm_params = Dict(
-        "max_iterations" => max_iterations,
-        "tolerance" => tolerance,
-        "rho" => 1.0,
-        "beta" => 1.0,
-        "gamma" => 1.0,
-        "inner_iterations" => 5,
+        "max_iterations"       => max_iterations,
+        "tolerance"            => tolerance,
+        "rho"                  => 1.0,
+        "beta"                 => 1.0,
+        "gamma"                => 1.0,
+        "inner_iterations"     => 5,
         "contingency_scenarios" => num_contingencies,
-        "rnd_intervals" => rnd_intervals,
-        "dummy_zero_interval" => true,
-        "solver" => solver_choice
+        "rnd_intervals"        => rnd_intervals,
+        "rsd_intervals"        => rsd_intervals,
+        "dummy_zero_interval"  => dummy_interval,
+        "solver_choice"        => solver_choice_int,
+        "rho_tuning"           => rho_tuning,
+        "solver"               => solver_choice
     )
     
     if verbose

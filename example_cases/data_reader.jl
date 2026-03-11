@@ -1,21 +1,59 @@
 """
-Generic Data Reader for PowerLASCOPF Systems
+PowerLASCOPF System Builder — data_reader.jl
+=============================================
 
-WHY THIS FILE EXISTS:
-- Replaces hardcoded arrays in data_5bus_pu.jl and data_14bus_pu.jl
-- Reads data from CSV/JSON files instead of Julia arrays
-- Makes the system case-independent (works for 5-bus, 14-bus, or custom)
-- Separates data storage from code logic
+PURPOSE:
+  Converts raw power-system data (from CSV, PSS/E RAW, MATPOWER, or
+  RTS-GMLC files) into fully-initialised PowerLASCOPFSystem objects
+  with all eight generator interval types, extended cost structs,
+  GenSolver objects, and LineSolverBase objects.
 
-ARCHITECTURE:
-1. Data Reading Functions (read_*_data): Load CSV/JSON into Julia structures
-2. Factory Functions (*_func): Create PowerSystems objects from loaded data
-3. System Creation Functions: Assemble complete PowerLASCOPF system
+  Requires: PowerSystems.jl, InfrastructureSystems.jl, PowerLASCOPF
+  (loaded by the caller before this file is included).
 
-FILE STRUCTURE:
-- Lines 1-100: Imports, logging, utilities
-- Lines 101-300: Data reading functions (CSV/JSON parsers)
-- Lines 301-600: System creation functions (adapted from data_5bus_pu.jl)
+KEY FUNCTIONS:
+
+  powerlascopf_from_psy_system!(system, psy_system, cont_count)
+    Bridge for PSS/E RAW and MATPOWER cases.
+    Caller: PSY.System(filepath) → this function.
+    Iterates PSY component collections (ACBus, Branch, ThermalStandard,
+    RenewableDispatch, HydroDispatch/HydroEnergyReservoir, PowerLoad).
+
+  powerlascopf_from_rts_gmlc!(system, case_path, cont_count)
+    Builder for RTS-GMLC CSV cases.
+    Reads bus.csv, gen.csv, branch.csv directly.
+    Classifies generators by "Unit Type" column.
+    Converts piecewise heat-rate data to quadratic cost curves via
+    _heat_rate_to_quadratic() (least-squares fit).
+
+  apply_lascopf_settings(settings)
+    Maps LASCOPF_settings.yml keys to typed construction parameters
+    (RND_int, RSD_int, solver_choice, rho_tuning, use_dummy_interval).
+
+  load_timeseries_rts_gmlc(case_path)
+    Stub: logs a deferred message and returns an empty Dict.
+    Full implementation (reading timeseries_pointers_da.json + forecast CSVs
+    and calling PSY.add_time_series!()) is deferred to a later phase.
+
+  powerlascopf_nodes_from_csv!(system, csv_path)
+  powerlascopf_branches_from_csv!(system, nodes, csv_path, …)
+  powerlascopf_thermal_generators_from_csv!(system, nodes, csv_path, …)
+  powerlascopf_renewable_generators_from_csv!(system, nodes, csv_path, …)
+  powerlascopf_hydro_generators_from_csv!(system, nodes, csv_path, …)
+  powerlascopf_storage_from_csv!(system, nodes, csv_path, …)
+  powerlascopf_loads_from_csv!(system, nodes, csv_path)
+    Builders for IEEE Sahar/Legacy CSV cases.
+
+CALL CHAIN (via run_reader_generic.jl → Phase 2.5):
+  :psse_raw / :matpower  → PSY.System(network_file)
+                         → powerlascopf_from_psy_system!()
+  :rts_gmlc              → powerlascopf_from_rts_gmlc!()
+  :sahar / :legacy       → powerlascopf_nodes_from_csv!()
+                         → powerlascopf_branches_from_csv!()
+                         → powerlascopf_thermal_generators_from_csv!()  etc.
+
+FULL DOCUMENTATION:
+  example_cases/RUNNING_CASES.md
 """
 
 using Revise
@@ -1174,34 +1212,80 @@ end
 # ============================================================
 
 """
-    branches_57_contingency_list()
+    branches_contingency_list(num_buses::Int; data_dir::String=joinpath(@__DIR__, "IEEE_Test_Cases"), file_format::String="CSV")
 
-Contingency branch indices for the 57-bus IEEE test case,
-extracted from ContingencyMarked=1 rows in Trans57_sahar.csv.
-Indices correspond to 1-based row positions (excluding header).
-"""
-branches_57_contingency_list() = [20, 30, 46, 63]
+Read the ContingencyMarked column from the Trans{num_buses}_sahar.csv (or .json) file
+and return the 1-based row indices where ContingencyMarked == 1.
 
-"""
-    branches_118_contingency_list()
+Replaces the per-case hardcoded functions (branches_57_contingency_list, etc.).
 
-Contingency branch indices for the 118-bus IEEE test case,
-extracted from ContingencyMarked=1 rows in Trans118_sahar.csv.
-"""
-branches_118_contingency_list() = [2, 3]
+# Arguments
+- `num_buses::Int`: Number of buses (e.g., 57, 118, 300).
+- `data_dir::String`: Directory containing the IEEE_*_bus subdirectories.
+- `file_format::String`: "CSV" or "JSON".
 
-"""
-    branches_300_contingency_list()
+# Returns
+- `Vector{Int}`: 1-based row indices of contingency-marked branches.
 
-Contingency branch indices for the 300-bus IEEE test case,
-extracted from ContingencyMarked=1 rows in Trans300_sahar.csv.
+# Example
+```julia
+cont_list = branches_contingency_list(57)   # reads IEEE_57_bus/Trans57_sahar.csv
+cont_list = branches_contingency_list(118)  # reads IEEE_118_bus/Trans118_sahar.csv
+```
 """
-branches_300_contingency_list() = [18, 320]
+function branches_contingency_list(
+    num_buses::Int;
+    data_dir::String = joinpath(@__DIR__, "IEEE_Test_Cases"),
+    file_format::String = "CSV"
+)
+    subfolder = joinpath(data_dir, "IEEE_$(num_buses)_bus")
+    ext = uppercase(file_format) == "JSON" ? "json" : "csv"
+    filepath = joinpath(subfolder, "Trans$(num_buses)_sahar.$(ext)")
+
+    if !isfile(filepath)
+        error("❌ Contingency file not found: $filepath")
+    end
+
+    contingency_indices = Int[]
+
+    if uppercase(file_format) == "CSV"
+        df = CSV.read(filepath, DataFrame)
+        if !("ContingencyMarked" in names(df))
+            log_warn("No 'ContingencyMarked' column in $filepath — returning empty list.")
+            return contingency_indices
+        end
+        for (i, row) in enumerate(eachrow(df))
+            if !ismissing(row.ContingencyMarked) && row.ContingencyMarked == 1
+                push!(contingency_indices, i)
+            end
+        end
+    elseif uppercase(file_format) == "JSON"
+        json_data = JSON3.read(read(filepath, String))
+        for (i, branch) in enumerate(json_data)
+            if haskey(branch, "ContingencyMarked") && branch["ContingencyMarked"] == 1
+                push!(contingency_indices, i)
+            end
+        end
+    else
+        error("Unsupported file format: $file_format. Use 'CSV' or 'JSON'.")
+    end
+
+    log_info("Contingency list for $(num_buses)-bus case: $(length(contingency_indices)) branches marked — indices: $contingency_indices")
+    return contingency_indices
+end
+
+# Convenience wrappers for backward compatibility (optional — can be removed)
+branches_57_contingency_list()  = branches_contingency_list(57)
+branches_118_contingency_list() = branches_contingency_list(118)
+branches_300_contingency_list() = branches_contingency_list(300)
 
 # ============================================================
 # SECTION: GENERIC POWERLASCOPF SYSTEM CREATION FROM CSV FILES
 # Following the same pattern as data_5bus_pu.jl / data_14bus_pu.jl
 # but reading from *_sahar.csv files instead of hardcoded arrays.
+# ============================================================
+# ============================================================
+# SECTION: GENERIC FUNCTIONS
 # ============================================================
 
 """
@@ -1215,6 +1299,169 @@ function power_lascopf_system_generic()
     println("Created PowerLASCOPF System ")
     log_info("Created PowerLASCOPF System ")
     return system
+end
+
+function powerlascopf_nodes_generic!(
+    system::PowerLASCOPF.PowerLASCOPFSystem, 
+    bus_num::Int, csv_path::Bool = true
+)
+    csv_path = joinpath(@__DIR__, "IEEE_Test_Cases", "IEEE_$(bus_num)_bus", "Nodes$(bus_num)_sahar.csv")
+    json_path = joinpath(@__DIR__, "IEEE_Test_Cases", "IEEE_$(bus_num)_bus", "Nodes$(bus_num)_sahar.json")
+    if isfile(csv_path) && csv_path
+        return powerlascopf_nodes_from_csv!(system, csv_path)
+    elseif isfile(json_path) && !csv_path
+        return powerlascopf_nodes_from_json!(system, json_path)
+    else
+        error("No valid node file found for $bus_num-bus case.")
+    end
+end
+
+function powerlascopf_branches_generic!(
+    system::PowerLASCOPF.PowerLASCOPFSystem, 
+    nodes::Vector{PowerLASCOPF.Node{PSY.Bus}}, 
+    bus_num::Int, cont_count::Int, RND_int::Int, 
+    csv_path::Bool = true
+)
+    csv_path = joinpath(@__DIR__, "IEEE_Test_Cases", "IEEE_$(bus_num)_bus", "Trans$(bus_num)_sahar.csv")
+    json_path = joinpath(@__DIR__, "IEEE_Test_Cases", "IEEE_$(bus_num)_bus", "Trans$(bus_num)_sahar.json")
+    if isfile(csv_path) && csv_path
+        return powerlascopf_branches_from_csv!(
+            system, nodes, csv_path, branches_contingency_list(bus_num), cont_count, RND_int
+        )
+    elseif isfile(json_path) && !csv_path
+        return powerlascopf_branches_from_json!(
+            system, nodes, json_path, branches_contingency_list(bus_num), cont_count, RND_int
+        )
+    else
+        error("No valid branch file found for $bus_num-bus case.")
+    end
+end
+
+function powerlascopf_thermal_generators_generic!(
+    system::PowerLASCOPF.PowerLASCOPFSystem, 
+    nodes::Vector{PowerLASCOPF.Node{PSY.Bus}}, 
+    bus_num::Int, csv_path::Bool = true
+)
+    csv_path   = joinpath(@__DIR__, "IEEE_Test_Cases", "IEEE_$(bus_num)_bus", "ThermalGenerators$(bus_num)_sahar.csv")
+    json_path  = joinpath(@__DIR__, "IEEE_Test_Cases", "IEEE_$(bus_num)_bus", "ThermalGenerators$(bus_num)_sahar.json")
+    if isfile(csv_path) && csv_path
+        cont_count = length(branches_contingency_list(bus_num))
+        return powerlascopf_thermal_generators_from_csv!(system, nodes, csv_path, cont_count)
+    elseif isfile(json_path) && !csv_path
+        cont_count = length(branches_contingency_list(bus_num))
+        return powerlascopf_thermal_generators_from_json!(system, nodes, json_path, cont_count)
+    else
+        error("No valid thermal generator file found for $bus_num-bus case.")
+    end
+end
+
+function powerlascopf_renewable_generators_generic!(
+    system::PowerLASCOPF.PowerLASCOPFSystem, 
+    nodes::Vector{PowerLASCOPF.Node{PSY.Bus}}, 
+    bus_num::Int, csv_path::Bool = true
+)
+    csv_path   = joinpath(@__DIR__, "IEEE_Test_Cases", "IEEE_$(bus_num)_bus", "RenewableGenerators$(bus_num)_sahar.csv")
+    json_path  = joinpath(@__DIR__, "IEEE_Test_Cases", "IEEE_$(bus_num)_bus", "RenewableGenerators$(bus_num)_sahar.json")
+    if isfile(csv_path) && csv_path
+        cont_count = length(branches_57_contingency_list())
+        return powerlascopf_renewable_generators_from_csv!(system, nodes, csv_path, Dict(), cont_count)
+    elseif isfile(json_path) && !csv_path
+        cont_count = length(branches_57_contingency_list())
+        return powerlascopf_renewable_generators_from_json!(system, nodes, json_path, Dict(), cont_count)
+    else
+        error("No valid renewable generator file found for $bus_num-bus case.")
+    end
+end
+
+function powerlascopf_hydro_generators_generic!(
+    system::PowerLASCOPF.PowerLASCOPFSystem, 
+    nodes::Vector{PowerLASCOPF.Node{PSY.Bus}}, 
+    bus_num::Int, csv_path::Bool = true
+)
+    csv_path   = joinpath(@__DIR__, "IEEE_Test_Cases", "IEEE_$(bus_num)_bus", "HydroGenerators$(bus_num)_sahar.csv")
+    json_path  = joinpath(@__DIR__, "IEEE_Test_Cases", "IEEE_$(bus_num)_bus", "HydroGenerators$(bus_num)_sahar.json")
+    if isfile(csv_path) && csv_path
+        cont_count = length(branches_118_contingency_list())
+        return powerlascopf_hydro_generators_from_csv!(system, nodes, csv_path, Dict(), cont_count)
+    elseif isfile(json_path) && !csv_path
+        cont_count = length(branches_118_contingency_list())
+        return powerlascopf_hydro_generators_from_json!(system, nodes, json_path, Dict(), cont_count)
+    else
+        error("No valid hydro generator file found for $bus_num-bus case.")
+    end
+end
+
+function power_lascopf_storage_generators_generic!(
+    system::PowerLASCOPF.PowerLASCOPFSystem,
+    nodes::Vector{PowerLASCOPF.Node{PSY.Bus}}, 
+    bus_num::Int, csv_path::Bool = true
+)
+    csv_path   = joinpath(@__DIR__, "IEEE_Test_Cases", "IEEE_$(bus_num)_bus", "Storage$(bus_num)_sahar.csv")
+    json_path  = joinpath(@__DIR__, "IEEE_Test_Cases", "IEEE_$(bus_num)_bus", "Storage$(bus_num)_sahar.json")
+    if isfile(csv_path) && csv_path
+        cont_count = length(branches_57_contingency_list())
+        return powerlascopf_storage_from_csv!(system, nodes, csv_path, cont_count)
+    elseif isfile(json_path) && !csv_path
+        cont_count = length(branches_57_contingency_list())
+        return powerlascopf_storage_from_json!(system, nodes, json_path, cont_count)
+    else
+        error("No valid storage file found for $bus_num-bus case.")
+    end
+end
+
+function powerlascopf_loads_generic!(
+    system::PowerLASCOPF.PowerLASCOPFSystem, 
+    nodes::Vector{PowerLASCOPF.Node{PSY.Bus}}, 
+    bus_num::Int, csv_path::Bool = true
+)
+    csv_path = joinpath(@__DIR__, "IEEE_Test_Cases", "IEEE_$(bus_num)_bus", "Loads$(bus_num)_sahar.csv")
+    json_path = joinpath(@__DIR__, "IEEE_Test_Cases", "IEEE_$(bus_num)_bus", "Loads$(bus_num)_sahar.json")
+    if isfile(csv_path) && csv_path
+        return powerlascopf_loads_from_csv!(system, nodes, csv_path)
+    elseif isfile(json_path) && !csv_path
+        return powerlascopf_loads_from_json!(system, nodes, json_path)
+    else
+        error("No valid load file found for $bus_num-bus case.")
+    end
+end
+
+"""
+    create_generic_powerlascopf_system(bus_num::Int)
+
+Create a complete PowerLASCOPF system for a generic test case,
+reading all data from *_sahar.csv files.
+"""
+function create_generic_powerlascopf_system(bus_num::Int)
+    log_info("Creating a Generic PowerLASCOPF system...")
+    cont_count = length(branches_contingency_list(bus_num))
+    RND_int    = 6
+    RSD_int    = 6
+
+    system    = power_lascopf_system_generic()
+    nodes     = powerlascopf_nodes_generic!(system, bus_num, true)
+    branches  = powerlascopf_branches_generic!(system, nodes, bus_num, cont_count, RND_int, true)
+    thermal   = powerlascopf_thermal_generators_generic!(system, nodes, bus_num, true)
+    renewables = powerlascopf_renewable_generators_generic!(system, nodes, bus_num, true)
+    hydro     = powerlascopf_hydro_generators_generic!(system, nodes, bus_num, true)
+    storage   = power_lascopf_storage_generators_generic!(system, nodes, bus_num, true)
+    loads     = powerlascopf_loads_generic!(system, nodes, bus_num, true)
+    system_data = Dict(
+        "name"                   => "$bus_num-Bus IEEE Test System",
+        "nodes"                  => nodes,
+        "branches"               => branches,
+        "thermal_generators"     => thermal,
+        "renewable_generators"   => renewables,
+        "hydro_generators"       => hydro,
+        "storage_generators"     => storage,
+        "loads"                  => loads,
+        "number_of_contingencies" => cont_count,
+        "RND_intervals"          => RND_int,
+        "RSD_intervals"          => RSD_int,
+        "base_power"             => 100.0
+    )
+
+    log_info("Generic PowerLASCOPF system created successfully.")
+    return system, system_data
 end
 
 """
@@ -1241,13 +1488,74 @@ function powerlascopf_nodes_from_csv!(system::PowerLASCOPF.PowerLASCOPFSystem, c
             nothing,
             nothing
         )
+        println("PSY bus name", PSY.get_name(bus))  # just to suppress unused variable warning
+        log_info("PSY bus name: $(PSY.get_name(bus))")
         node = PowerLASCOPF.Node{PSY.Bus}(bus, i, 0)
         PSY.add_component!(system.psy_system, bus)
         PowerLASCOPF.add_node!(system, node)
         push!(nodes, node)
     end
+    println("=" ^ 50)
+    println("PSY System after adding nodes: ", system.psy_system)
+    log_info("PSY System after adding nodes: $(system.psy_system)")
+    println("PowerLASCOPF System after adding nodes: ", system)
+    log_info("PowerLASCOPF System after adding nodes: $(system)")
+    println("Node vector from 14 bus file", nodes)
+    log_info("Node vector from 14 bus file: $(nodes)")
+    println("Node vector from PowerLASCOPF struct", system.nodes)
+    log_info("Node vector from PowerLASCOPF struct: $(system.nodes)")
+    PSY.show_components(system.psy_system, PSY.ACBus)
+    log_info("Showing PSY ACBus components in the system.")
     log_info("Created $(length(nodes)) PowerLASCOPF Nodes from CSV.")
     println("Created $(length(nodes)) PowerLASCOPF Nodes from CSV: $csv_path")
+    return nodes
+end
+
+"""
+    powerlascopf_nodes_from_json!(system, csv_path)
+
+Read nodes from a Nodes*_sahar.csv file and create PowerLASCOPF Nodes.
+Expected CSV columns: BusNumber, BusName, BusType, Angle, Voltage,
+                      VoltageMin, VoltageMax, BaseVoltage
+"""
+
+function powerlascopf_nodes_from_json!(system::PowerLASCOPF.PowerLASCOPFSystem, json_path::String)
+    log_info("Creating PowerLASCOPF Nodes from JSON: $json_path")
+    json_data = JSON.parsefile(json_path)
+    nodes = PowerLASCOPF.Node{PSY.Bus}[]
+
+    for (i, row) in enumerate(json_data)
+        bus = PSY.ACBus(
+            Int(row["BusNumber"]),
+            String(row["BusName"]),
+            String(row["BusType"]),
+            Float64(row["Angle"]),
+            Float64(row["Voltage"]),
+            (min = Float64(row["VoltageMin"]), max = Float64(row["VoltageMax"])),
+            Float64(row["BaseVoltage"]),
+            nothing,
+            nothing
+        )
+        println("PSY bus name", PSY.get_name(bus))  # just to suppress unused variable warning
+        log_info("PSY bus name: $(PSY.get_name(bus))")
+        node = PowerLASCOPF.Node{PSY.Bus}(bus, i, 0)
+        PSY.add_component!(system.psy_system, bus)
+        PowerLASCOPF.add_node!(system, node)
+        push!(nodes, node)
+    end
+    println("=" ^ 50)
+    println("PSY System after adding nodes: ", system.psy_system)
+    log_info("PSY System after adding nodes: $(system.psy_system)")
+    println("PowerLASCOPF System after adding nodes: ", system)
+    log_info("PowerLASCOPF System after adding nodes: $(system)")
+    println("Node vector from 14 bus file", nodes)
+    log_info("Node vector from 14 bus file: $(nodes)")
+    println("Node vector from PowerLASCOPF struct", system.nodes)
+    log_info("Node vector from PowerLASCOPF struct: $(system.nodes)")
+    PSY.show_components(system.psy_system, PSY.ACBus)
+    log_info("Showing PSY ACBus components in the system.")
+    log_info("Created $(length(nodes)) PowerLASCOPF Nodes from JSON.")
+    println("Created $(length(nodes)) PowerLASCOPF Nodes from JSON: $json_path")
     return nodes
 end
 
@@ -1385,9 +1693,164 @@ function powerlascopf_branches_from_csv!(
             push!(transmission_lines, trans_line)
         end
     end
-
+    println("=" ^ 50)
+    println("PSY System after adding branches: ", system.psy_system)
+    log_info("PSY System after adding branches: $(system.psy_system)")
+    println("PowerLASCOPF System after adding branches: ", system)
+    log_info("PowerLASCOPF System after adding branches: $(system)")
+    #println("Transmission Lines vector from 14 bus file", transmission_lines)
+    #println("Transmission Lines vector from PowerLASCOPF struct", system.transmission_lines)
+    PSY.show_components(system.psy_system, PSY.Line)
+    #PSY.show_components(system.psy_system, PSY.HVDCLine)
     log_info("Created $(length(transmission_lines)) PowerLASCOPF Transmission Lines from CSV.")
     println("Created $(length(transmission_lines)) PowerLASCOPF Transmission Lines from CSV: $csv_path")
+    return transmission_lines
+end
+
+"""
+    powerlascopf_branches_from_json!(system, nodes, json_path, contingency_list, cont_count, RND_int)
+
+Read branches from a Trans*_sahar.json file and create PowerLASCOPF transmission lines.
+Expected CSV columns: LineName, LineType, fromNode, toNode, Resistance, Reactance,
+  Susceptance_from, Susceptance_to, RateLimit, AngleLimit_min, AngleLimit_max,
+  [ActivePowerLimit_min, ActivePowerLimit_max, ReactivePower_from_min,
+   ReactivePower_from_max, ReactivePower_to_min, ReactivePower_to_max,
+   LossCoefficient_l0, LossCoefficient_l1], ContingencyMarked
+"""
+function powerlascopf_branches_from_json!(
+    system::PowerLASCOPF.PowerLASCOPFSystem,
+    nodes::Vector{PowerLASCOPF.Node{PSY.Bus}},
+    json_path::String,
+    contingency_list::Vector{Int},
+    cont_count::Int,
+    RND_int::Int
+)
+    log_info("Creating PowerLASCOPF Transmission Lines from JSON: $json_path")
+    json_data = JSON3.read(read(json_path, String))
+
+    # Build fast lookup: bus number -> node/bus
+    node_by_busnum = Dict(PSY.get_number(n.node_type) => n for n in nodes)
+    bus_by_busnum  = Dict(PSY.get_number(n.node_type) => n.node_type for n in nodes)
+
+    transmission_lines = PowerLASCOPF.transmissionLine[]
+    contingency_tracker = 0
+
+    for (i, row) in json_data
+        line_type = String(row["LineType"])
+        from_num  = Int(row["fromNode"])
+        to_num    = Int(row["toNode"])
+        from_bus  = bus_by_busnum[from_num]
+        to_bus    = bus_by_busnum[to_num]
+        from_node = node_by_busnum[from_num]
+        to_node   = node_by_busnum[to_num]
+
+        if i in contingency_list
+            contingency_tracker += 1
+            temp_tracker = contingency_tracker
+        else
+            temp_tracker = 0
+        end
+
+        if line_type == "AC"
+            branch = PSY.Line(
+                String(row["LineName"]),
+                true,
+                0.0,
+                0.0,
+                Arc(from = from_bus, to = to_bus),
+                Float64(row["Resistance"]),
+                Float64(row["Reactance"]),
+                (from = Float64(row["Susceptance_from"]), to = Float64(row["Susceptance_to"])),
+                Float64(row["RateLimit"]),
+                (min = Float64(row["AngleLimit_min"]), max = Float64(row["AngleLimit_max"]))
+            )
+
+            solver_base = PowerLASCOPF.LineSolverBase(
+                lambda_txr    = randn(cont_count * (RND_int - 1)),
+                interval_type = PowerLASCOPF.LineBaseInterval(),
+                E_coeff       = [0.9^j for j in 1:RND_int],
+                Pt_next_nu    = zeros(cont_count * (RND_int - 1)),
+                BSC           = 0.1 * randn(cont_count * (RND_int - 1)),
+                E_temp_coeff  = 0.01 * randn(RND_int, RND_int),
+                alpha_factor  = 0.05,
+                beta_factor   = 0.1,
+                beta          = 0.1,
+                gamma         = 0.2,
+                Pt_max        = 1000.0,
+                temp_init     = 340.0,
+                temp_amb      = 300.0,
+                max_temp      = 473.0,
+                RND_int       = 1,
+                cont_count    = cont_count
+            )
+
+            trans_line = PowerLASCOPF.transmissionLine{PSY.Line}(
+                transl_type       = branch,
+                solver_line_base  = solver_base,
+                transl_id         = i,
+                conn_nodet1_ptr   = from_node,
+                conn_nodet2_ptr   = to_node,
+                cont_scen_tracker = temp_tracker,
+                thetat1 = 0.0, thetat2 = 0.0,
+                pt1 = 0.0,     pt2 = 0.0,
+                v1  = 0.0,     v2  = 0.0
+            )
+
+            PowerLASCOPF.assign_conn_nodes(trans_line)
+            PowerLASCOPF.add_transmission_line!(system, trans_line)
+            push!(transmission_lines, trans_line)
+
+        elseif line_type == "HVDC"
+            branch = PSY.HVDCLine(
+                String(row["LineName"]),
+                true,
+                0.0,
+                Arc(from = from_bus, to = to_bus),
+                (min = Float64(row["ActivePowerLimit_min"]),  max = Float64(row["ActivePowerLimit_max"])),
+                (min = Float64(row["ReactivePower_from_min"]), max = Float64(row["ReactivePower_from_max"])),
+                (min = Float64(row["ReactivePower_to_min"]),  max = Float64(row["ReactivePower_to_max"])),
+                (min = Float64(row["ReactivePower_to_min"]),  max = Float64(row["ReactivePower_to_max"])),
+                (l0  = Float64(row["LossCoefficient_l0"]),   l1  = Float64(row["LossCoefficient_l1"])))
+
+            solver_base = PowerLASCOPF.LineSolverBase(
+                lambda_txr    = [0.0],
+                interval_type = PowerLASCOPF.LineBaseInterval(),
+                E_coeff       = [1.0],
+                Pt_next_nu    = [0.0],
+                BSC           = [0.0],
+                E_temp_coeff  = reshape([0.1], 1, 1),
+                RND_int       = 1,
+                cont_count    = 1
+            )
+
+            trans_line = PowerLASCOPF.transmissionLine{PSY.HVDCLine}(
+                transl_type       = branch,
+                solver_line_base  = solver_base,
+                transl_id         = i,
+                conn_nodet1_ptr   = from_node,
+                conn_nodet2_ptr   = to_node,
+                cont_scen_tracker = temp_tracker,
+                thetat1 = 0.0, thetat2 = 0.0,
+                pt1 = 0.0,     pt2 = 0.0,
+                v1  = 0.0,     v2  = 0.0
+            )
+
+            PowerLASCOPF.assign_conn_nodes(trans_line)
+            PowerLASCOPF.add_transmission_line!(system, trans_line)
+            push!(transmission_lines, trans_line)
+        end
+    end
+    println("=" ^ 50)
+    println("PSY System after adding branches: ", system.psy_system)
+    log_info("PSY System after adding branches: $(system.psy_system)")
+    println("PowerLASCOPF System after adding branches: ", system)
+    log_info("PowerLASCOPF System after adding branches: $(system)")
+    #println("Transmission Lines vector from 14 bus file", transmission_lines)
+    #println("Transmission Lines vector from PowerLASCOPF struct", system.transmission_lines)
+    PSY.show_components(system.psy_system, PSY.Line)
+    #PSY.show_components(system.psy_system, PSY.HVDCLine)
+    log_info("Created $(length(transmission_lines)) PowerLASCOPF Transmission Lines from JSON.")
+    println("Created $(length(transmission_lines)) PowerLASCOPF Transmission Lines from JSON: $json_path")
     return transmission_lines
 end
 
@@ -1506,6 +1969,29 @@ function powerlascopf_thermal_generators_from_csv!(
         gen_interval = _make_gen_interval(cont_count)
 
         extended_cost = PowerLASCOPF.ExtendedThermalGenerationCost(gen.operation_cost, gen_interval)
+        gensolver_first_base = PowerLASCOPF.GenSolver(gen_interval, extended_cost)
+
+        extended_cost_first_base_dz = PowerLASCOPF.ExtendedThermalGenerationCost(gen.operation_cost, PowerLASCOPF.GenFirstBaseIntervalDZ(nothing))
+        gensolver_first_base_dz = PowerLASCOPF.GenSolver(extended_cost_first_base_dz.regularization_term, extended_cost_first_base_dz)
+
+        extended_cost_first_cont = PowerLASCOPF.ExtendedThermalGenerationCost(gen.operation_cost, PowerLASCOPF.GenFirstContInterval(nothing))
+        gensolver_first_cont = PowerLASCOPF.GenSolver(extended_cost_first_cont.regularization_term, extended_cost_first_cont)
+
+        extended_cost_first_cont_dz = PowerLASCOPF.ExtendedThermalGenerationCost(gen.operation_cost, PowerLASCOPF.GenFirstContIntervalDZ(nothing))
+        gensolver_first_cont_dz = PowerLASCOPF.GenSolver(extended_cost_first_cont_dz.regularization_term, extended_cost_first_cont_dz)
+
+        extended_cost_last_base = PowerLASCOPF.ExtendedThermalGenerationCost(gen.operation_cost, PowerLASCOPF.GenLastBaseInterval(nothing))
+        gensolver_last_base = PowerLASCOPF.GenSolver(extended_cost_last_base.regularization_term, extended_cost_last_base)
+
+        extended_cost_RND = PowerLASCOPF.ExtendedThermalGenerationCost(gen.operation_cost, PowerLASCOPF.GenInterRNDInterval(nothing))
+        gensolver_RND = PowerLASCOPF.GenSolver(extended_cost_RND.regularization_term, extended_cost_RND)
+
+        extended_cost_RSD = PowerLASCOPF.ExtendedThermalGenerationCost(gen.operation_cost, PowerLASCOPF.GenInterRSDInterval(nothing))
+        gensolver_RSD = PowerLASCOPF.GenSolver(extended_cost_RSD.regularization_term, extended_cost_RSD)
+
+        extended_cost_last_cont = PowerLASCOPF.ExtendedThermalGenerationCost(gen.operation_cost, PowerLASCOPF.GenLastContInterval(nothing))
+        gensolver_last_cont = PowerLASCOPF.GenSolver(extended_cost_last_cont.regularization_term, extended_cost_last_cont)
+
         extended_gen  = PowerLASCOPF.ExtendedThermalGenerator(
             gen, extended_cost, i, 1, false, cont_count, cont_count + 1, 1, 0, 1, node, cont_count
         )
@@ -1582,6 +2068,29 @@ function powerlascopf_renewable_generators_from_csv!(
         gen_interval = _make_gen_interval(cont_count)
 
         extended_cost = PowerLASCOPF.ExtendedRenewableGenerationCost(gen.operation_cost, gen_interval)
+        gensolver_first_base = PowerLASCOPF.GenSolver(gen_interval, extended_cost)
+
+        extended_cost_first_base_dz = PowerLASCOPF.ExtendedRenewableGenerationCost(gen.operation_cost, PowerLASCOPF.GenFirstBaseIntervalDZ(nothing))
+        gensolver_first_base_dz = PowerLASCOPF.GenSolver(extended_cost_first_base_dz.regularization_term, extended_cost_first_base_dz)
+
+        extended_cost_first_cont = PowerLASCOPF.ExtendedRenewableGenerationCost(gen.operation_cost, PowerLASCOPF.GenFirstContInterval(nothing))
+        gensolver_first_cont = PowerLASCOPF.GenSolver(extended_cost_first_cont.regularization_term, extended_cost_first_cont)
+
+        extended_cost_first_cont_dz = PowerLASCOPF.ExtendedRenewableGenerationCost(gen.operation_cost, PowerLASCOPF.GenFirstContIntervalDZ(nothing))
+        gensolver_first_cont_dz = PowerLASCOPF.GenSolver(extended_cost_first_cont_dz.regularization_term, extended_cost_first_cont_dz)
+
+        extended_cost_last_base = PowerLASCOPF.ExtendedRenewableGenerationCost(gen.operation_cost, PowerLASCOPF.GenLastBaseInterval(nothing))
+        gensolver_last_base = PowerLASCOPF.GenSolver(extended_cost_last_base.regularization_term, extended_cost_last_base)
+
+        extended_cost_RND = PowerLASCOPF.ExtendedRenewableGenerationCost(gen.operation_cost, PowerLASCOPF.GenInterRNDInterval(nothing))
+        gensolver_RND = PowerLASCOPF.GenSolver(extended_cost_RND.regularization_term, extended_cost_RND)
+
+        extended_cost_RSD = PowerLASCOPF.ExtendedRenewableGenerationCost(gen.operation_cost, PowerLASCOPF.GenInterRSDInterval(nothing))
+        gensolver_RSD = PowerLASCOPF.GenSolver(extended_cost_RSD.regularization_term, extended_cost_RSD)
+
+        extended_cost_last_cont = PowerLASCOPF.ExtendedRenewableGenerationCost(gen.operation_cost, PowerLASCOPF.GenLastContInterval(nothing))
+        gensolver_last_cont = PowerLASCOPF.GenSolver(extended_cost_last_cont.regularization_term, extended_cost_last_cont)
+
         extended_gen  = PowerLASCOPF.ExtendedRenewableGenerator(
             gen, extended_cost, i, 1, false, cont_count, cont_count + 1, 1, 0, 1, node, cont_count
         )
@@ -1704,6 +2213,29 @@ function powerlascopf_hydro_generators_from_csv!(
         gen_interval = _make_gen_interval(cont_count)
 
         extended_cost_h = PowerLASCOPF.ExtendedHydroGenerationCost(gen.operation_cost, gen_interval)
+        gensolver_first_base = PowerLASCOPF.GenSolver(gen_interval, extended_cost_h)
+
+        extended_cost_first_base_dz = PowerLASCOPF.ExtendedHydroGenerationCost(gen.operation_cost, PowerLASCOPF.GenFirstBaseIntervalDZ(nothing))
+        gensolver_first_base_dz = PowerLASCOPF.GenSolver(extended_cost_first_base_dz.regularization_term, extended_cost_first_base_dz)
+
+        extended_cost_first_cont = PowerLASCOPF.ExtendedHydroGenerationCost(gen.operation_cost, PowerLASCOPF.GenFirstContInterval(nothing))
+        gensolver_first_cont = PowerLASCOPF.GenSolver(extended_cost_first_cont.regularization_term, extended_cost_first_cont)
+
+        extended_cost_first_cont_dz = PowerLASCOPF.ExtendedHydroGenerationCost(gen.operation_cost, PowerLASCOPF.GenFirstContIntervalDZ(nothing))
+        gensolver_first_cont_dz = PowerLASCOPF.GenSolver(extended_cost_first_cont_dz.regularization_term, extended_cost_first_cont_dz)
+
+        extended_cost_last_base = PowerLASCOPF.ExtendedHydroGenerationCost(gen.operation_cost, PowerLASCOPF.GenLastBaseInterval(nothing))
+        gensolver_last_base = PowerLASCOPF.GenSolver(extended_cost_last_base.regularization_term, extended_cost_last_base)
+
+        extended_cost_RND = PowerLASCOPF.ExtendedHydroGenerationCost(gen.operation_cost, PowerLASCOPF.GenInterRNDInterval(nothing))
+        gensolver_RND = PowerLASCOPF.GenSolver(extended_cost_RND.regularization_term, extended_cost_RND)
+
+        extended_cost_RSD = PowerLASCOPF.ExtendedHydroGenerationCost(gen.operation_cost, PowerLASCOPF.GenInterRSDInterval(nothing))
+        gensolver_RSD = PowerLASCOPF.GenSolver(extended_cost_RSD.regularization_term, extended_cost_RSD)
+
+        extended_cost_last_cont = PowerLASCOPF.ExtendedHydroGenerationCost(gen.operation_cost, PowerLASCOPF.GenLastContInterval(nothing))
+        gensolver_last_cont = PowerLASCOPF.GenSolver(extended_cost_last_cont.regularization_term, extended_cost_last_cont)
+
         extended_gen    = PowerLASCOPF.ExtendedHydroGenerator(
             gen, extended_cost_h, i, 1, false, cont_count, cont_count + 1, 1, 0, 1, node, cont_count
         )
@@ -1902,6 +2434,1006 @@ function powerlascopf_loads_from_csv!(
     return loads
 end
 
+# ============================================================================
+# SECTION B8: PSY SYSTEM BRIDGE
+# Populates a PowerLASCOPFSystem from an already-parsed PSY.System object.
+# Used for PSS/E RAW and MATPOWER formats (loaded via PSY.System(filepath)).
+# ============================================================================
+
+"""
+    powerlascopf_from_psy_system!(system, psy_system, cont_count; contingency_list, RND_int)
+
+Populate a PowerLASCOPFSystem by iterating components in an existing PSY.System.
+
+This is the bridge function for non-IEEE-CSV formats (PSS/E RAW, MATPOWER).
+The caller loads `psy_system = PSY.System(filepath)` and then calls this function,
+which replicates the same extended-cost / gensolver / extended-generator construction
+used by the CSV-based functions.
+
+# Arguments
+- `system`           : empty PowerLASCOPFSystem (created with `PowerLASCOPFSystem(PSY.System(base_power))`)
+- `psy_system`       : populated PSY.System (e.g. from `PSY.System("case.raw")`)
+- `cont_count`       : number of contingency scenarios (default 6)
+- `contingency_list` : vector of branch indices marked as contingencies (default: first `cont_count` branches)
+- `RND_int`          : number of RND look-ahead intervals for LineSolverBase sizing (default 1)
+"""
+function powerlascopf_from_psy_system!(
+    system::PowerLASCOPF.PowerLASCOPFSystem,
+    psy_system::PSY.System,
+    cont_count::Int = 6;
+    contingency_list::Vector{Int} = Int[],
+    RND_int::Int = 1
+)
+    log_info("Building PowerLASCOPFSystem from PSY.System...")
+
+    # ------------------------------------------------------------------
+    # 1. NODES (buses)
+    # ------------------------------------------------------------------
+    nodes = PowerLASCOPF.Node{PSY.Bus}[]
+    bus_index = Dict{Int, Int}()           # bus_number => node vector index
+
+    for (i, bus) in enumerate(PSY.get_components(PSY.ACBus, psy_system))
+        node = PowerLASCOPF.Node{PSY.Bus}(bus, i, 0)
+        # The bus is already in psy_system — do NOT call add_component! again.
+        PowerLASCOPF.add_node!(system, node)
+        push!(nodes, node)
+        bus_index[PSY.get_number(bus)] = i
+    end
+
+    node_by_busnum = Dict(PSY.get_number(n.node_type) => n for n in nodes)
+    log_info("Added $(length(nodes)) nodes.")
+
+    # ------------------------------------------------------------------
+    # 2. BRANCHES
+    # ------------------------------------------------------------------
+    transmission_lines = PowerLASCOPF.transmissionLine[]
+    contingency_tracker = 0
+
+    # Default contingency list: first cont_count AC branches
+    effective_cont_list = isempty(contingency_list) ? collect(1:cont_count) : contingency_list
+
+    for (i, branch) in enumerate(PSY.get_components(PSY.Branch, psy_system))
+        arc      = PSY.get_arc(branch)
+        from_bus = PSY.get_from(arc)
+        to_bus   = PSY.get_to(arc)
+        from_num = PSY.get_number(from_bus)
+        to_num   = PSY.get_number(to_bus)
+
+        from_node = get(node_by_busnum, from_num, nothing)
+        to_node   = get(node_by_busnum, to_num,   nothing)
+        if from_node === nothing || to_node === nothing
+            log_warn("Branch $i: bus $from_num or $to_num not found in nodes, skipping.")
+            continue
+        end
+
+        if i in effective_cont_list
+            contingency_tracker += 1
+            temp_tracker = contingency_tracker
+        else
+            temp_tracker = 0
+        end
+
+        if branch isa PSY.Line
+            solver_base = PowerLASCOPF.LineSolverBase(
+                lambda_txr    = randn(cont_count * max(RND_int - 1, 1)),
+                interval_type = PowerLASCOPF.LineBaseInterval(),
+                E_coeff       = [0.9^j for j in 1:max(RND_int, 1)],
+                Pt_next_nu    = zeros(cont_count * max(RND_int - 1, 1)),
+                BSC           = 0.1 * randn(cont_count * max(RND_int - 1, 1)),
+                E_temp_coeff  = 0.01 * randn(max(RND_int, 1), max(RND_int, 1)),
+                alpha_factor  = 0.05,
+                beta_factor   = 0.1,
+                beta          = 0.1,
+                gamma         = 0.2,
+                Pt_max        = 1000.0,
+                temp_init     = 340.0,
+                temp_amb      = 300.0,
+                max_temp      = 473.0,
+                RND_int       = 1,
+                cont_count    = cont_count
+            )
+            trans_line = PowerLASCOPF.transmissionLine{PSY.Line}(
+                transl_type       = branch,
+                solver_line_base  = solver_base,
+                transl_id         = i,
+                conn_nodet1_ptr   = from_node,
+                conn_nodet2_ptr   = to_node,
+                cont_scen_tracker = temp_tracker,
+                thetat1 = 0.0, thetat2 = 0.0,
+                pt1 = 0.0, pt2 = 0.0,
+                v1  = 0.0, v2  = 0.0
+            )
+            PowerLASCOPF.assign_conn_nodes(trans_line)
+            PowerLASCOPF.add_transmission_line!(system, trans_line)
+            push!(transmission_lines, trans_line)
+
+        elseif branch isa PSY.HVDCLine
+            solver_base = PowerLASCOPF.LineSolverBase(
+                lambda_txr    = [0.0],
+                interval_type = PowerLASCOPF.LineBaseInterval(),
+                E_coeff       = [1.0],
+                Pt_next_nu    = [0.0],
+                BSC           = [0.0],
+                E_temp_coeff  = reshape([0.1], 1, 1),
+                RND_int       = 1,
+                cont_count    = 1
+            )
+            trans_line = PowerLASCOPF.transmissionLine{PSY.HVDCLine}(
+                transl_type       = branch,
+                solver_line_base  = solver_base,
+                transl_id         = i,
+                conn_nodet1_ptr   = from_node,
+                conn_nodet2_ptr   = to_node,
+                cont_scen_tracker = temp_tracker,
+                thetat1 = 0.0, thetat2 = 0.0,
+                pt1 = 0.0, pt2 = 0.0,
+                v1  = 0.0, v2  = 0.0
+            )
+            PowerLASCOPF.assign_conn_nodes(trans_line)
+            PowerLASCOPF.add_transmission_line!(system, trans_line)
+            push!(transmission_lines, trans_line)
+
+        else
+            log_warn("Branch $i ($(PSY.get_name(branch))): unsupported type $(typeof(branch)), skipping.")
+        end
+    end
+    log_info("Added $(length(transmission_lines)) transmission lines.")
+
+    # ------------------------------------------------------------------
+    # 3. THERMAL GENERATORS
+    # ------------------------------------------------------------------
+    thermal_gens = PowerLASCOPF.GeneralizedGenerator[]
+
+    for (i, gen) in enumerate(PSY.get_components(PSY.ThermalStandard, psy_system))
+        bus_num = PSY.get_number(PSY.get_bus(gen))
+        node    = get(node_by_busnum, bus_num, nothing)
+        if node === nothing
+            log_warn("Thermal gen $(PSY.get_name(gen)): bus $bus_num not found, skipping.")
+            continue
+        end
+
+        # Retrieve or build operation cost.
+        # PSS/E RAW files often have no cost data; provide a linear default.
+        op_cost = PSY.get_operation_cost(gen)
+        if op_cost === nothing || !(op_cost isa PSY.ThermalGenerationCost)
+            op_cost = PSY.ThermalGenerationCost(
+                variable  = IS.FuelCurve(
+                    value_curve = IS.LinearCurve(10.0),
+                    fuel_cost   = 1.0,
+                    vom_cost    = IS.LinearCurve(0.0)
+                ),
+                fixed     = 0.0,
+                start_up  = 0.0,
+                shut_down = 0.0
+            )
+        end
+
+        gen_interval = _make_gen_interval(cont_count)
+
+        extended_cost = PowerLASCOPF.ExtendedThermalGenerationCost(op_cost, gen_interval)
+        gensolver_first_base = PowerLASCOPF.GenSolver(gen_interval, extended_cost)
+
+        extended_cost_first_base_dz = PowerLASCOPF.ExtendedThermalGenerationCost(op_cost, PowerLASCOPF.GenFirstBaseIntervalDZ(nothing))
+        gensolver_first_base_dz = PowerLASCOPF.GenSolver(extended_cost_first_base_dz.regularization_term, extended_cost_first_base_dz)
+
+        extended_cost_first_cont = PowerLASCOPF.ExtendedThermalGenerationCost(op_cost, PowerLASCOPF.GenFirstContInterval(nothing))
+        gensolver_first_cont = PowerLASCOPF.GenSolver(extended_cost_first_cont.regularization_term, extended_cost_first_cont)
+
+        extended_cost_first_cont_dz = PowerLASCOPF.ExtendedThermalGenerationCost(op_cost, PowerLASCOPF.GenFirstContIntervalDZ(nothing))
+        gensolver_first_cont_dz = PowerLASCOPF.GenSolver(extended_cost_first_cont_dz.regularization_term, extended_cost_first_cont_dz)
+
+        extended_cost_last_base = PowerLASCOPF.ExtendedThermalGenerationCost(op_cost, PowerLASCOPF.GenLastBaseInterval(nothing))
+        gensolver_last_base = PowerLASCOPF.GenSolver(extended_cost_last_base.regularization_term, extended_cost_last_base)
+
+        extended_cost_RND = PowerLASCOPF.ExtendedThermalGenerationCost(op_cost, PowerLASCOPF.GenInterRNDInterval(nothing))
+        gensolver_RND = PowerLASCOPF.GenSolver(extended_cost_RND.regularization_term, extended_cost_RND)
+
+        extended_cost_RSD = PowerLASCOPF.ExtendedThermalGenerationCost(op_cost, PowerLASCOPF.GenInterRSDInterval(nothing))
+        gensolver_RSD = PowerLASCOPF.GenSolver(extended_cost_RSD.regularization_term, extended_cost_RSD)
+
+        extended_cost_last_cont = PowerLASCOPF.ExtendedThermalGenerationCost(op_cost, PowerLASCOPF.GenLastContInterval(nothing))
+        gensolver_last_cont = PowerLASCOPF.GenSolver(extended_cost_last_cont.regularization_term, extended_cost_last_cont)
+
+        extended_gen = PowerLASCOPF.ExtendedThermalGenerator(
+            gen, extended_cost, i, 1, false, cont_count, cont_count + 1, 1, 0, 1, node, cont_count
+        )
+        PowerLASCOPF.add_extended_thermal_generator!(system, extended_gen)
+
+        lascopf_gen = PowerLASCOPF.GeneralizedGenerator(
+            gen, gen_interval, i, 1, false, cont_count, cont_count + 1, 1, 0, 1, node, cont_count
+        )
+        push!(thermal_gens, lascopf_gen)
+    end
+    log_info("Added $(length(thermal_gens)) thermal generators.")
+
+    # ------------------------------------------------------------------
+    # 4. RENEWABLE GENERATORS
+    # ------------------------------------------------------------------
+    renewable_gens = PowerLASCOPF.GeneralizedGenerator[]
+
+    for (i, gen) in enumerate(PSY.get_components(PSY.RenewableDispatch, psy_system))
+        bus_num = PSY.get_number(PSY.get_bus(gen))
+        node    = get(node_by_busnum, bus_num, nothing)
+        if node === nothing
+            log_warn("Renewable gen $(PSY.get_name(gen)): bus $bus_num not found, skipping.")
+            continue
+        end
+
+        op_cost = PSY.get_operation_cost(gen)
+        if op_cost === nothing || !(op_cost isa PSY.RenewableGenerationCost)
+            op_cost = PSY.RenewableGenerationCost(
+                CostCurve(IS.LinearCurve(0.0))
+            )
+        end
+
+        gen_interval = _make_gen_interval(cont_count)
+
+        extended_cost = PowerLASCOPF.ExtendedRenewableGenerationCost(op_cost, gen_interval)
+        gensolver_first_base = PowerLASCOPF.GenSolver(gen_interval, extended_cost)
+
+        extended_cost_first_base_dz = PowerLASCOPF.ExtendedRenewableGenerationCost(op_cost, PowerLASCOPF.GenFirstBaseIntervalDZ(nothing))
+        gensolver_first_base_dz = PowerLASCOPF.GenSolver(extended_cost_first_base_dz.regularization_term, extended_cost_first_base_dz)
+
+        extended_cost_first_cont = PowerLASCOPF.ExtendedRenewableGenerationCost(op_cost, PowerLASCOPF.GenFirstContInterval(nothing))
+        gensolver_first_cont = PowerLASCOPF.GenSolver(extended_cost_first_cont.regularization_term, extended_cost_first_cont)
+
+        extended_cost_first_cont_dz = PowerLASCOPF.ExtendedRenewableGenerationCost(op_cost, PowerLASCOPF.GenFirstContIntervalDZ(nothing))
+        gensolver_first_cont_dz = PowerLASCOPF.GenSolver(extended_cost_first_cont_dz.regularization_term, extended_cost_first_cont_dz)
+
+        extended_cost_last_base = PowerLASCOPF.ExtendedRenewableGenerationCost(op_cost, PowerLASCOPF.GenLastBaseInterval(nothing))
+        gensolver_last_base = PowerLASCOPF.GenSolver(extended_cost_last_base.regularization_term, extended_cost_last_base)
+
+        extended_cost_RND = PowerLASCOPF.ExtendedRenewableGenerationCost(op_cost, PowerLASCOPF.GenInterRNDInterval(nothing))
+        gensolver_RND = PowerLASCOPF.GenSolver(extended_cost_RND.regularization_term, extended_cost_RND)
+
+        extended_cost_RSD = PowerLASCOPF.ExtendedRenewableGenerationCost(op_cost, PowerLASCOPF.GenInterRSDInterval(nothing))
+        gensolver_RSD = PowerLASCOPF.GenSolver(extended_cost_RSD.regularization_term, extended_cost_RSD)
+
+        extended_cost_last_cont = PowerLASCOPF.ExtendedRenewableGenerationCost(op_cost, PowerLASCOPF.GenLastContInterval(nothing))
+        gensolver_last_cont = PowerLASCOPF.GenSolver(extended_cost_last_cont.regularization_term, extended_cost_last_cont)
+
+        extended_gen = PowerLASCOPF.ExtendedRenewableGenerator(
+            gen, extended_cost, i, 1, false, cont_count, cont_count + 1, 1, 0, 1, node, cont_count
+        )
+        PowerLASCOPF.add_extended_renewable_generator!(system, extended_gen)
+
+        lascopf_gen = PowerLASCOPF.GeneralizedGenerator(
+            gen, gen_interval, i, 1, false, cont_count, cont_count + 1, 1, 0, 1, node, cont_count
+        )
+        push!(renewable_gens, lascopf_gen)
+    end
+    log_info("Added $(length(renewable_gens)) renewable generators.")
+
+    # ------------------------------------------------------------------
+    # 5. HYDRO GENERATORS
+    # ------------------------------------------------------------------
+    hydro_gens = PowerLASCOPF.GeneralizedGenerator[]
+
+    for (i, gen) in enumerate(Iterators.flatten((
+            PSY.get_components(PSY.HydroDispatch, psy_system),
+            PSY.get_components(PSY.HydroEnergyReservoir, psy_system)
+        )))
+
+        bus_num = PSY.get_number(PSY.get_bus(gen))
+        node    = get(node_by_busnum, bus_num, nothing)
+        if node === nothing
+            log_warn("Hydro gen $(PSY.get_name(gen)): bus $bus_num not found, skipping.")
+            continue
+        end
+
+        op_cost = PSY.get_operation_cost(gen)
+        if op_cost === nothing || !(op_cost isa PSY.HydroGenerationCost)
+            op_cost = PSY.HydroGenerationCost(
+                variable = IS.FuelCurve(
+                    value_curve = IS.LinearCurve(0.0),
+                    fuel_cost   = 0.0
+                ),
+                fixed = 0.0
+            )
+        end
+
+        gen_interval = _make_gen_interval(cont_count)
+
+        extended_cost_h = PowerLASCOPF.ExtendedHydroGenerationCost(op_cost, gen_interval)
+        gensolver_first_base = PowerLASCOPF.GenSolver(gen_interval, extended_cost_h)
+
+        extended_cost_first_base_dz = PowerLASCOPF.ExtendedHydroGenerationCost(op_cost, PowerLASCOPF.GenFirstBaseIntervalDZ(nothing))
+        gensolver_first_base_dz = PowerLASCOPF.GenSolver(extended_cost_first_base_dz.regularization_term, extended_cost_first_base_dz)
+
+        extended_cost_first_cont = PowerLASCOPF.ExtendedHydroGenerationCost(op_cost, PowerLASCOPF.GenFirstContInterval(nothing))
+        gensolver_first_cont = PowerLASCOPF.GenSolver(extended_cost_first_cont.regularization_term, extended_cost_first_cont)
+
+        extended_cost_first_cont_dz = PowerLASCOPF.ExtendedHydroGenerationCost(op_cost, PowerLASCOPF.GenFirstContIntervalDZ(nothing))
+        gensolver_first_cont_dz = PowerLASCOPF.GenSolver(extended_cost_first_cont_dz.regularization_term, extended_cost_first_cont_dz)
+
+        extended_cost_last_base = PowerLASCOPF.ExtendedHydroGenerationCost(op_cost, PowerLASCOPF.GenLastBaseInterval(nothing))
+        gensolver_last_base = PowerLASCOPF.GenSolver(extended_cost_last_base.regularization_term, extended_cost_last_base)
+
+        extended_cost_RND = PowerLASCOPF.ExtendedHydroGenerationCost(op_cost, PowerLASCOPF.GenInterRNDInterval(nothing))
+        gensolver_RND = PowerLASCOPF.GenSolver(extended_cost_RND.regularization_term, extended_cost_RND)
+
+        extended_cost_RSD = PowerLASCOPF.ExtendedHydroGenerationCost(op_cost, PowerLASCOPF.GenInterRSDInterval(nothing))
+        gensolver_RSD = PowerLASCOPF.GenSolver(extended_cost_RSD.regularization_term, extended_cost_RSD)
+
+        extended_cost_last_cont = PowerLASCOPF.ExtendedHydroGenerationCost(op_cost, PowerLASCOPF.GenLastContInterval(nothing))
+        gensolver_last_cont = PowerLASCOPF.GenSolver(extended_cost_last_cont.regularization_term, extended_cost_last_cont)
+
+        extended_gen = PowerLASCOPF.ExtendedHydroGenerator(
+            gen, extended_cost_h, i, 1, false, cont_count, cont_count + 1, 1, 0, 1, node, cont_count
+        )
+        PowerLASCOPF.add_extended_hydro_generator!(system, extended_gen)
+
+        lascopf_gen = PowerLASCOPF.GeneralizedGenerator(
+            gen, gen_interval, i, 1, false, cont_count, cont_count + 1, 1, 0, 1, node, cont_count
+        )
+        push!(hydro_gens, lascopf_gen)
+    end
+    log_info("Added $(length(hydro_gens)) hydro generators.")
+
+    # ------------------------------------------------------------------
+    # 6. LOADS
+    # ------------------------------------------------------------------
+    lascopf_loads = PowerLASCOPF.Load[]
+
+    for (i, load) in enumerate(PSY.get_components(PSY.PowerLoad, psy_system))
+        bus_num = PSY.get_number(PSY.get_bus(load))
+        node    = get(node_by_busnum, bus_num, nothing)
+        if node === nothing
+            log_warn("Load $(PSY.get_name(load)): bus $bus_num not found, skipping.")
+            continue
+        end
+        active_power = PSY.get_active_power(load)
+        lascopf_load = PowerLASCOPF.Load(load, i, active_power)
+        PowerLASCOPF.add_extended_load!(system, lascopf_load)
+        push!(lascopf_loads, lascopf_load)
+    end
+    log_info("Added $(length(lascopf_loads)) loads.")
+
+    log_success("PowerLASCOPFSystem populated from PSY.System: " *
+                "$(length(nodes)) buses, $(length(transmission_lines)) branches, " *
+                "$(length(thermal_gens)) thermal, $(length(renewable_gens)) renewable, " *
+                "$(length(hydro_gens)) hydro, $(length(lascopf_loads)) loads.")
+
+    return (
+        nodes              = nodes,
+        branches           = transmission_lines,
+        thermal_generators = thermal_gens,
+        renewable_generators = renewable_gens,
+        hydro_generators   = hydro_gens,
+        loads              = lascopf_loads
+    )
+end
+
+# ============================================================================
+# SECTION B10: HEAT RATE → QUADRATIC COST CURVE HELPER
+# Converts RTS-GMLC piecewise incremental heat rate data into a least-squares
+# quadratic fit suitable for IS.FuelCurve / IS.QuadraticCurve.
+# ============================================================================
+
+"""
+    _heat_rate_to_quadratic(p_max, hr_avg_0, hr_incr_1..4, out_pct_0..4, fuel_price)
+
+Fit a quadratic heat-consumption curve H(P) = a·P² + b·P + c (MMBTU/hr, P in MW)
+to the RTS-GMLC piecewise heat-rate data, using ordinary least squares.
+
+Returns `(a, b, c)` suitable for `IS.QuadraticCurve(a, b, c)` inside an
+`IS.FuelCurve(value_curve=..., fuel_cost=fuel_price, vom_cost=LinearCurve(0))`.
+
+Heat-rate conversion: BTU/kWh × MW × (1000 kW/MW) / (10^6 BTU/MMBTU) = MMBTU/hr
+"""
+function _heat_rate_to_quadratic(
+    p_max::Float64,
+    hr_avg_0,  hr_incr_1,  hr_incr_2,  hr_incr_3,  hr_incr_4,
+    out_pct_0, out_pct_1,  out_pct_2,  out_pct_3,  out_pct_4,
+    fuel_price::Float64
+)
+    pcts  = [out_pct_0,  out_pct_1,  out_pct_2,  out_pct_3,  out_pct_4]
+    incrs = [hr_avg_0,   hr_incr_1,  hr_incr_2,  hr_incr_3,  hr_incr_4]
+
+    P = Float64[]
+    H = Float64[]   # cumulative heat consumption (MMBTU/hr) at each breakpoint
+
+    cumulative_heat = 0.0
+    prev_p          = 0.0
+
+    for k in 1:5
+        (ismissing(pcts[k]) || ismissing(incrs[k])) && break
+        p_k   = Float64(pcts[k]) * p_max
+        hr_k  = Float64(incrs[k])
+        if k == 1
+            # Average heat rate at minimum output: heat = HR_avg_0 × P_0 (BTU/kWh × MW = MMBTU/hr ÷ 1000)
+            h_k = hr_k * p_k * 1000.0 / 1.0e6
+        else
+            h_k = cumulative_heat + hr_k * (p_k - prev_p) * 1000.0 / 1.0e6
+        end
+        push!(P, p_k)
+        push!(H, h_k)
+        cumulative_heat = h_k
+        prev_p          = p_k
+    end
+
+    # Fallback: single linear curve using HR_avg_0
+    if length(P) < 2
+        base_hr  = Float64(coalesce(hr_avg_0,  10000.0))
+        linear_b = base_hr * 1000.0 / 1.0e6   # slope (MMBTU/hr per MW)
+        return 0.0, linear_b, 0.0
+    end
+
+    # Least-squares quadratic fit: A * [a, b, c]' = H
+    A = hcat(P .^ 2, P, ones(length(P)))
+    coefs = try
+        (A' * A) \ (A' * H)
+    catch
+        [0.0, H[end] / max(P[end], 1.0), 0.0]
+    end
+    return coefs[1], coefs[2], coefs[3]
+end
+
+# ============================================================================
+# SECTION B11: TIME SERIES LOADER (RTS-GMLC) — DEFERRED STUB
+# Full implementation reads timeseries_pointers_da.json and attaches
+# PSY.SingleTimeSeries to each component. For now returns empty Dict so
+# that powerlascopf_from_rts_gmlc! can proceed with the static snapshot.
+# ============================================================================
+
+"""
+    load_timeseries_rts_gmlc(case_path) -> Dict
+
+Stub: load RTS-GMLC day-ahead time series from timeseries_pointers_da.json.
+Returns an empty Dict; time series attachment is deferred (static snapshot used).
+"""
+function load_timeseries_rts_gmlc(case_path::String)
+    pointer_file = joinpath(case_path, "timeseries_pointers_da.json")
+    if isfile(pointer_file)
+        log_info("RTS-GMLC time series deferred: found $pointer_file but not yet loaded. " *
+                 "Static snapshot will be used.")
+    else
+        log_info("No timeseries_pointers_da.json found in $case_path. Static snapshot only.")
+    end
+    return Dict{String, Any}()
+end
+
+# ============================================================================
+# SECTION B12: LASCOPF SETTINGS INTEGRATION
+# Maps LASCOPF_settings.yml keys to the parameters used during system
+# construction, so every case uses its own configured intervals/solver.
+# ============================================================================
+
+"""
+    apply_lascopf_settings(settings) -> NamedTuple
+
+Convert a LASCOPF_settings.yml Dict into typed construction parameters.
+
+Returned fields:
+- `cont_count`          : from RNDIntervals (number of contingency scenarios)
+- `RND_int`             : from RNDIntervals (look-ahead intervals for LineSolverBase)
+- `RSD_int`             : from RSDIntervals
+- `use_dummy_interval`  : from dummyIntervalChoice (include GenFirstBaseIntervalDZ?)
+- `solver_choice`       : from solverChoice (1=GUROBI-APMP, 2=CVXGEN-APMP, …)
+- `rho_tuning`          : from setRhoTuning (ADMM ρ update mode)
+"""
+function apply_lascopf_settings(settings::Dict)
+    RND_int          = get(settings, "RNDIntervals",       3)
+    RSD_int          = get(settings, "RSDIntervals",       3)
+    solver_choice    = get(settings, "solverChoice",       1)
+    rho_tuning       = get(settings, "setRhoTuning",       3)
+    dummy_interval   = get(settings, "dummyIntervalChoice", 1)
+
+    log_info("LASCOPF settings applied: RND_int=$RND_int  RSD_int=$RSD_int  " *
+             "solver=$solver_choice  rho_tuning=$rho_tuning  " *
+             "dummy_interval=$(Bool(dummy_interval))")
+
+    return (
+        RND_int           = Int(RND_int),
+        RSD_int           = Int(RSD_int),
+        use_dummy_interval = Bool(dummy_interval),
+        solver_choice     = Int(solver_choice),
+        rho_tuning        = Int(rho_tuning),
+    )
+end
+
+# ============================================================================
+# SECTION B9: RTS-GMLC FORMAT READER
+# Reads bus.csv / gen.csv / branch.csv / storage.csv from case_path and
+# builds a fully-populated PowerLASCOPFSystem.  Calls B10 for cost curves,
+# B11 for time series, and honours B12 settings if provided.
+# ============================================================================
+
+"""
+    powerlascopf_from_rts_gmlc!(system, case_path, cont_count; kwargs)
+
+Populate a PowerLASCOPFSystem from an RTS-GMLC formatted case directory.
+
+Reads: bus.csv, gen.csv, branch.csv, (optionally storage.csv, reserves.csv).
+Derives generator cost curves from piecewise heat rate data via a least-squares
+quadratic fit (see `_heat_rate_to_quadratic`).
+Classifies generators by Unit Type column → correct PSY / PowerLASCOPF types.
+
+# Arguments
+- `system`           : empty PowerLASCOPFSystem
+- `case_path`        : path to folder containing bus.csv, gen.csv, branch.csv
+- `cont_count`       : number of contingency scenarios
+- `contingency_list` : branch indices marked as contingencies (default: first `cont_count`)
+- `RND_int`          : RND look-ahead intervals for LineSolverBase sizing
+- `lascopf_settings` : Dict from `read_lascopf_settings()` / `apply_lascopf_settings()`
+"""
+function powerlascopf_from_rts_gmlc!(
+    system::PowerLASCOPF.PowerLASCOPFSystem,
+    case_path::String,
+    cont_count::Int = 6;
+    contingency_list::Vector{Int} = Int[],
+    RND_int::Int = 1,
+    lascopf_settings::Dict = Dict()
+)
+    log_info("Building PowerLASCOPFSystem from RTS-GMLC data at: $case_path")
+
+    # Apply settings if provided
+    if !isempty(lascopf_settings)
+        sp = apply_lascopf_settings(lascopf_settings)
+        RND_int = sp.RND_int
+        log_info("Settings override: RND_int=$RND_int")
+    end
+
+    # ------------------------------------------------------------------
+    # Read raw CSV files (bypass data_reader_generic helpers for
+    # self-contained operation within data_reader.jl)
+    # ------------------------------------------------------------------
+    bus_csv    = joinpath(case_path, "bus.csv")
+    gen_csv    = joinpath(case_path, "gen.csv")
+    branch_csv = joinpath(case_path, "branch.csv")
+
+    isfile(bus_csv)    || error("RTS-GMLC bus.csv not found in $case_path")
+    isfile(gen_csv)    || error("RTS-GMLC gen.csv not found in $case_path")
+    isfile(branch_csv) || error("RTS-GMLC branch.csv not found in $case_path")
+
+    bus_df    = CSV.read(bus_csv,    DataFrame)
+    gen_df    = CSV.read(gen_csv,    DataFrame)
+    branch_df = CSV.read(branch_csv, DataFrame)
+
+    storage_csv = joinpath(case_path, "storage.csv")
+    storage_df  = isfile(storage_csv) ? CSV.read(storage_csv, DataFrame) : DataFrame()
+
+    # Deferred time series (B11)
+    _ts = load_timeseries_rts_gmlc(case_path)
+
+    # ------------------------------------------------------------------
+    # 1. NODES (bus.csv)
+    # ------------------------------------------------------------------
+    nodes          = PowerLASCOPF.Node{PSY.Bus}[]
+    node_by_busnum = Dict{Int, PowerLASCOPF.Node{PSY.Bus}}()
+    bus_by_busnum  = Dict{Int, PSY.ACBus}()
+
+    for (i, row) in enumerate(eachrow(bus_df))
+        bus_num     = Int(row[Symbol("Bus ID")])
+        bus_name    = string(row[Symbol("Bus Name")])
+        bus_type    = string(row[Symbol("Bus Type")])
+        base_kv     = Float64(coalesce(row[Symbol("BaseKV")], 138.0))
+        v_mag       = Float64(coalesce(row[Symbol("V Mag")], 1.0))
+        v_ang       = Float64(coalesce(row[Symbol("V Angle")], 0.0))
+
+        bus = PSY.ACBus(
+            bus_num, bus_name, bus_type,
+            v_ang, v_mag,
+            (min = 0.94, max = 1.06),
+            base_kv, nothing, nothing
+        )
+        node = PowerLASCOPF.Node{PSY.Bus}(bus, i, 0)
+        PSY.add_component!(system.psy_system, bus)
+        PowerLASCOPF.add_node!(system, node)
+        push!(nodes, node)
+        node_by_busnum[bus_num] = node
+        bus_by_busnum[bus_num]  = bus
+    end
+    log_info("Added $(length(nodes)) nodes (RTS-GMLC).")
+
+    # ------------------------------------------------------------------
+    # 2. BRANCHES (branch.csv)
+    # ------------------------------------------------------------------
+    transmission_lines  = PowerLASCOPF.transmissionLine[]
+    effective_cont_list = isempty(contingency_list) ? collect(1:cont_count) : contingency_list
+    contingency_tracker = 0
+
+    for (i, row) in enumerate(eachrow(branch_df))
+        from_num = Int(row[Symbol("From Bus")])
+        to_num   = Int(row[Symbol("To Bus")])
+        from_bus  = get(bus_by_busnum,  from_num, nothing)
+        to_bus    = get(bus_by_busnum,  to_num,   nothing)
+        from_node = get(node_by_busnum, from_num, nothing)
+        to_node   = get(node_by_busnum, to_num,   nothing)
+
+        if from_bus === nothing || to_bus === nothing
+            log_warn("Branch $i: bus $from_num or $to_num not in bus list, skipping.")
+            continue
+        end
+
+        tr_ratio = Float64(coalesce(row[Symbol("Tr Ratio")], 0.0))
+        is_ac    = (tr_ratio == 0.0)   # Tr Ratio == 0 ↔ plain AC line
+
+        temp_tracker = if i in effective_cont_list
+            contingency_tracker += 1
+            contingency_tracker
+        else
+            0
+        end
+
+        line_name = string(row[Symbol("UID")])
+        r         = Float64(coalesce(row[Symbol("R")], 0.0))
+        x         = Float64(coalesce(row[Symbol("X")], 1e-4))   # avoid zero reactance
+        b_total   = Float64(coalesce(row[Symbol("B")], 0.0))
+        rate      = Float64(coalesce(row[Symbol("Cont Rating")], 9999.0))
+
+        branch = PSY.Line(
+            line_name, true, 0.0, 0.0,
+            Arc(from = from_bus, to = to_bus),
+            r, x,
+            (from = b_total / 2, to = b_total / 2),
+            rate,
+            (min = -0.7, max = 0.7)
+        )
+        PSY.add_component!(system.psy_system, branch)
+
+        n_lambda = cont_count * max(RND_int - 1, 1)
+        solver_base = PowerLASCOPF.LineSolverBase(
+            lambda_txr    = randn(n_lambda),
+            interval_type = PowerLASCOPF.LineBaseInterval(),
+            E_coeff       = [0.9^j for j in 1:max(RND_int, 1)],
+            Pt_next_nu    = zeros(n_lambda),
+            BSC           = 0.1 * randn(n_lambda),
+            E_temp_coeff  = 0.01 * randn(max(RND_int, 1), max(RND_int, 1)),
+            alpha_factor  = 0.05,
+            beta_factor   = 0.1,
+            beta          = 0.1,
+            gamma         = 0.2,
+            Pt_max        = 1000.0,
+            temp_init     = 340.0,
+            temp_amb      = 300.0,
+            max_temp      = 473.0,
+            RND_int       = 1,
+            cont_count    = cont_count
+        )
+
+        trans_line = PowerLASCOPF.transmissionLine{PSY.Line}(
+            transl_type       = branch,
+            solver_line_base  = solver_base,
+            transl_id         = i,
+            conn_nodet1_ptr   = from_node,
+            conn_nodet2_ptr   = to_node,
+            cont_scen_tracker = temp_tracker,
+            thetat1 = 0.0, thetat2 = 0.0,
+            pt1 = 0.0, pt2 = 0.0,
+            v1  = 0.0, v2  = 0.0
+        )
+        PowerLASCOPF.assign_conn_nodes(trans_line)
+        PowerLASCOPF.add_transmission_line!(system, trans_line)
+        push!(transmission_lines, trans_line)
+    end
+    log_info("Added $(length(transmission_lines)) branches (RTS-GMLC).")
+
+    # ------------------------------------------------------------------
+    # 3. GENERATORS (gen.csv)  — classified by Unit Type
+    # ------------------------------------------------------------------
+    thermal_gens   = PowerLASCOPF.GeneralizedGenerator[]
+    renewable_gens = PowerLASCOPF.GeneralizedGenerator[]
+    hydro_gens     = PowerLASCOPF.GeneralizedGenerator[]
+
+    # Unit type → generator category
+    _THERMAL_TYPES   = Set(["CT", "CC", "ST", "STEAM", "DR", "GAS", "COAL", "OIL", "NUCLEAR"])
+    _RENEWABLE_TYPES = Set(["WT", "PV", "RTPV", "CSP"])
+    _HYDRO_TYPES     = Set(["HY", "ROR"])
+    # PS (pumped storage) deferred to storage section
+
+    fuel_price_col = Symbol("Fuel Price \$/MMBTU")
+    start_col      = Symbol("Non Fuel Start Cost \$")
+    stop_col       = Symbol("Non Fuel Shutdown Cost \$")
+    ramp_col       = Symbol("Ramp Rate MW/Min")
+
+    for (i, row) in enumerate(eachrow(gen_df))
+        unit_type = string(row[Symbol("Unit Type")])
+        bus_num   = Int(row[Symbol("Bus ID")])
+        node      = get(node_by_busnum, bus_num, nothing)
+        bus       = get(bus_by_busnum,  bus_num, nothing)
+
+        if node === nothing
+            log_warn("Generator $(row[Symbol("GEN UID")]): bus $bus_num not found, skipping.")
+            continue
+        end
+
+        p_max    = Float64(row[Symbol("PMax MW")])
+        p_min    = Float64(row[Symbol("PMin MW")])
+        q_max    = Float64(coalesce(row[Symbol("QMax MVAR")], 0.0))
+        q_min    = Float64(coalesce(row[Symbol("QMin MVAR")], 0.0))
+        base_pwr = Float64(coalesce(row[Symbol("Base MVA")], 100.0))
+        ramp_mw  = Float64(coalesce(row[ramp_col], 0.0)) * 60.0  # MW/min → MW/hr
+        fuel_prc = Float64(coalesce(row[fuel_price_col], 1.0))
+        start_c  = Float64(coalesce(row[start_col], 0.0))
+        stop_c   = Float64(coalesce(row[stop_col],  0.0))
+        gen_name = string(row[Symbol("GEN UID")])
+
+        ramp_limits = ramp_mw > 0 ? (up = ramp_mw, down = ramp_mw) : nothing
+
+        # B10: fit quadratic to piecewise heat rate (→ IS.QuadraticCurve)
+        qa, qb, qc = _heat_rate_to_quadratic(
+            p_max,
+            row[Symbol("HR_avg_0")],  row[Symbol("HR_incr_1")],
+            row[Symbol("HR_incr_2")], row[Symbol("HR_incr_3")],
+            row[Symbol("HR_incr_4")],
+            row[Symbol("Output_pct_0")], row[Symbol("Output_pct_1")],
+            row[Symbol("Output_pct_2")], row[Symbol("Output_pct_3")],
+            row[Symbol("Output_pct_4")],
+            fuel_prc
+        )
+
+        gen_interval = _make_gen_interval(cont_count)
+
+        # ---- THERMAL ----
+        if unit_type in _THERMAL_TYPES
+            fuel_sym = if unit_type in ("CC", "CT", "GAS") ; ThermalFuels.NATURAL_GAS
+                       elseif unit_type == "COAL"          ; ThermalFuels.COAL
+                       elseif unit_type == "OIL"           ; ThermalFuels.DISTILLATE_FUEL_OIL
+                       elseif unit_type == "NUCLEAR"       ; ThermalFuels.NUCLEAR
+                       else                                ; ThermalFuels.OTHER
+                       end
+
+            pm_sym = if unit_type == "CT"                  ; PrimeMovers.CT
+                     elseif unit_type == "CC"              ; PrimeMovers.CC
+                     elseif unit_type in ("ST", "STEAM")   ; PrimeMovers.ST
+                     elseif unit_type == "NUCLEAR"         ; PrimeMovers.ST
+                     else                                  ; PrimeMovers.OT
+                     end
+
+            op_cost = PSY.ThermalGenerationCost(
+                variable  = IS.FuelCurve(
+                    value_curve = IS.QuadraticCurve(qa, qb, qc),
+                    fuel_cost   = fuel_prc,
+                    vom_cost    = IS.LinearCurve(0.0)
+                ),
+                fixed     = 0.0,
+                start_up  = start_c,
+                shut_down = stop_c
+            )
+
+            gen = PSY.ThermalStandard(
+                name                  = gen_name,
+                available             = true,
+                status                = true,
+                bus                   = bus,
+                active_power          = p_min,
+                reactive_power        = 0.0,
+                rating                = p_max,
+                prime_mover_type      = pm_sym,
+                fuel                  = fuel_sym,
+                active_power_limits   = (min = p_min, max = p_max),
+                reactive_power_limits = (min = q_min, max = q_max),
+                ramp_limits           = ramp_limits,
+                time_limits           = nothing,
+                operation_cost        = op_cost,
+                base_power            = base_pwr
+            )
+            PSY.add_component!(system.psy_system, gen)
+
+            extended_cost = PowerLASCOPF.ExtendedThermalGenerationCost(gen.operation_cost, gen_interval)
+            gensolver_first_base = PowerLASCOPF.GenSolver(gen_interval, extended_cost)
+
+            extended_cost_first_base_dz = PowerLASCOPF.ExtendedThermalGenerationCost(gen.operation_cost, PowerLASCOPF.GenFirstBaseIntervalDZ(nothing))
+            gensolver_first_base_dz = PowerLASCOPF.GenSolver(extended_cost_first_base_dz.regularization_term, extended_cost_first_base_dz)
+
+            extended_cost_first_cont = PowerLASCOPF.ExtendedThermalGenerationCost(gen.operation_cost, PowerLASCOPF.GenFirstContInterval(nothing))
+            gensolver_first_cont = PowerLASCOPF.GenSolver(extended_cost_first_cont.regularization_term, extended_cost_first_cont)
+
+            extended_cost_first_cont_dz = PowerLASCOPF.ExtendedThermalGenerationCost(gen.operation_cost, PowerLASCOPF.GenFirstContIntervalDZ(nothing))
+            gensolver_first_cont_dz = PowerLASCOPF.GenSolver(extended_cost_first_cont_dz.regularization_term, extended_cost_first_cont_dz)
+
+            extended_cost_last_base = PowerLASCOPF.ExtendedThermalGenerationCost(gen.operation_cost, PowerLASCOPF.GenLastBaseInterval(nothing))
+            gensolver_last_base = PowerLASCOPF.GenSolver(extended_cost_last_base.regularization_term, extended_cost_last_base)
+
+            extended_cost_RND = PowerLASCOPF.ExtendedThermalGenerationCost(gen.operation_cost, PowerLASCOPF.GenInterRNDInterval(nothing))
+            gensolver_RND = PowerLASCOPF.GenSolver(extended_cost_RND.regularization_term, extended_cost_RND)
+
+            extended_cost_RSD = PowerLASCOPF.ExtendedThermalGenerationCost(gen.operation_cost, PowerLASCOPF.GenInterRSDInterval(nothing))
+            gensolver_RSD = PowerLASCOPF.GenSolver(extended_cost_RSD.regularization_term, extended_cost_RSD)
+
+            extended_cost_last_cont = PowerLASCOPF.ExtendedThermalGenerationCost(gen.operation_cost, PowerLASCOPF.GenLastContInterval(nothing))
+            gensolver_last_cont = PowerLASCOPF.GenSolver(extended_cost_last_cont.regularization_term, extended_cost_last_cont)
+
+            extended_gen = PowerLASCOPF.ExtendedThermalGenerator(
+                gen, extended_cost, i, 1, false, cont_count, cont_count + 1, 1, 0, 1, node, cont_count
+            )
+            PowerLASCOPF.add_extended_thermal_generator!(system, extended_gen)
+
+            lascopf_gen = PowerLASCOPF.GeneralizedGenerator(
+                gen, gen_interval, i, 1, false, cont_count, cont_count + 1, 1, 0, 1, node, cont_count
+            )
+            push!(thermal_gens, lascopf_gen)
+
+        # ---- RENEWABLE ----
+        elseif unit_type in _RENEWABLE_TYPES
+            pm_sym = if unit_type == "WT"   ; PrimeMovers.WT
+                     elseif unit_type == "PV"   ; PrimeMovers.PVe
+                     elseif unit_type == "RTPV" ; PrimeMovers.PVe
+                     elseif unit_type == "CSP"  ; PrimeMovers.CP
+                     else                       ; PrimeMovers.OT
+                     end
+
+            # Renewables: variable cost only (no fuel combustion)
+            var_cost = fuel_prc * Float64(coalesce(row[Symbol("HR_avg_0")], 0.0)) / 1000.0
+            op_cost  = PSY.RenewableGenerationCost(CostCurve(LinearCurve(var_cost)))
+
+            gen = PSY.RenewableDispatch(
+                gen_name, true, bus,
+                p_min, 0.0, p_max,
+                pm_sym,
+                (min = q_min, max = q_max),
+                1.0,
+                op_cost,
+                base_pwr
+            )
+            PSY.add_component!(system.psy_system, gen)
+
+            extended_cost = PowerLASCOPF.ExtendedRenewableGenerationCost(gen.operation_cost, gen_interval)
+            gensolver_first_base = PowerLASCOPF.GenSolver(gen_interval, extended_cost)
+
+            extended_cost_first_base_dz = PowerLASCOPF.ExtendedRenewableGenerationCost(gen.operation_cost, PowerLASCOPF.GenFirstBaseIntervalDZ(nothing))
+            gensolver_first_base_dz = PowerLASCOPF.GenSolver(extended_cost_first_base_dz.regularization_term, extended_cost_first_base_dz)
+
+            extended_cost_first_cont = PowerLASCOPF.ExtendedRenewableGenerationCost(gen.operation_cost, PowerLASCOPF.GenFirstContInterval(nothing))
+            gensolver_first_cont = PowerLASCOPF.GenSolver(extended_cost_first_cont.regularization_term, extended_cost_first_cont)
+
+            extended_cost_first_cont_dz = PowerLASCOPF.ExtendedRenewableGenerationCost(gen.operation_cost, PowerLASCOPF.GenFirstContIntervalDZ(nothing))
+            gensolver_first_cont_dz = PowerLASCOPF.GenSolver(extended_cost_first_cont_dz.regularization_term, extended_cost_first_cont_dz)
+
+            extended_cost_last_base = PowerLASCOPF.ExtendedRenewableGenerationCost(gen.operation_cost, PowerLASCOPF.GenLastBaseInterval(nothing))
+            gensolver_last_base = PowerLASCOPF.GenSolver(extended_cost_last_base.regularization_term, extended_cost_last_base)
+
+            extended_cost_RND = PowerLASCOPF.ExtendedRenewableGenerationCost(gen.operation_cost, PowerLASCOPF.GenInterRNDInterval(nothing))
+            gensolver_RND = PowerLASCOPF.GenSolver(extended_cost_RND.regularization_term, extended_cost_RND)
+
+            extended_cost_RSD = PowerLASCOPF.ExtendedRenewableGenerationCost(gen.operation_cost, PowerLASCOPF.GenInterRSDInterval(nothing))
+            gensolver_RSD = PowerLASCOPF.GenSolver(extended_cost_RSD.regularization_term, extended_cost_RSD)
+
+            extended_cost_last_cont = PowerLASCOPF.ExtendedRenewableGenerationCost(gen.operation_cost, PowerLASCOPF.GenLastContInterval(nothing))
+            gensolver_last_cont = PowerLASCOPF.GenSolver(extended_cost_last_cont.regularization_term, extended_cost_last_cont)
+
+            extended_gen = PowerLASCOPF.ExtendedRenewableGenerator(
+                gen, extended_cost, i, 1, false, cont_count, cont_count + 1, 1, 0, 1, node, cont_count
+            )
+            PowerLASCOPF.add_extended_renewable_generator!(system, extended_gen)
+
+            lascopf_gen = PowerLASCOPF.GeneralizedGenerator(
+                gen, gen_interval, i, 1, false, cont_count, cont_count + 1, 1, 0, 1, node, cont_count
+            )
+            push!(renewable_gens, lascopf_gen)
+
+        # ---- HYDRO ----
+        elseif unit_type in _HYDRO_TYPES
+            hydro_cost = PSY.HydroGenerationCost(
+                variable = IS.FuelCurve(
+                    value_curve = IS.LinearCurve(Float64(coalesce(row[Symbol("HR_avg_0")], 0.0)) / 1000.0),
+                    fuel_cost   = fuel_prc
+                ),
+                fixed = 0.0
+            )
+
+            if unit_type == "HY"
+                # HydroEnergyReservoir (reservoir hydro)
+                gen = PSY.HydroEnergyReservoir(
+                    name                  = gen_name,
+                    available             = true,
+                    bus                   = bus,
+                    active_power          = p_min,
+                    reactive_power        = 0.0,
+                    rating                = p_max,
+                    prime_mover_type      = PrimeMovers.HA,
+                    active_power_limits   = (min = p_min, max = p_max),
+                    reactive_power_limits = (min = q_min, max = q_max),
+                    ramp_limits           = ramp_limits,
+                    time_limits           = nothing,
+                    operation_cost        = hydro_cost,
+                    base_power            = base_pwr,
+                    storage_capacity      = p_max * 6.0,  # 6h reservoir default
+                    inflow                = p_min,
+                    conversion_factor     = 1.0,
+                    initial_storage       = p_max * 3.0
+                )
+            else  # ROR — run-of-river
+                gen = PSY.HydroDispatch(
+                    gen_name, true, bus, p_min, 0.0, p_max,
+                    PrimeMovers.HA,
+                    (min = p_min, max = p_max),
+                    (min = q_min, max = q_max),
+                    ramp_limits, nothing, base_pwr, hydro_cost,
+                    PSY.Device[], nothing, Dict{String, Any}()
+                )
+            end
+            PSY.add_component!(system.psy_system, gen)
+
+            extended_cost_h = PowerLASCOPF.ExtendedHydroGenerationCost(gen.operation_cost, gen_interval)
+            gensolver_first_base = PowerLASCOPF.GenSolver(gen_interval, extended_cost_h)
+
+            extended_cost_first_base_dz = PowerLASCOPF.ExtendedHydroGenerationCost(gen.operation_cost, PowerLASCOPF.GenFirstBaseIntervalDZ(nothing))
+            gensolver_first_base_dz = PowerLASCOPF.GenSolver(extended_cost_first_base_dz.regularization_term, extended_cost_first_base_dz)
+
+            extended_cost_first_cont = PowerLASCOPF.ExtendedHydroGenerationCost(gen.operation_cost, PowerLASCOPF.GenFirstContInterval(nothing))
+            gensolver_first_cont = PowerLASCOPF.GenSolver(extended_cost_first_cont.regularization_term, extended_cost_first_cont)
+
+            extended_cost_first_cont_dz = PowerLASCOPF.ExtendedHydroGenerationCost(gen.operation_cost, PowerLASCOPF.GenFirstContIntervalDZ(nothing))
+            gensolver_first_cont_dz = PowerLASCOPF.GenSolver(extended_cost_first_cont_dz.regularization_term, extended_cost_first_cont_dz)
+
+            extended_cost_last_base = PowerLASCOPF.ExtendedHydroGenerationCost(gen.operation_cost, PowerLASCOPF.GenLastBaseInterval(nothing))
+            gensolver_last_base = PowerLASCOPF.GenSolver(extended_cost_last_base.regularization_term, extended_cost_last_base)
+
+            extended_cost_RND = PowerLASCOPF.ExtendedHydroGenerationCost(gen.operation_cost, PowerLASCOPF.GenInterRNDInterval(nothing))
+            gensolver_RND = PowerLASCOPF.GenSolver(extended_cost_RND.regularization_term, extended_cost_RND)
+
+            extended_cost_RSD = PowerLASCOPF.ExtendedHydroGenerationCost(gen.operation_cost, PowerLASCOPF.GenInterRSDInterval(nothing))
+            gensolver_RSD = PowerLASCOPF.GenSolver(extended_cost_RSD.regularization_term, extended_cost_RSD)
+
+            extended_cost_last_cont = PowerLASCOPF.ExtendedHydroGenerationCost(gen.operation_cost, PowerLASCOPF.GenLastContInterval(nothing))
+            gensolver_last_cont = PowerLASCOPF.GenSolver(extended_cost_last_cont.regularization_term, extended_cost_last_cont)
+
+            extended_gen = PowerLASCOPF.ExtendedHydroGenerator(
+                gen, extended_cost_h, i, 1, false, cont_count, cont_count + 1, 1, 0, 1, node, cont_count
+            )
+            PowerLASCOPF.add_extended_hydro_generator!(system, extended_gen)
+
+            lascopf_gen = PowerLASCOPF.GeneralizedGenerator(
+                gen, gen_interval, i, 1, false, cont_count, cont_count + 1, 1, 0, 1, node, cont_count
+            )
+            push!(hydro_gens, lascopf_gen)
+
+        else
+            log_warn("Generator $gen_name (Unit Type '$unit_type'): unsupported type, skipping.")
+        end
+    end
+    log_info("Added $(length(thermal_gens)) thermal, $(length(renewable_gens)) renewable, $(length(hydro_gens)) hydro generators (RTS-GMLC).")
+
+    # ------------------------------------------------------------------
+    # 4. LOADS (bus.csv — MW/MVAR Load columns)
+    # ------------------------------------------------------------------
+    lascopf_loads = PowerLASCOPF.Load[]
+    load_idx = 0
+
+    for row in eachrow(bus_df)
+        mw_load   = Float64(coalesce(row[Symbol("MW Load")],   0.0))
+        mvar_load = Float64(coalesce(row[Symbol("MVAR Load")], 0.0))
+        mw_load > 0 || continue
+
+        bus_num    = Int(row[Symbol("Bus ID")])
+        node       = get(node_by_busnum, bus_num, nothing)
+        bus        = get(bus_by_busnum,  bus_num, nothing)
+        node === nothing && continue
+
+        load_idx += 1
+        load_name = "Load_$(bus_num)"
+
+        load = PSY.PowerLoad(
+            load_name, true, bus,
+            mw_load, mvar_load, 100.0,
+            mw_load, mvar_load
+        )
+        PSY.add_component!(system.psy_system, load)
+
+        lascopf_load = PowerLASCOPF.Load(load, load_idx, mw_load)
+        PowerLASCOPF.add_extended_load!(system, lascopf_load)
+        push!(lascopf_loads, lascopf_load)
+    end
+    log_info("Added $(length(lascopf_loads)) loads (RTS-GMLC).")
+
+    log_success("PowerLASCOPFSystem populated from RTS-GMLC: " *
+                "$(length(nodes)) buses, $(length(transmission_lines)) branches, " *
+                "$(length(thermal_gens)) thermal, $(length(renewable_gens)) renewable, " *
+                "$(length(hydro_gens)) hydro, $(length(lascopf_loads)) loads.")
+
+    return (
+        nodes                = nodes,
+        branches             = transmission_lines,
+        thermal_generators   = thermal_gens,
+        renewable_generators = renewable_gens,
+        hydro_generators     = hydro_gens,
+        loads                = lascopf_loads
+    )
+end
+
+#=
 # ============================================================
 # SECTION: 57-BUS CASE-SPECIFIC FUNCTIONS
 # Following the same pattern as data_14bus_pu.jl
@@ -2363,5 +3895,6 @@ function create_300bus_powerlascopf_system()
     log_info("300-bus PowerLASCOPF system created successfully.")
     return system, system_data
 end
+=#
 
 log_info("PowerLASCOPF data reader module with CSV-based system creation loaded.")
