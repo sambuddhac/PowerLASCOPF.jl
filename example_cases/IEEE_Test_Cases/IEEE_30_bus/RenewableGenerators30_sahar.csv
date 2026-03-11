@@ -1,0 +1,9 @@
+GeneratorName,BusNumber,GeneratorType,Available,ActivePower,ReactivePower,Rating,PrimeMover,ReactivePowerMin,ReactivePowerMax,PowerFactor,VariableCost,BasePower
+Wind_Bus9,9,RenewableDispatch,true,0.0,0.0,2.5,WT,0.0,0.0,1.0,0.20,100.0
+Wind_Bus10,10,RenewableDispatch,true,0.0,0.0,3.0,WT,-1.5,1.5,1.0,0.20,100.0
+Wind_Bus16,16,RenewableDispatch,true,0.0,0.0,2.0,WT,0.0,0.0,1.0,0.22,100.0
+Wind_Bus20,20,RenewableDispatch,true,0.0,0.0,2.2,WT,-1.0,1.0,1.0,0.22,100.0
+Wind_Bus24,24,RenewableDispatch,true,0.0,0.0,2.8,WT,0.0,0.0,1.0,0.21,100.0
+Solar_Bus6,6,RenewableDispatch,true,0.0,0.0,3.5,PV,0.0,0.0,1.0,0.15,100.0
+Solar_Bus15,15,RenewableDispatch,true,0.0,0.0,3.0,PV,-1.2,1.2,1.0,0.15,100.0
+Solar_Bus28,28,RenewableDispatch,true,0.0,0.0,2.5,PV,0.0,0.0,1.0,0.16,100.0

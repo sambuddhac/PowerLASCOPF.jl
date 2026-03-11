@@ -1,0 +1,202 @@
+[
+  {
+    "LoadName": "Bus2",
+    "BusNumber": 2,
+    "Available": true,
+    "ActivePower": 21.7,
+    "ReactivePower": 7.132,
+    "BasePower": 100.0,
+    "MaxActivePower": 21.7,
+    "MaxReactivePower": 7.132
+  },
+  {
+    "LoadName": "Bus3",
+    "BusNumber": 3,
+    "Available": true,
+    "ActivePower": 2.4,
+    "ReactivePower": 0.788,
+    "BasePower": 100.0,
+    "MaxActivePower": 2.4,
+    "MaxReactivePower": 0.788
+  },
+  {
+    "LoadName": "Bus4",
+    "BusNumber": 4,
+    "Available": true,
+    "ActivePower": 7.6,
+    "ReactivePower": 2.497,
+    "BasePower": 100.0,
+    "MaxActivePower": 7.6,
+    "MaxReactivePower": 2.497
+  },
+  {
+    "LoadName": "Bus7",
+    "BusNumber": 7,
+    "Available": true,
+    "ActivePower": 22.8,
+    "ReactivePower": 7.494,
+    "BasePower": 100.0,
+    "MaxActivePower": 22.8,
+    "MaxReactivePower": 7.494
+  },
+  {
+    "LoadName": "Bus8",
+    "BusNumber": 8,
+    "Available": true,
+    "ActivePower": 30.0,
+    "ReactivePower": 9.861,
+    "BasePower": 100.0,
+    "MaxActivePower": 30.0,
+    "MaxReactivePower": 9.861
+  },
+  {
+    "LoadName": "Bus10",
+    "BusNumber": 10,
+    "Available": true,
+    "ActivePower": 5.8,
+    "ReactivePower": 1.906,
+    "BasePower": 100.0,
+    "MaxActivePower": 5.8,
+    "MaxReactivePower": 1.906
+  },
+  {
+    "LoadName": "Bus12",
+    "BusNumber": 12,
+    "Available": true,
+    "ActivePower": 11.2,
+    "ReactivePower": 3.679,
+    "BasePower": 100.0,
+    "MaxActivePower": 11.2,
+    "MaxReactivePower": 3.679
+  },
+  {
+    "LoadName": "Bus14",
+    "BusNumber": 14,
+    "Available": true,
+    "ActivePower": 6.2,
+    "ReactivePower": 2.037,
+    "BasePower": 100.0,
+    "MaxActivePower": 6.2,
+    "MaxReactivePower": 2.037
+  },
+  {
+    "LoadName": "Bus15",
+    "BusNumber": 15,
+    "Available": true,
+    "ActivePower": 8.2,
+    "ReactivePower": 2.695,
+    "BasePower": 100.0,
+    "MaxActivePower": 8.2,
+    "MaxReactivePower": 2.695
+  },
+  {
+    "LoadName": "Bus16",
+    "BusNumber": 16,
+    "Available": true,
+    "ActivePower": 3.5,
+    "ReactivePower": 1.150,
+    "BasePower": 100.0,
+    "MaxActivePower": 3.5,
+    "MaxReactivePower": 1.150
+  },
+  {
+    "LoadName": "Bus17",
+    "BusNumber": 17,
+    "Available": true,
+    "ActivePower": 9.0,
+    "ReactivePower": 2.957,
+    "BasePower": 100.0,
+    "MaxActivePower": 9.0,
+    "MaxReactivePower": 2.957
+  },
+  {
+    "LoadName": "Bus18",
+    "BusNumber": 18,
+    "Available": true,
+    "ActivePower": 3.2,
+    "ReactivePower": 1.051,
+    "BasePower": 100.0,
+    "MaxActivePower": 3.2,
+    "MaxReactivePower": 1.051
+  },
+  {
+    "LoadName": "Bus19",
+    "BusNumber": 19,
+    "Available": true,
+    "ActivePower": 9.5,
+    "ReactivePower": 3.121,
+    "BasePower": 100.0,
+    "MaxActivePower": 9.5,
+    "MaxReactivePower": 3.121
+  },
+  {
+    "LoadName": "Bus20",
+    "BusNumber": 20,
+    "Available": true,
+    "ActivePower": 2.2,
+    "ReactivePower": 0.723,
+    "BasePower": 100.0,
+    "MaxActivePower": 2.2,
+    "MaxReactivePower": 0.723
+  },
+  {
+    "LoadName": "Bus21",
+    "BusNumber": 21,
+    "Available": true,
+    "ActivePower": 17.5,
+    "ReactivePower": 5.752,
+    "BasePower": 100.0,
+    "MaxActivePower": 17.5,
+    "MaxReactivePower": 5.752
+  },
+  {
+    "LoadName": "Bus23",
+    "BusNumber": 23,
+    "Available": true,
+    "ActivePower": 3.2,
+    "ReactivePower": 1.051,
+    "BasePower": 100.0,
+    "MaxActivePower": 3.2,
+    "MaxReactivePower": 1.051
+  },
+  {
+    "LoadName": "Bus24",
+    "BusNumber": 24,
+    "Available": true,
+    "ActivePower": 8.7,
+    "ReactivePower": 2.859,
+    "BasePower": 100.0,
+    "MaxActivePower": 8.7,
+    "MaxReactivePower": 2.859
+  },
+  {
+    "LoadName": "Bus26",
+    "BusNumber": 26,
+    "Available": true,
+    "ActivePower": 3.5,
+    "ReactivePower": 1.150,
+    "BasePower": 100.0,
+    "MaxActivePower": 3.5,
+    "MaxReactivePower": 1.150
+  },
+  {
+    "LoadName": "Bus29",
+    "BusNumber": 29,
+    "Available": true,
+    "ActivePower": 2.4,
+    "ReactivePower": 0.788,
+    "BasePower": 100.0,
+    "MaxActivePower": 2.4,
+    "MaxReactivePower": 0.788
+  },
+  {
+    "LoadName": "Bus30",
+    "BusNumber": 30,
+    "Available": true,
+    "ActivePower": 10.6,
+    "ReactivePower": 3.483,
+    "BasePower": 100.0,
+    "MaxActivePower": 10.6,
+    "MaxReactivePower": 3.483
+  }
+]

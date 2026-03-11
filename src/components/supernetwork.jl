@@ -94,6 +94,8 @@ function initialize_supernetwork!(
         
         for i in 1:super_net.number_of_cont
             if i != super_net.post_contingency
+                println("  Creating network interface for contingency scenario $i...")
+                println("Total number of continegencies to build: $(super_net.number_of_cont) and the post contingency scenario is $(super_net.post_contingency)")
                 line_outaged = get_outaged_line_index(network_object_base, i)
                 if line_outaged != super_net.outaged_line
                     network_object_cont = create_network_from_system(

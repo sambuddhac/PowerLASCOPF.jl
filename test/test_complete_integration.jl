@@ -21,7 +21,7 @@ abstract type Device <: PowerLASCOPFComponent end
 abstract type PowerGenerator <: Device end
 
 # Complete Node structure (similar to node.jl)
-mutable struct Node <: Subsystem
+#=mutable struct Node <: Subsystem
     node_id::Int
     name::String
     voltage_level::Float64
@@ -41,7 +41,7 @@ mutable struct Node <: Subsystem
                   Dict{String, Float64}(), Dict{String, Float64}(), Dict{String, Float64}(),
                   nothing)
     end
-end
+end=#
 
 # Transmission line with LineSolver integration
 mutable struct transmissionLine <: Device

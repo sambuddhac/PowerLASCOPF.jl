@@ -37,6 +37,10 @@ Represents a complete power system network with generators, loads, transmission 
     
     # Component counts
     gen_number::Int = 0
+	thermal_gen_number::Int = 0
+	renewable_gen_number::Int = 0
+	hydro_gen_number::Int = 0
+	storage_gen_number::Int = 0
     load_number::Int = 0
     transl_number::Int = 0
     node_number::Int = 0
@@ -284,7 +288,7 @@ function update_network_counts_from_system!(network::Network)
     network.gen_number = (get_extended_thermal_generator_count(network.net_sys) + 
                          get_extended_hydro_generator_count(network.net_sys) + 
                          get_extended_renewable_generator_count(network.net_sys) + 
-                         get_extended_storage_unit_count(network.net_sys))
+                         get_extended_storage_generator_count(network.net_sys))
     network.transl_number = get_transmission_line_count(network.net_sys)
     
     # Count loads
@@ -640,18 +644,36 @@ function initialize_coordination_variables!(network::Network)
     resize!(network.p_self_buffer, network.gen_number)
     resize!(network.p_prev_buffer, network.gen_number)
     resize!(network.p_next_buffer, network.gen_number)
-    resize!(network.p_self_buffer_gurobi, network.gen_number)
-    resize!(network.p_next_buffer_gurobi, network.gen_number)
-    resize!(network.p_prev_buffer_gurobi, network.gen_number)
     
     # Initialize generation beliefs
     if network.interval_id == 0
-        for i in 1:network.gen_number
+        for i in 1:network.thermal_gen_number
             network.p_self_belief_inner[i] = 0.0
             network.p_self_belief[i] = 0.0
-            network.p_prev_belief[i] = network.gen_object[i].P_gen_prev
+            network.p_prev_belief[i] = network.net_sys.extended_thermal_generators[i].P_gen_prev
             network.p_next_belief[i] = 0.0
         end
+		for i in (network.thermal_gen_number + 1):(network.thermal_gen_number + network.hydro_gen_number)
+			idx = i - network.thermal_gen_number
+			network.p_self_belief_inner[i] = 0.0
+			network.p_self_belief[i] = 0.0
+			network.p_prev_belief[i] = network.net_sys.extended_hydro_generators[idx].P_gen_prev
+			network.p_next_belief[i] = 0.0
+		end
+		for i in (network.thermal_gen_number + network.hydro_gen_number + 1):(network.thermal_gen_number + network.hydro_gen_number + network.renewable_gen_number)
+			idx = i - network.thermal_gen_number - network.hydro_gen_number
+			network.p_self_belief_inner[i] = 0.0
+			network.p_self_belief[i] = 0.0
+			network.p_prev_belief[i] = network.net_sys.extended_renewable_generators[idx].P_gen_prev
+			network.p_next_belief[i] = 0.0
+		end
+		for i in (network.thermal_gen_number + network.hydro_gen_number + network.renewable_gen_number + 1):(network.thermal_gen_number + network.hydro_gen_number + network.renewable_gen_number + network.storage_gen_number)
+			idx = i - network.thermal_gen_number - network.hydro_gen_number - network.renewable_gen_number
+			network.p_self_belief_inner[i] = 0.0
+			network.p_self_belief[i] = 0.0
+			network.p_prev_belief[i] = network.net_sys.extended_storage_generators[idx].P_gen_prev
+			network.p_next_belief[i] = 0.0
+		end
     else
         fill!(network.p_self_belief_inner, 0.0)
         fill!(network.p_self_belief, 0.0)
@@ -984,7 +1006,7 @@ end
 # Getter functions
 get_gen_number(network::Network) = network.gen_number
 get_contingency_count(network::Network) = network.contingency_count
-get_outaged_line_index(network::Network, cont_scen::Int) = network.outaged_line[cont_scen]
+get_outaged_line_index(network::Network, cont_scen::Int) = network.net_sys.outaged_line[cont_scen]
 
 """
 Get power generation beliefs for coordination

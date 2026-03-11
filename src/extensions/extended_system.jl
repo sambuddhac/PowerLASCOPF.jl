@@ -31,6 +31,22 @@ include("../components/ExtendedStorageGenerator.jl")
     
     # Network properties
     network_id::Int = 0
+    scenario_index::Int = 0
+    post_contingency_scenario::Int = 0
+    contingency_count::Int = 0
+    interval_id::Int = 0
+    last_flag::Bool = false
+    outaged_line_single::Int = 0
+    
+    # Solver properties
+    solver_choice::Int = 1 # 1=IPOPT, 2=Gurobi, etc.
+    rho_tuning::Float64 = 1.0
+    accuracy::Int = 1
+    dummy_zero_flag::Int = 0
+    
+    # APP algorithm properties
+    rnd_intervals::Int = 6
+    rsd_intervals::Int = 6
     
     # Time series properties
     time_series_resolution::Dates.Period = Dates.Hour(1)
@@ -494,6 +510,10 @@ function create_network_from_system(;
                       length(sys.extended_renewable_generators) +
                       length(sys.extended_hydro_generators) +
                       length(sys.extended_storage_generators)
+    thermal_gen_count = length(sys.extended_thermal_generators)
+    renewable_gen_count = length(sys.extended_renewable_generators)
+    hydro_gen_count = length(sys.extended_hydro_generators)
+    storage_gen_count = length(sys.extended_storage_generators)
     
     # Initialize network variables as a lightweight interface
     network = Network(
@@ -508,6 +528,10 @@ function create_network_from_system(;
         
         # Component counts (cached for quick access)
         gen_number = total_generators,
+        thermal_gen_number = thermal_gen_count,
+        renewable_gen_number = renewable_gen_count,
+        hydro_gen_number = hydro_gen_count,
+        storage_gen_number = storage_gen_count,
         load_number = length(sys.extended_loads),
         transl_number = length(sys.transmission_lines),
         node_number = length(sys.nodes),
@@ -565,7 +589,7 @@ function create_network_from_system(;
         node_object = Node[]                # Empty - use sys.nodes
     )
 
-    push!(network.outaged_line, net_sys.outaged_line)
+     push!(network.outaged_line, network.net_sys.outaged_line_single)
     # Load network data
     set_network_variables!(network)
     

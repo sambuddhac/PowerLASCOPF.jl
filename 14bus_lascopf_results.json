@@ -1,0 +1,31 @@
+{
+    "line_flows": {
+    },
+    "convergence": {
+        "iterations": 13,
+        "final_residual": 0,
+        "converged": true
+    },
+    "data_summary": {
+        "nodes": 14,
+        "branches": 16,
+        "thermal_generators": 5,
+        "storage": 2,
+        "loads": 3,
+        "renewable_generators": 3,
+        "hydro_generators": 5
+    },
+    "system_metrics": {
+        "total_generation_capacity_MW": 38.732,
+        "total_load_MW": 10
+    },
+    "status": "FEASIBLE",
+    "case_name": "14bus",
+    "timestamp": "2026-03-11 00:49:07",
+    "bus_count": 14,
+    "costs": {
+        "total_cost": 2958.9429855976236
+    },
+    "generator_dispatch": {
+    }
+}

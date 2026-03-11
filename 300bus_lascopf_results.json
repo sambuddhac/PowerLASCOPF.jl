@@ -1,0 +1,31 @@
+{
+    "line_flows": {
+    },
+    "convergence": {
+        "iterations": 14,
+        "final_residual": 0,
+        "converged": true
+    },
+    "data_summary": {
+        "nodes": 233,
+        "branches": 411,
+        "thermal_generators": 69,
+        "storage": 16,
+        "loads": 196,
+        "renewable_generators": 36,
+        "hydro_generators": 25
+    },
+    "system_metrics": {
+        "total_generation_capacity_MW": 32850.94,
+        "total_load_MW": 23890.46
+    },
+    "status": "FEASIBLE",
+    "case_name": "300bus",
+    "timestamp": "2026-03-11 00:47:55",
+    "bus_count": 300,
+    "costs": {
+        "total_cost": 2416.4296695746166
+    },
+    "generator_dispatch": {
+    }
+}

@@ -1,0 +1,31 @@
+{
+    "line_flows": {
+    },
+    "convergence": {
+        "iterations": 8,
+        "final_residual": 0,
+        "converged": true
+    },
+    "data_summary": {
+        "nodes": 108,
+        "branches": 186,
+        "thermal_generators": 54,
+        "storage": 10,
+        "loads": 91,
+        "renewable_generators": 22,
+        "hydro_generators": 15
+    },
+    "system_metrics": {
+        "total_generation_capacity_MW": 10067.7,
+        "total_load_MW": 3668
+    },
+    "status": "FEASIBLE",
+    "case_name": "118bus",
+    "timestamp": "2026-03-11 00:45:48",
+    "bus_count": 118,
+    "costs": {
+        "total_cost": 9439.256626450604
+    },
+    "generator_dispatch": {
+    }
+}

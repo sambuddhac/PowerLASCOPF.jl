@@ -86,14 +86,14 @@ println("-" ^ 42)
 
 try
     # Define sample PowerLASCOPF components
-    mutable struct Node <: Subsystem
+    #=mutable struct Node <: Subsystem
         node_id::Int
         name::String
         voltage_level::Float64
         psy_bus_ref::Union{Nothing, Int}
         
         Node(id::Int, name::String, voltage::Float64) = new(id, name, voltage, nothing)
-    end
+    end=#
     
     mutable struct transmissionLine <: Device
         line_id::Int

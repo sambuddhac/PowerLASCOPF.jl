@@ -1,0 +1,6 @@
+GeneratorName,BusNumber,GeneratorType,Available,Status,ActivePower,ReactivePower,Rating,PrimeMover,Fuel,ActivePowerMin,ActivePowerMax,ReactivePowerMin,ReactivePowerMax,RampUp,RampDown,TimeLimitUp,TimeLimitDown,CostCurve_a,CostCurve_b,CostCurve_c,FuelCost,VOM_Cost,FixedCost,StartUpCost,ShutDownCost,BasePower
+Alta,1,ThermalStandard,true,true,0.40,0.010,0.5,ST,COAL,0.0,0.40,-0.30,0.30,,,,,0.5,14.0,0.1,5.0,3.55,4.0,0.0,0.0,100.0
+Park City,1,ThermalStandard,true,true,1.70,0.20,2.2125,ST,COAL,0.0,1.70,-1.275,1.275,0.044250,0.044250,2.0,1.0,0.0,15.0,0.05,5.0,3.55,1.5,0.0,0.0,100.0
+Solitude,3,ThermalStandard,true,true,5.2,1.00,5.2,ST,COAL,0.0,5.20,-3.90,3.90,0.0624,0.0624,3.0,2.0,0.0,30.0,0.02,5.0,3.55,3.0,0.0,0.0,100.0
+Sundance,4,ThermalStandard,true,true,2.0,0.40,2.5,ST,COAL,0.0,2.0,-1.5,1.5,0.0375,0.0375,2.0,1.0,0.0,40.0,0.03,5.0,3.55,4.0,0.0,0.0,100.0
+Brighton,5,ThermalStandard,true,true,6.0,1.50,0.75,ST,COAL,0.0,6.0,-4.50,4.50,0.1125,0.1125,5.0,3.0,0.0,10.0,0.01,5.0,3.55,1.5,0.0,0.0,100.0

@@ -1,0 +1,32 @@
+[
+  {
+    "LoadName": "Bus2",
+    "BusNumber": 2,
+    "Available": true,
+    "ActivePower": 3.0,
+    "ReactivePower": 0.9861,
+    "BasePower": 100.0,
+    "MaxActivePower": 3.0,
+    "MaxReactivePower": 0.9861
+  },
+  {
+    "LoadName": "Bus3",
+    "BusNumber": 3,
+    "Available": true,
+    "ActivePower": 3.0,
+    "ReactivePower": 0.9861,
+    "BasePower": 100.0,
+    "MaxActivePower": 3.0,
+    "MaxReactivePower": 0.9861
+  },
+  {
+    "LoadName": "Bus4",
+    "BusNumber": 4,
+    "Available": true,
+    "ActivePower": 4.0,
+    "ReactivePower": 1.3147,
+    "BasePower": 100.0,
+    "MaxActivePower": 4.0,
+    "MaxReactivePower": 1.3147
+  }
+]

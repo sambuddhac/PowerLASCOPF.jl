@@ -17,48 +17,62 @@ using Pkg;
 project_dir = abspath(joinpath(@__DIR__, "..")) # repository/project root containing Project.toml
 println("Activating project at: $project_dir")
 
-# Reset and reinstantiate the environment
-Pkg.activate(project_dir);
-#=#FOR FIRST TIME USE OR TROUBLESHOOTING
-# Clear any problematic manifest and reinstantiate
-println("Checking and fixing environment...")
-try
-    # Remove the problematic Manifest.toml if it exists
-    manifest_path = joinpath(project_dir, "Manifest.toml")
-    if isfile(manifest_path)
-        println("Removing outdated Manifest.toml...")
-        rm(manifest_path)
+# Check if this is the first run on this machine
+first_run_marker = joinpath(project_dir, ".first_run_complete")
+if !isfile(first_run_marker)
+    #FOR FIRST TIME USE OR TROUBLESHOOTING
+    # Clear any problematic manifest and reinstantiate
+    println("Checking and fixing environment...")
+    try
+        # Remove the problematic Manifest.toml if it exists
+        manifest_path = joinpath(project_dir, "Manifest.toml")
+        if isfile(manifest_path)
+            println("Removing outdated Manifest.toml...")
+            rm(manifest_path)
+        end
+        
+        # Reinstantiate the project
+        println("Reinstantiating project...")
+        Pkg.instantiate()
+        
+        # Update packages to latest compatible versions
+        println("Updating packages...")
+        Pkg.update()
+        
+        # Create marker file to indicate first run is complete
+        touch(first_run_marker)
+        println("First-time setup complete. Marker file created.")
+        
+    catch e
+        println("Environment setup failed: $e")
+        println("Trying alternative approach...")
+        
+        # Alternative: Create a minimal environment
+        Pkg.activate(temp=true)  # Use temporary environment
+        
+        # Add only essential packages
+        Pkg.add([
+            "PowerSystems", 
+            "TimeSeries", 
+            "Dates", 
+            "LinearAlgebra", 
+            "JuMP", 
+            "Ipopt", 
+            "JSON"
+        ])
+        
+        # Still create marker file even with alternative approach
+        try
+            touch(first_run_marker)
+        catch
+            # Ignore if we can't create marker in temp environment
+        end
     end
-    
-    # Reinstantiate the project
-    println("Reinstantiating project...")
-    Pkg.instantiate()
-    
-    # Update packages to latest compatible versions
-    println("Updating packages...")
-    Pkg.update()
-    
-catch e
-    println("Environment setup failed: $e")
-    println("Trying alternative approach...")
-    
-    # Alternative: Create a minimal environment
-    Pkg.activate(temp=true)  # Use temporary environment
-    
-    # Add only essential packages
-    Pkg.add([
-        "PowerSystems", 
-        "TimeSeries", 
-        "Dates", 
-        "LinearAlgebra", 
-        "JuMP", 
-        "Ipopt", 
-        "JSON"
-    ])
+    #FOR FIRST TIME USE OR TROUBLESHOOTING
+else
+    println("First-time setup already completed. Skipping environment reinstantiation.")
 end
-#FOR FIRST TIME USE OR TROUBLESHOOTING=#
 
-# ...existing code...
 # Load necessary packages
 using PowerSystems
 using TimeSeries
@@ -130,9 +144,9 @@ println("  - Building Supernetwork and Network objects...")
 supernetworks = create_supernetwork(
     system,
     system_data,
-    number_of_cont = 2,        # Number of contingency scenarios
-    rnd_intervals = 6,         # Restoration to normal duration intervals
-    rsd_intervals = 6,         # Restoration to secure duration intervals
+    number_of_cont = system_data["number_of_contingencies"],        # Number of contingency scenarios
+    rnd_intervals = system_data["RND_intervals"],         # Restoration to normal duration intervals
+    rsd_intervals = system_data["RSD_intervals"],         # Restoration to secure duration intervals
     include_dummy_zero = true, # Include dummy zero interval
     choice_solver = 1,         # 1=ADMM-PMP-GUROBI
     rho_tuning = 1.0,         # APP rho parameter tuning
@@ -144,9 +158,9 @@ system_data["supernetworks"] = supernetworks
 system_data["number_of_supernetworks"] = length(supernetworks)
     
 # Add additional metadata
-system_data["rnd_intervals"] = 6
-system_data["rsd_intervals"] = 6
-system_data["number_of_contingencies"] = 2
+system_data["RND_intervals"] = system_data["RND_intervals"]
+system_data["RSD_intervals"] = system_data["RSD_intervals"]
+system_data["number_of_contingencies"] = system_data["number_of_contingencies"]
 system_data["include_dummy_zero"] = true
     
 println("System created with $(length(supernetworks)) SuperNetwork objects")

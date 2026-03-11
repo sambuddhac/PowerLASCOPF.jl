@@ -1,0 +1,35 @@
+{
+    "line_flows": {
+        "1_2": 0,
+        "2_1": 0
+    },
+    "convergence": {
+        "iterations": 1,
+        "final_residual": 0,
+        "converged": true
+    },
+    "data_summary": {
+        "nodes": 2,
+        "branches": 3,
+        "thermal_generators": 2,
+        "storage": 0,
+        "loads": 2,
+        "renewable_generators": 0,
+        "hydro_generators": 0
+    },
+    "system_metrics": {
+        "total_generation_capacity_MW": 20000,
+        "total_load_MW": 590
+    },
+    "status": "converged",
+    "case_name": "2bus",
+    "timestamp": "2026-01-16 16:08:28",
+    "bus_count": 2,
+    "costs": {
+        "total_cost": 5900
+    },
+    "generator_dispatch": {
+        "Gen_Bus2": 0,
+        "Gen_Bus1": 590
+    }
+}
