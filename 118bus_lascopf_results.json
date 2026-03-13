@@ -2,7 +2,7 @@
     "line_flows": {
     },
     "convergence": {
-        "iterations": 8,
+        "iterations": 12,
         "final_residual": 0,
         "converged": true
     },
@@ -21,10 +21,10 @@
     },
     "status": "FEASIBLE",
     "case_name": "118bus",
-    "timestamp": "2026-03-11 00:45:48",
+    "timestamp": "2026-03-12 23:29:03",
     "bus_count": 118,
     "costs": {
-        "total_cost": 9439.256626450604
+        "total_cost": 6969.8492467637725
     },
     "generator_dispatch": {
     }

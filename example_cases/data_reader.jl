@@ -77,21 +77,25 @@ const IS = InfrastructureSystems
 # WHY: Track execution flow, debug issues, maintain audit trail
 # ============================================================================
 
-const LOG_FILE = joinpath(@__DIR__, "data_reader_execution.log")
-const LOG_IO = open(LOG_FILE, "w")
+# ============================================================================
+# SECTION 1: LOGGING UTILITIES
+# ============================================================================
+# LOG_FILE / LOG_IO and stdout redirection are managed by run_reader_generic.jl.
+# When this file is included from there, every println automatically writes to
+# both console and the log file via the TeeIO redirect.  When included
+# standalone, output goes to console only (no log file opened here).
 
 """
     log_both(message::String)
 
-WHY: Write to both console (user feedback) and file (permanent record)
-WHEN: Every significant operation (reading files, creating objects, errors)
+Write a timestamped message to stdout.  When called through
+run_reader_generic.jl the stdout is a TeeIO, so the message is written to
+both the console and the session log file automatically.
 """
 function log_both(message::String)
     timestamp = Dates.format(now(), "yyyy-mm-dd HH:MM:SS")
-    formatted_message = "[$timestamp] $message"
-    println(formatted_message)
-    println(LOG_IO, formatted_message)
-    flush(LOG_IO)  # Ensure immediate write (important if crash occurs)
+    println("[$timestamp] $message")
+    flush(stdout)
 end
 
 log_info(message::String) = log_both("ℹ️  INFO: $message")
@@ -99,12 +103,18 @@ log_warn(message::String) = log_both("⚠️  WARN: $message")
 log_error(message::String) = log_both("❌ ERROR: $message")
 log_success(message::String) = log_both("✅ SUCCESS: $message")
 
-atexit(() -> close(LOG_IO))
-
-log_info("Starting PowerLASCOPF execution script")
-log_info("Log file: $LOG_FILE")
+log_info("Starting data_reader.jl")
 
 import PowerSystems: PrimeMovers, ThermalFuels, Arc
+
+# PSY renamed the PV enum value to PVe to avoid conflict with BusType.PV.
+# CSV files still use "PV", so we map it here before calling getproperty.
+const _PRIME_MOVER_ALIASES = Dict{Symbol,Symbol}(:PV => :PVe)
+
+function _prime_mover(s::AbstractString)
+    sym = Symbol(s)
+    getproperty(PrimeMovers, get(_PRIME_MOVER_ALIASES, sym, sym))
+end
 
 # ============================================================================
 # SECTION 2: TIME SERIES DATA READER
@@ -441,8 +451,8 @@ function read_thermal_generators_data(data_path::String, file_format::String="CS
                     active_power = row.ActivePower,
                     reactive_power = row.ReactivePower,
                     rating = row.Rating,
-                    prime_mover_type = getfield(PSY.PrimeMovers, Symbol(row.PrimeMover)),  # e.g., "ST" -> PrimeMovers.ST
-                    fuel = getfield(PSY.ThermalFuels, Symbol(row.Fuel)),  # e.g., "COAL" -> ThermalFuels.COAL
+                    prime_mover_type = _prime_mover(row.PrimeMover),  # e.g., "ST" -> PrimeMovers.ST
+                    fuel = getproperty(PSY.ThermalFuels, Symbol(row.Fuel)),  # e.g., "COAL" -> ThermalFuels.COAL
                     active_power_limits = (min = row.ActivePowerMin, max = row.ActivePowerMax),
                     reactive_power_limits = (min = row.ReactivePowerMin, max = row.ReactivePowerMax),
                     # Ramp limits: MW per time period (e.g., MW/hour)
@@ -481,8 +491,8 @@ function read_thermal_generators_data(data_path::String, file_format::String="CS
                     active_power = gen_data["ActivePower"],
                     reactive_power = gen_data["ReactivePower"],
                     rating = gen_data["Rating"],
-                    prime_mover_type = getfield(PSY.PrimeMovers, Symbol(gen_data["PrimeMover"])),
-                    fuel = getfield(ThermalFuels, Symbol(gen_data["Fuel"])),
+                    prime_mover_type = _prime_mover(gen_data["PrimeMover"]),
+                    fuel = getproperty(PSY.ThermalFuels, Symbol(gen_data["Fuel"])),
                     active_power_limits = (min = gen_data["ActivePowerMin"], max = gen_data["ActivePowerMax"]),
                     reactive_power_limits = (min = gen_data["ReactivePowerMin"], max = gen_data["ReactivePowerMax"]),
                     # Ramp limits: MW per time period (e.g., MW/hour)
@@ -554,7 +564,7 @@ function read_renewable_generators_data(data_path::String, file_format::String="
                     row.ActivePower,
                     row.ReactivePower,
                     row.Rating,
-                    getfield(PrimeMovers, Symbol(row.PrimeMover)),  # PVe = solar, WT = wind
+                    _prime_mover(row.PrimeMover),  # PVe = solar, WT = wind
                     (min = row.ReactivePowerMin, max = row.ReactivePowerMax),
                     row.PowerFactor,
                     # Simple linear cost (usually very low or zero)
@@ -579,7 +589,7 @@ function read_renewable_generators_data(data_path::String, file_format::String="
                     gen_data["ActivePower"],
                     gen_data["ReactivePower"],
                     gen_data["Rating"],
-                    getfield(PrimeMovers, Symbol(gen_data["PrimeMover"])),
+                    _prime_mover(gen_data["PrimeMover"]),
                     (min = gen_data["ReactivePowerMin"], max = gen_data["ReactivePowerMax"]),
                     gen_data["PowerFactor"],
                     PSY.RenewableGenerationCost(CostCurve(LinearCurve(gen_data["VariableCost"]))),
@@ -642,7 +652,7 @@ function read_hydro_generators_data(data_path::String, file_format::String="CSV"
                         row.ActivePower,
                         row.ReactivePower,
                         row.Rating,
-                        getfield(PrimeMovers, Symbol(row.PrimeMover)),
+                        _prime_mover(row.PrimeMover),
                         (min = row.ActivePowerMin, max = row.ActivePowerMax),
                         (min = row.ReactivePowerMin, max = row.ReactivePowerMax),
                         nothing,  # ramp_limits
@@ -670,7 +680,7 @@ function read_hydro_generators_data(data_path::String, file_format::String="CSV"
                         active_power = row.ActivePower,
                         reactive_power = row.ReactivePower,
                         rating = row.Rating,
-                        prime_mover_type = getfield(PrimeMovers, Symbol(row.PrimeMover)),
+                        prime_mover_type = _prime_mover(row.PrimeMover),
                         active_power_limits = (min = row.ActivePowerMin, max = row.ActivePowerMax),
                         reactive_power_limits = (min = row.ReactivePowerMin, max = row.ReactivePowerMax),
                         ramp_limits = (up = row.RampUp, down = row.RampDown),
@@ -700,7 +710,7 @@ function read_hydro_generators_data(data_path::String, file_format::String="CSV"
                         reactive_power = row.ReactivePower,
                         rating = row.Rating,
                         base_power = row.BasePower,
-                        prime_mover_type = getfield(PrimeMovers, Symbol(row.PrimeMover)),
+                        prime_mover_type = _prime_mover(row.PrimeMover),
                         active_power_limits = (min = row.ActivePowerMin, max = row.ActivePowerMax),
                         reactive_power_limits = (min = row.ReactivePowerMin, max = row.ReactivePowerMax),
                         ramp_limits = (up = row.RampUp, down = row.RampDown),
@@ -1941,8 +1951,8 @@ function powerlascopf_thermal_generators_from_csv!(
             active_power      = Float64(row.ActivePower),
             reactive_power    = Float64(row.ReactivePower),
             rating            = Float64(row.Rating),
-            prime_mover_type  = getfield(PrimeMovers, Symbol(row.PrimeMover)),
-            fuel              = getfield(ThermalFuels, Symbol(get(row, :Fuel, "COAL"))),
+            prime_mover_type  = _prime_mover(row.PrimeMover),
+            fuel              = getproperty(ThermalFuels, Symbol(get(row, :Fuel, "COAL"))),
             active_power_limits   = (min = Float64(row.ActivePowerMin),  max = Float64(row.ActivePowerMax)),
             reactive_power_limits = (min = Float64(row.ReactivePowerMin), max = Float64(row.ReactivePowerMax)),
             ramp_limits       = ramp_limits,
@@ -2003,8 +2013,17 @@ function powerlascopf_thermal_generators_from_csv!(
         push!(generators, lascopf_gen)
     end
 
+    println("=" ^ 50)
     log_info("Created $(length(generators)) PowerLASCOPF Thermal Generators from CSV.")
     println("Created $(length(generators)) PowerLASCOPF Thermal Generators from CSV: $csv_path")
+    println("PSY System after adding Thermal Generators: ", system.psy_system)
+    log_info("PSY System after adding Thermal Generators: $(system.psy_system)")
+    println("PowerLASCOPF System after adding Thermal Generators: ", system)
+    log_info("PowerLASCOPF System after adding Thermal Generators: $(system)")
+    #println("Thermal Generator vector from 5 bus file", generators)
+    #println("Thermal Generator vector from PowerLASCOPF struct", system.extended_thermal_generators)
+    PSY.show_components(system.psy_system, PSY.ThermalStandard)
+    println("=" ^ 50)
     return generators
 end
 
@@ -2047,7 +2066,7 @@ function powerlascopf_renewable_generators_from_csv!(
             Float64(row.ActivePower),
             Float64(row.ReactivePower),
             Float64(row.Rating),
-            getfield(PrimeMovers, Symbol(row.PrimeMover)),
+            _prime_mover(row.PrimeMover),
             (min = Float64(row.ReactivePowerMin), max = Float64(row.ReactivePowerMax)),
             Float64(row.PowerFactor),
             PSY.RenewableGenerationCost(CostCurve(LinearCurve(Float64(row.VariableCost)))),
@@ -2102,8 +2121,17 @@ function powerlascopf_renewable_generators_from_csv!(
         push!(generators, lascopf_gen)
     end
 
+    println("=" ^ 50)
     log_info("Created $(length(generators)) PowerLASCOPF Renewable Generators from CSV.")
     println("Created $(length(generators)) PowerLASCOPF Renewable Generators from CSV: $csv_path")
+    println("PSY System after adding Renewable Generators: ", system.psy_system)
+    log_info("PSY System after adding Renewable Generators: $(system.psy_system)")
+    println("PowerLASCOPF System after adding Renewable Generators: ", system)
+    log_info("PowerLASCOPF System after adding Renewable Generators: $(system)")
+    #println("Renewable Generator vector from 5 bus file", generators)
+    #println("Renewable Generator vector from PowerLASCOPF struct", system.extended_renewable_generators)
+    PSY.show_components(system.psy_system, PSY.RenewableDispatch)
+    println("=" ^ 50)
     return generators
 end
 
@@ -2163,7 +2191,7 @@ function powerlascopf_hydro_generators_from_csv!(
                 Float64(row.ActivePower),
                 Float64(row.ReactivePower),
                 Float64(row.Rating),
-                getfield(PrimeMovers, Symbol(row.PrimeMover)),
+                _prime_mover(row.PrimeMover),
                 (min = Float64(row.ActivePowerMin), max = Float64(row.ActivePowerMax)),
                 (min = Float64(row.ReactivePowerMin), max = Float64(row.ReactivePowerMax)),
                 ramp_limits,
@@ -2182,7 +2210,7 @@ function powerlascopf_hydro_generators_from_csv!(
                 active_power          = Float64(row.ActivePower),
                 reactive_power        = Float64(row.ReactivePower),
                 rating                = Float64(row.Rating),
-                prime_mover_type      = getfield(PrimeMovers, Symbol(row.PrimeMover)),
+                prime_mover_type      = _prime_mover(row.PrimeMover),
                 active_power_limits   = (min = Float64(row.ActivePowerMin), max = Float64(row.ActivePowerMax)),
                 reactive_power_limits = (min = Float64(row.ReactivePowerMin), max = Float64(row.ReactivePowerMax)),
                 ramp_limits           = ramp_limits,
@@ -2247,8 +2275,17 @@ function powerlascopf_hydro_generators_from_csv!(
         push!(generators, lascopf_gen)
     end
 
+    println("=" ^ 50)
     log_info("Created $(length(generators)) PowerLASCOPF Hydro Generators from CSV.")
     println("Created $(length(generators)) PowerLASCOPF Hydro Generators from CSV: $csv_path")
+    println("PSY System after adding Hydro Generators: ", system.psy_system)
+    log_info("PSY System after adding Hydro Generators: $(system.psy_system)")
+    println("PowerLASCOPF System after adding Hydro Generators: ", system)
+    log_info("PowerLASCOPF System after adding Hydro Generators: $(system)")
+    #println("Hydro Generator vector from 5 bus file", generators)
+    #println("Hydro Generator vector from PowerLASCOPF struct", system.extended_hydro_generators)
+    PSY.show_components(system.psy_system, PSY.HydroDispatch)
+    println("=" ^ 50)
     return generators
 end
 
@@ -2301,7 +2338,7 @@ function powerlascopf_storage_from_csv!(
             soc_max = Float64(row.SOC_Max)
             rp_min  = "ReactivePowerMin" in cols ? Float64(row.ReactivePowerMin) : 0.0
             rp_max  = "ReactivePowerMax" in cols ? Float64(row.ReactivePowerMax) : 0.0
-            pm      = "PrimeMover" in cols ? getfield(PrimeMovers, Symbol(row.PrimeMover)) : PrimeMovers.BA
+            pm      = "PrimeMover" in cols ? _prime_mover(row.PrimeMover) : PrimeMovers.BA
 
             # Check for storage management cost fields
             has_cost = "EnergyShortageCost" in cols &&
@@ -2429,8 +2466,17 @@ function powerlascopf_loads_from_csv!(
         push!(loads, lascopf_load)
     end
 
+    println("=" ^ 50)
     log_info("Created $(length(loads)) PowerLASCOPF Loads from CSV.")
     println("Created $(length(loads)) PowerLASCOPF Loads from CSV: $csv_path")
+    println("PSY System after adding Electric Loads: ", system.psy_system)
+    log_info("PSY System after adding Electric Loads: $(system.psy_system)")
+    println("PowerLASCOPF System after adding Electric Loads: ", system)
+    log_info("PowerLASCOPF System after adding Electric Loads: $(system)")
+    #println("Electric Load vector from 5 bus file", loads)
+    #println("Electric Load vector from PowerLASCOPF struct", system.extended_loads)
+    PSY.show_components(system.psy_system, PSY.PowerLoad)
+    println("=" ^ 50)
     return loads
 end
 

@@ -64,6 +64,7 @@ FULL DOCUMENTATION:
 """
 
 using Pkg
+using Dates
 
 # ============================================================================
 # STEP 1: ENVIRONMENT ACTIVATION
@@ -73,7 +74,43 @@ using Pkg
 const SCRIPT_DIR = @__DIR__
 const PROJECT_ROOT = abspath(joinpath(SCRIPT_DIR, ".."))
 
+# ============================================================================
+# LOG FILE SETUP — runs before any includes so ALL output is captured
+# ============================================================================
+#
+# TeeIO mirrors every write to both the original console stdout and the log
+# file.  After `redirect_stdout(TeeIO(...))` every plain `println(...)` call
+# anywhere in this session (including included files) automatically writes to
+# both streams — no per-file changes required.
+
+struct TeeIO <: IO
+    primary::IO
+    secondary::IO
+end
+Base.write(t::TeeIO, b::UInt8)               = (write(t.primary, b); write(t.secondary, b); 1)
+Base.write(t::TeeIO, b::StridedVector{UInt8}) = (write(t.primary, b); write(t.secondary, b); length(b))
+Base.flush(t::TeeIO)  = (flush(t.primary);  flush(t.secondary))
+Base.isopen(t::TeeIO) = isopen(t.primary)
+
+const LOG_DIR       = joinpath(PROJECT_ROOT, "logs")
+mkpath(LOG_DIR)
+const LOG_TIMESTAMP = Dates.format(now(), "yyyymmdd_HHMMSS")
+const LOG_FILE      = joinpath(LOG_DIR, "run_$(LOG_TIMESTAMP).log")
+const LOG_IO        = open(LOG_FILE, "w")
+
+const _ORIG_STDOUT  = stdout
+# redirect_stdout only accepts OS-level streams; set Base.stdout directly so
+# that every plain println(x) in this session writes through TeeIO.
+Core.eval(Base, :(stdout = $(TeeIO(_ORIG_STDOUT, LOG_IO))))
+
+atexit() do
+    Core.eval(Base, :(stdout = $(_ORIG_STDOUT)))
+    flush(LOG_IO)
+    close(LOG_IO)
+end
+
 println("🔧 Activating project environment: $PROJECT_ROOT")
+println("📝 Log file: $LOG_FILE")
 Pkg.activate(PROJECT_ROOT)
 Pkg.instantiate()
 
