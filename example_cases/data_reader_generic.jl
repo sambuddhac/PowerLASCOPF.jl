@@ -71,37 +71,34 @@ Random.seed!(123)
 # Note: PowerSystems loading is optional - the data reader works without it
 # Users can load PowerSystems in their own scripts if needed
 
-const LOG_FILE = joinpath(@__DIR__, "execution_run.log")
-const LOG_IO = open(LOG_FILE, "w")
-
 # ============================================================================
 # SECTION 1: LOGGING UTILITIES
 # ============================================================================
+# LOG_FILE / LOG_IO and stdout redirection are managed by run_reader_generic.jl.
+# When this file is included from there, every println automatically writes to
+# both console and the log file via the TeeIO redirect.  When included
+# standalone, output goes to console only (no log file opened here).
 
 """
     log_both(message::String)
 
-WHY: Write to both console (user feedback) and file (permanent record)
-WHEN: Every significant operation (reading files, creating objects, errors)
+Write a timestamped message to stdout.  When called through
+run_reader_generic.jl the stdout is a TeeIO, so the message is written to
+both the console and the session log file automatically.
 """
 function log_both(message::String)
     timestamp = Dates.format(now(), "yyyy-mm-dd HH:MM:SS")
-    formatted_message = "[$timestamp] $message"
-    println(formatted_message)
-    println(LOG_IO, formatted_message)
-    flush(LOG_IO)  # Ensure immediate write (important if crash occurs)
+    println("[$timestamp] $message")
+    flush(stdout)
 end
 
 """Simple logging functions for console output"""
-log_info(msg::String) = log_both("ℹ️  INFO: $msg")
-log_warn(msg::String) = log_both("⚠️  WARN: $msg")
-log_error(msg::String) = log_both("❌ ERROR: $msg")
+log_info(msg::String)    = log_both("ℹ️  INFO: $msg")
+log_warn(msg::String)    = log_both("⚠️  WARN: $msg")
+log_error(msg::String)   = log_both("❌ ERROR: $msg")
 log_success(msg::String) = log_both("✅ SUCCESS: $msg")
 
-atexit(() -> close(LOG_IO))
-
-log_info("Starting PowerLASCOPF execution script")
-log_info("Log file: $LOG_FILE")
+log_info("Starting data_reader_generic.jl")
 
 import PowerSystems: PrimeMovers, ThermalFuels, Arc
 
