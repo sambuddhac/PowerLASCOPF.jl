@@ -2346,16 +2346,17 @@ function powerlascopf_storage_from_csv!(
             has_target = "StorageTarget" in cols && !ismissing(row.StorageTarget)
 
             if has_cost
-                op_cost = PSY.StorageManagementCost(
-                    variable          = PSY.VariableCost(0.0),
-                    fixed             = 0.0,
-                    start_up          = 0.0,
-                    shut_down         = 0.0,
-                    energy_shortage_cost = Float64(row.EnergyShortageCost),
-                    energy_surplus_cost  = Float64(row.EnergySurplusCost)
+                op_cost = PSY.StorageCost(
+                    charge_variable_cost    = IS.CostCurve(IS.LinearCurve(0.0)),
+                    discharge_variable_cost = IS.CostCurve(IS.LinearCurve(0.0)),
+                    fixed                   = 0.0,
+                    start_up                = 0.0,
+                    shut_down               = 0.0,
+                    energy_shortage_cost    = Float64(row.EnergyShortageCost),
+                    energy_surplus_cost     = Float64(row.EnergySurplusCost)
                 )
             else
-                op_cost = PSY.StorageManagementCost()
+                op_cost = PSY.StorageCost()
             end
 
             gen = PSY.EnergyReservoirStorage(;
@@ -2394,21 +2395,58 @@ function powerlascopf_storage_from_csv!(
                 reactive_power             = Float64(row.ReactivePower),
                 reactive_power_limits      = (min = 0.0, max = 0.0),
                 base_power                 = Float64(row.BasePower),
-                operation_cost             = PSY.StorageManagementCost()
+                operation_cost             = PSY.StorageCost()
             )
         end
 
         PSY.add_component!(system.psy_system, gen)
 
         gen_interval = _make_gen_interval(cont_count)
-        lascopf_gen  = PowerLASCOPF.GeneralizedGenerator(
+
+        extended_cost = PowerLASCOPF.ExtendedStorageCost(gen.operation_cost, gen_interval)
+        gensolver_first_base = PowerLASCOPF.GenSolver(gen_interval, extended_cost)
+
+        extended_cost_first_base_dz = PowerLASCOPF.ExtendedStorageCost(gen.operation_cost, PowerLASCOPF.GenFirstBaseIntervalDZ(nothing))
+        gensolver_first_base_dz = PowerLASCOPF.GenSolver(extended_cost_first_base_dz.regularization_term, extended_cost_first_base_dz)
+
+        extended_cost_first_cont = PowerLASCOPF.ExtendedStorageCost(gen.operation_cost, PowerLASCOPF.GenFirstContInterval(nothing))
+        gensolver_first_cont = PowerLASCOPF.GenSolver(extended_cost_first_cont.regularization_term, extended_cost_first_cont)
+
+        extended_cost_first_cont_dz = PowerLASCOPF.ExtendedStorageCost(gen.operation_cost, PowerLASCOPF.GenFirstContIntervalDZ(nothing))
+        gensolver_first_cont_dz = PowerLASCOPF.GenSolver(extended_cost_first_cont_dz.regularization_term, extended_cost_first_cont_dz)
+
+        extended_cost_last_base = PowerLASCOPF.ExtendedStorageCost(gen.operation_cost, PowerLASCOPF.GenLastBaseInterval(nothing))
+        gensolver_last_base = PowerLASCOPF.GenSolver(extended_cost_last_base.regularization_term, extended_cost_last_base)
+
+        extended_cost_RND = PowerLASCOPF.ExtendedStorageCost(gen.operation_cost, PowerLASCOPF.GenInterRNDInterval(nothing))
+        gensolver_RND = PowerLASCOPF.GenSolver(extended_cost_RND.regularization_term, extended_cost_RND)
+
+        extended_cost_RSD = PowerLASCOPF.ExtendedStorageCost(gen.operation_cost, PowerLASCOPF.GenInterRSDInterval(nothing))
+        gensolver_RSD = PowerLASCOPF.GenSolver(extended_cost_RSD.regularization_term, extended_cost_RSD)
+
+        extended_cost_last_cont = PowerLASCOPF.ExtendedStorageCost(gen.operation_cost, PowerLASCOPF.GenLastContInterval(nothing))
+        gensolver_last_cont = PowerLASCOPF.GenSolver(extended_cost_last_cont.regularization_term, extended_cost_last_cont)
+
+        extended_gen = PowerLASCOPF.ExtendedStorageGenerator(
+            gen, extended_cost, i, 1, false, cont_count, cont_count + 1, 1, 0, 1, node, cont_count, nrow(df)
+        )
+        PowerLASCOPF.add_extended_storage_generator!(system, extended_gen)
+
+        lascopf_gen = PowerLASCOPF.GeneralizedGenerator(
             gen, gen_interval, i, 1, false, cont_count, cont_count + 1, 1, 0, 1, node, cont_count
         )
         push!(generators, lascopf_gen)
     end
 
+    println("=" ^ 50)
     log_info("Created $(length(generators)) PowerLASCOPF Storage units from CSV.")
     println("Created $(length(generators)) PowerLASCOPF Storage units from CSV: $csv_path")
+    println("PSY System after adding Storage: ", system.psy_system)
+    log_info("PSY System after adding Storage: $(system.psy_system)")
+    println("PowerLASCOPF System after adding Storage: ", system)
+    log_info("PowerLASCOPF System after adding Storage: $(system)")
+    PSY.show_components(system.psy_system, PSY.EnergyReservoirStorage)
+    println("=" ^ 50)
     return generators
 end
 
