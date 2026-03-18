@@ -252,8 +252,8 @@ end
 # Extended storage generator management
 function add_extended_storage_generator!(sys::PowerLASCOPFSystem, gen::ExtendedStorageGenerator)
     # Add the underlying PSY.Storage to the PSY.System
-    if !PSY.has_component(typeof(gen.storage_device), sys.psy_system, PSY.get_name(gen.storage_device))
-        PSY.add_component!(sys.psy_system, gen.storage_device)
+    if !PSY.has_component(typeof(gen.generator), sys.psy_system, PSY.get_name(gen.generator))
+        PSY.add_component!(sys.psy_system, gen.generator)
     end
     
     # Add to our extended system

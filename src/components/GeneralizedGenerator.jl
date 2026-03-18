@@ -31,9 +31,9 @@ A generalized generator component that extends PowerSystems generators for LASCO
 Supports thermal, renewable, hydro, and storage generators with ADMM/APP state variables,
 timeseries handling, and stochastic scenarios.
 """
-mutable struct GeneralizedGenerator{T<:PSY.Generator,U<:GenIntervals} <: PowerGenerator
+mutable struct GeneralizedGenerator{T<:PSY.StaticInjection,U<:GenIntervals} <: PowerGenerator
     # Core generator properties
-    generator::T # PowerSystems Generator (ThermalGen, RenewableGen, HydroGen, etc.)
+    generator::T # PowerSystems StaticInjection (ThermalGen, RenewableGen, HydroGen, Storage, etc.)
     cost_function::Union{ExtendedThermalGenerationCost{U}, ExtendedRenewableGenerationCost{U}, 
                         ExtendedHydroGenerationCost{U}, ExtendedStorageCost{U}}
     
@@ -91,8 +91,8 @@ mutable struct GeneralizedGenerator{T<:PSY.Generator,U<:GenIntervals} <: PowerGe
         nodeConng::Node, 
         countOfContingency::Int64, 
         config::GenSolverConfig = GenSolverConfig()
-    ) where {T<:PSY.Generator, U<:GenIntervals}
-        
+    ) where {T<:PSY.StaticInjection, U<:GenIntervals}
+
         # Create appropriate extended cost model based on generator type
         cost_function = create_extended_cost_for_generator(generator, interval_type)
         
@@ -151,7 +151,7 @@ end
 
 Factory function to create the appropriate extended cost model based on generator type.
 """
-function create_extended_cost_for_generator(generator::T, interval_type::U) where {T<:PSY.Generator, U<:GenIntervals}
+function create_extended_cost_for_generator(generator::T, interval_type::U) where {T<:PSY.StaticInjection, U<:GenIntervals}
     if isa(generator, PSY.ThermalGen)
         psy_cost = PSY.get_operation_cost(generator)
         return ExtendedThermalGenerationCost{U}(
@@ -168,6 +168,12 @@ function create_extended_cost_for_generator(generator::T, interval_type::U) wher
         psy_cost = PSY.get_operation_cost(generator)
         return ExtendedHydroGenerationCost{U}(
             hydro_cost_core = psy_cost,
+            regularization_term = interval_type
+        )
+    elseif isa(generator, PSY.Storage)
+        psy_cost = PSY.get_operation_cost(generator)
+        return ExtendedStorageCost{U}(
+            storage_cost_core = psy_cost,
             regularization_term = interval_type
         )
     else

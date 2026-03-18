@@ -148,10 +148,10 @@ like state of charge, cycling limits, and degradation modeling.
         initialize_storage_parameters!(self)
         
         # Extract timeseries data
-        extract_storage_timeseries!(self)
+        #extract_storage_timeseries!(self)
         
         # Set initial storage data
-        set_storage_gen_data!(self)
+        #set_storage_gen_data!(self)
         
         return self
     end
@@ -177,8 +177,8 @@ function initialize_storage_parameters!(gen::ExtendedStorageGenerator{T}) where 
     end
     
     # Extract energy capacity
-    if hasmethod(PSY.get_state_of_charge_limits, (T,))
-        soc_limits = PSY.get_state_of_charge_limits(psy_storage)
+    if hasmethod(PSY.get_storage_level_limits, (T,))
+        soc_limits = PSY.get_storage_level_limits(psy_storage)
         gen.soc_min = soc_limits.min
         gen.soc_max = soc_limits.max
     end

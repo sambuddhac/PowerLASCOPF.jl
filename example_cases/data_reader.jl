@@ -2334,15 +2334,29 @@ function powerlascopf_storage_from_csv!(
 
         if is_new_format
             # New format: has SOC_Min, SOC_Max, StorageTarget, etc.
-            soc_min = Float64(row.SOC_Min)
-            soc_max = Float64(row.SOC_Max)
-            rp_min  = "ReactivePowerMin" in cols ? Float64(row.ReactivePowerMin) : 0.0
-            rp_max  = "ReactivePowerMax" in cols ? Float64(row.ReactivePowerMax) : 0.0
-            pm      = "PrimeMover" in cols ? _prime_mover(row.PrimeMover) : PrimeMovers.BA
+            # PSY v4.6: storage_level_limits is a fraction (0–1); storage_capacity is total MWh.
+            soc_min  = Float64(row.SOC_Min)
+            soc_max  = Float64(row.SOC_Max)
+            rp_min   = "ReactivePowerMin" in cols ? Float64(row.ReactivePowerMin) : 0.0
+            rp_max   = "ReactivePowerMax" in cols ? Float64(row.ReactivePowerMax) : 0.0
+            pm       = "PrimeMover"  in cols ? _prime_mover(row.PrimeMover) : PrimeMovers.BA
+            stor_tec = "StorageType" in cols && !ismissing(row.StorageType) ?
+                           getproperty(PSY.StorageTech, Symbol(row.StorageType)) :
+                           PSY.StorageTech.OTHER_CHEM
 
-            # Check for storage management cost fields
-            has_cost = "EnergyShortageCost" in cols &&
-                       !ismissing(row.EnergyShortageCost) && !ismissing(row.EnergySurplusCost)
+            # storage_capacity (MWh): read from CSV if present, else assume 1-hour equivalent
+            if "StorageCapacity" in cols && !ismissing(row.StorageCapacity)
+                stor_cap = Float64(row.StorageCapacity)
+            else
+                stor_cap = Float64(row.OutputActivePowerMax)   # 1-hour capacity fallback
+                log_warn("No StorageCapacity column for $(row[name_col]); defaulting to OutputActivePowerMax = $stor_cap MWh")
+            end
+
+            # initial_storage_capacity_level is a fraction [0, 1]
+            init_lvl = "InitialEnergy" in cols ? Float64(row.InitialEnergy) : 0.5
+
+            has_cost   = "EnergyShortageCost" in cols &&
+                         !ismissing(row.EnergyShortageCost) && !ismissing(row.EnergySurplusCost)
             has_target = "StorageTarget" in cols && !ismissing(row.StorageTarget)
 
             if has_cost
@@ -2360,42 +2374,49 @@ function powerlascopf_storage_from_csv!(
             end
 
             gen = PSY.EnergyReservoirStorage(;
-                name                       = String(row[name_col]),
-                prime_mover_type           = pm,
-                available                  = Bool(row.Available),
-                bus                        = bus,
-                initial_energy             = Float64(row.InitialEnergy),
-                state_of_charge_limits     = (min = soc_min, max = soc_max),
-                rating                     = rating,
-                active_power               = Float64(row.ActivePower),
-                input_active_power_limits  = (min = Float64(row.InputActivePowerMin), max = Float64(row.InputActivePowerMax)),
-                output_active_power_limits = (min = Float64(row.OutputActivePowerMin), max = Float64(row.OutputActivePowerMax)),
-                efficiency                 = (in = Float64(row.EfficiencyIn), out = Float64(row.EfficiencyOut)),
-                reactive_power             = Float64(row.ReactivePower),
-                reactive_power_limits      = (min = rp_min, max = rp_max),
-                base_power                 = Float64(row.BasePower),
-                storage_target             = has_target ? Float64(row.StorageTarget) : 0.0,
-                operation_cost             = op_cost
+                name                           = String(row[name_col]),
+                available                      = Bool(row.Available),
+                bus                            = bus,
+                prime_mover_type               = pm,
+                storage_technology_type        = stor_tec,
+                storage_capacity               = stor_cap,
+                storage_level_limits           = (min = soc_min, max = soc_max),
+                initial_storage_capacity_level = init_lvl,
+                rating                         = rating,
+                active_power                   = Float64(row.ActivePower),
+                input_active_power_limits      = (min = Float64(row.InputActivePowerMin),  max = Float64(row.InputActivePowerMax)),
+                output_active_power_limits     = (min = Float64(row.OutputActivePowerMin), max = Float64(row.OutputActivePowerMax)),
+                efficiency                     = (in = Float64(row.EfficiencyIn), out = Float64(row.EfficiencyOut)),
+                reactive_power                 = Float64(row.ReactivePower),
+                reactive_power_limits          = (min = rp_min, max = rp_max),
+                base_power                     = Float64(row.BasePower),
+                storage_target                 = has_target ? Float64(row.StorageTarget) : 0.0,
+                operation_cost                 = op_cost
             )
         else
-            # Old format: BatteryName, StorageCapacity, no SOC_Min/Max
-            cap = "StorageCapacity" in cols ? Float64(row.StorageCapacity) : rating
+            # Old format: BatteryName, StorageCapacity (MWh), no SOC fractions.
+            # PSY v4.6: storage_level_limits is (0.0, 1.0) fractions; storage_capacity is the MWh value.
+            stor_cap = "StorageCapacity" in cols ? Float64(row.StorageCapacity) : Float64(row.OutputActivePowerMax)
+            init_lvl = "InitialEnergy"   in cols ? Float64(row.InitialEnergy)   : 0.5
+
             gen = PSY.EnergyReservoirStorage(;
-                name                       = String(row[name_col]),
-                prime_mover_type           = PrimeMovers.BA,
-                available                  = Bool(row.Available),
-                bus                        = bus,
-                initial_energy             = Float64(row.InitialEnergy),
-                state_of_charge_limits     = (min = 0.0, max = cap),
-                rating                     = rating,
-                active_power               = Float64(row.ActivePower),
-                input_active_power_limits  = (min = Float64(row.InputActivePowerMin), max = Float64(row.InputActivePowerMax)),
-                output_active_power_limits = (min = Float64(row.OutputActivePowerMin), max = Float64(row.OutputActivePowerMax)),
-                efficiency                 = (in = Float64(row.EfficiencyIn), out = Float64(row.EfficiencyOut)),
-                reactive_power             = Float64(row.ReactivePower),
-                reactive_power_limits      = (min = 0.0, max = 0.0),
-                base_power                 = Float64(row.BasePower),
-                operation_cost             = PSY.StorageCost()
+                name                           = String(row[name_col]),
+                available                      = Bool(row.Available),
+                bus                            = bus,
+                prime_mover_type               = PrimeMovers.BA,
+                storage_technology_type        = PSY.StorageTech.OTHER_CHEM,
+                storage_capacity               = stor_cap,
+                storage_level_limits           = (min = 0.0, max = 1.0),
+                initial_storage_capacity_level = init_lvl,
+                rating                         = rating,
+                active_power                   = Float64(row.ActivePower),
+                input_active_power_limits      = (min = Float64(row.InputActivePowerMin),  max = Float64(row.InputActivePowerMax)),
+                output_active_power_limits     = (min = Float64(row.OutputActivePowerMin), max = Float64(row.OutputActivePowerMax)),
+                efficiency                     = (in = Float64(row.EfficiencyIn), out = Float64(row.EfficiencyOut)),
+                reactive_power                 = Float64(row.ReactivePower),
+                reactive_power_limits          = (min = 0.0, max = 0.0),
+                base_power                     = Float64(row.BasePower),
+                operation_cost                 = PSY.StorageCost()
             )
         end
 

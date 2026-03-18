@@ -21,7 +21,7 @@
     },
     "status": "FEASIBLE",
     "case_name": "57bus",
-    "timestamp": "2026-03-13 03:31:52",
+    "timestamp": "2026-03-18 00:46:23",
     "bus_count": 57,
     "costs": {
         "total_cost": 2945.5799751226455

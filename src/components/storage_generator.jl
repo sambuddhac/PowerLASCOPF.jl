@@ -158,31 +158,17 @@ mutable struct ExtendedStorage{T<:PSY.Storage} <: PSY.Storage
             nothing  # No operation cost
         end
         
-        # Storage-specific properties with fallbacks
+        # Storage-specific properties with fallbacks (PSY v4.6 getter names)
         soc_limits = try
-            # Try different possible function names for storage limits
-            if hasmethod(PSY.get_storage_level_limits, (typeof(storage_type),))
-                PSY.get_storage_level_limits(storage_type)
-            elseif hasmethod(PSY.get_state_of_charge_limits, (typeof(storage_type),))
-                PSY.get_state_of_charge_limits(storage_type)
-            else
-                PSY.MinMax(0.0, 100.0)  # Default 0-100 MWh
-            end
+            PSY.get_storage_level_limits(storage_type)
         catch
-            PSY.MinMax(0.0, 100.0)  # Default fallback
+            (min = 0.0, max = 1.0)  # Default full range as fractions
         end
-        
+
         initial_energy = try
-            # Try different possible function names for initial energy
-            if hasmethod(PSY.get_initial_energy, (typeof(storage_type),))
-                PSY.get_initial_energy(storage_type)
-            elseif hasmethod(PSY.get_initial_storage, (typeof(storage_type),))
-                PSY.get_initial_storage(storage_type)
-            else
-                soc_limits.max * 0.5  # Default 50% SOC
-            end
+            PSY.get_initial_storage_capacity_level(storage_type)
         catch
-            soc_limits.max * 0.5  # Default fallback
+            0.5  # Default 50% SOC
         end
         
         efficiency = try
