@@ -893,6 +893,709 @@ end
 #   - Or run from command line with arguments
 #   - Common pattern in Python (__name__ == "__main__")
 
+"""
+Create scenario data for stochastic optimization
+"""
+function create_scenarios()
+    scenarios = Dict[]
+    
+    # Base case scenario
+    base_scenario = Dict(
+        "scenario_id" => 1,
+        "name" => "Base Case",
+        "probability" => 0.8,
+        "contingencies" => Dict[],
+        "renewable_forecasts" => Dict(
+            "wind" => wind_ts_DA,
+            "solar" => solar_ts_DA
+        ),
+        "load_forecasts" => Dict(
+            "bus2" => loadbus2_ts_DA,
+            "bus3" => loadbus3_ts_DA,
+            "bus4" => loadbus4_ts_DA
+        ),
+        "hydro_inflows" => hydro_inflow_ts_DA
+    )
+    push!(scenarios, base_scenario)
+    
+    # Contingency scenarios
+    contingency_scenario = Dict(
+        "scenario_id" => 2,
+        "name" => "Line 1 Outage",
+        "probability" => 0.2,
+        "contingencies" => [Dict(
+            "id" => 1,
+            "name" => "Line_1_outage",
+            "component_type" => "Line",
+            "component_id" => 1,
+            "outage_probability" => 1.0
+        )],
+        "renewable_forecasts" => Dict(
+            "wind" => wind_ts_DA * 0.9,
+            "solar" => solar_ts_DA * 0.95
+        ),
+        "load_forecasts" => Dict(
+            "bus2" => loadbus2_ts_DA,
+            "bus3" => loadbus3_ts_DA,
+            "bus4" => loadbus4_ts_DA
+        ),
+        "hydro_inflows" => hydro_inflow_ts_DA * 0.8
+    )
+    push!(scenarios, contingency_scenario)
+    
+    return scenarios
+end
+
+"""
+Function to create Supernetwork objects for PowerLASCOPF systems
+"""
+
+#="""
+Function to create Supernetwork objects for PowerLASCOPF systems
+"""
+function create_supernetwork(system_data::Dict; kwargs...)
+    println("Creating Supernetwork for PowerLASCOPF system...")
+    
+    # Extract components from system data
+    nodes = system_data["nodes"]
+    branches = system_data["branches"]
+    thermal_generators = system_data["thermal_generators"]
+    renewable_generators = system_data["renewable_generators"]
+    loads = system_data["loads"]
+    
+    # Get scenario information
+    scenarios = system_data["scenarios"]
+    time_horizon = system_data["time_horizon"]
+    base_power = system_data["base_power"]
+    
+    # Combine all generators
+    all_generators = vcat(thermal_generators, renewable_generators)
+    # Add hydro and storage generators if they exist
+    if haskey(system_data, "hydro_generators")
+        append!(all_generators, system_data["hydro_generators"])
+    end
+    if haskey(system_data, "storage_generators")
+        append!(all_generators, system_data["storage_generators"])
+    end
+    
+    # Create network topology matrices (adjacency, incidence, etc.)
+    n_nodes = length(nodes)
+    n_branches = length(branches)
+    
+    # Create adjacency matrix
+    adjacency_matrix = zeros(Int, n_nodes, n_nodes)
+    for branch in branches
+        from_idx = branch.conn_nodet1_ptr.node_id
+        to_idx = branch.conn_nodet2_ptr.node_id
+        adjacency_matrix[from_idx, to_idx] = 1
+        adjacency_matrix[to_idx, from_idx] = 1
+    end
+    
+    # Create incidence matrix (branches x nodes)
+    incidence_matrix = zeros(Int, n_branches, n_nodes)
+    for (i, branch) in enumerate(branches)
+        from_idx = branch.conn_nodet1_ptr.node_id
+        to_idx = branch.conn_nodet2_ptr.node_id
+        incidence_matrix[i, from_idx] = 1
+        incidence_matrix[i, to_idx] = -1
+    end
+    
+    # Create generator-to-node mapping
+    gen_node_map = Dict{Int, Int}()
+    for (i, gen) in enumerate(all_generators)
+        gen_node_map[i] = gen.nodeConng.node_id
+    end
+    
+    # Create load-to-node mapping
+    load_node_map = Dict{Int, Int}()
+    for (i, load) in enumerate(loads)
+        # Assuming load has a connection to node - adjust based on actual Load struct
+        bus_name = PSY.get_name(PSY.get_bus(load.load_type))
+        node_idx = findfirst(n -> PSY.get_name(n.node_type) == bus_name, nodes)
+        load_node_map[i] = node_idx
+    end
+    
+    # Create contingency scenarios mapping
+    contingency_map = Dict{Int, Vector{Int}}()
+    for (scenario_idx, scenario) in enumerate(scenarios)
+        if haskey(scenario, "contingencies") && !isempty(scenario["contingencies"])
+            contingent_components = Int[]
+            for contingency in scenario["contingencies"]
+                if contingency["component_type"] == "Line"
+                    push!(contingent_components, contingency["component_id"])
+                end
+            end
+            contingency_map[scenario_idx] = contingent_components
+        else
+            contingency_map[scenario_idx] = Int[]  # Base case, no contingencies
+        end
+    end
+    
+    # Extract additional parameters from kwargs
+    cont_count = get(kwargs, :cont_count, 2)
+    RND_int = get(kwargs, :RND_int, 4)
+    accuracy = get(kwargs, :accuracy, 1e-6)
+    max_iterations = get(kwargs, :max_iterations, 1000)
+    
+    # Create Supernetwork object
+    supernetwork = PowerLASCOPF.Supernetwork(
+        # Core network components
+        nodes = nodes,
+        transmission_lines = branches,
+        generators = all_generators,
+        loads = loads,
+        
+        # Network topology
+        adjacency_matrix = adjacency_matrix,
+        incidence_matrix = incidence_matrix,
+        
+        # Component mappings
+        generator_node_map = gen_node_map,
+        load_node_map = load_node_map,
+        
+        # Scenario and contingency data
+        scenarios = scenarios,
+        contingency_map = contingency_map,
+        n_scenarios = length(scenarios),
+        
+        # System parameters
+        base_power = base_power,
+        time_horizon = time_horizon,
+        n_time_steps = length(time_horizon),
+        
+        # Algorithm parameters
+        cont_count = cont_count,
+        RND_int = RND_int,
+        accuracy = accuracy,
+        max_iterations = max_iterations,
+        
+        # Network dimensions
+        n_nodes = n_nodes,
+        n_branches = n_branches,
+        n_generators = length(all_generators),
+        n_loads = length(loads),
+        
+        # ADMM/consensus parameters (if using distributed algorithms)
+        rho = get(kwargs, :rho, 0.1),
+        beta = get(kwargs, :beta, 0.1),
+        gamma = get(kwargs, :gamma, 0.2)
+    )
+    
+    # Initialize network state variables
+    initialize_supernetwork_state!(supernetwork)
+    
+    println("Created Supernetwork with:")
+    println("  - $(n_nodes) nodes")
+    println("  - $(n_branches) transmission lines") 
+    println("  - $(length(all_generators)) generators")
+    println("  - $(length(loads)) loads")
+    println("  - $(length(scenarios)) scenarios")
+    
+    return supernetwork
+end
+=#
+"""
+Initialize state variables for the supernetwork
+"""
+#=function initialize_supernetwork_state!(supernetwork::PowerLASCOPF.Supernetwork)
+    # Initialize node state variables
+    for node in supernetwork.nodes
+        node.P_net = 0.0
+        node.theta_node = 0.0
+        node.v_node = 1.0  # Start at nominal voltage
+        node.u = 0.0       # Dual variable
+    end
+    
+    # Initialize transmission line state variables
+    for line in supernetwork.transmission_lines
+        line.pt1 = 0.0
+        line.pt2 = 0.0
+        line.thetat1 = 0.0
+        line.thetat2 = 0.0
+        line.v1 = 1.0
+        line.v2 = 1.0
+    end
+    
+    # Initialize generator state variables (if they have state fields)
+    for gen in supernetwork.generators
+        # Initialize generator-specific state variables
+        # This depends on the specific GeneralizedGenerator implementation
+    end
+    
+    println("Initialized supernetwork state variables")
+end
+
+"""
+Update the create_5bus_powerlascopf_system function to use the improved create_supernetwork
+"""
+function create_5bus_powerlascopf_system_with_supernetwork()
+    println("Creating 5-bus PowerLASCOPF system with Supernetwork...")
+    
+    # Create base system data
+    system_data = create_5bus_powerlascopf_system()
+    
+    # Create supernetwork with additional parameters
+    supernetwork = create_supernetwork(
+        system_data,
+        cont_count = 2,
+        RND_int = 4,
+        accuracy = 1e-6,
+        max_iterations = 1000,
+        rho = 0.1,
+        beta = 0.1,
+        gamma = 0.2
+    )
+    
+    # Add supernetwork to system data
+    system_data["supernetwork"] = supernetwork
+    
+    return system_data
+end=#
+
+"""
+Function to create SuperNetwork objects for PowerLASCOPF systems
+Returns a vector of SuperNetwork objects based on the intervals and contingencies
+"""
+function create_supernetwork(system::PowerLASCOPF.PowerLASCOPFSystem, system_data;
+    number_of_cont::Int = system_data isa Dict ? system_data["number_of_contingencies"] : length(system.outaged_line),
+    rnd_intervals::Int  = system_data isa Dict ? system_data["RND_intervals"]           : 3,
+    rsd_intervals::Int  = system_data isa Dict ? system_data["RSD_intervals"]           : 3,
+    include_dummy_zero::Bool = false,
+    choice_solver::Int = 1,
+    rho_tuning::Float64 = 1.0,
+    contin_sol_accuracy::Int = 1,
+    kwargs...)
+    
+    println("Creating SuperNetwork objects for PowerLASCOPF system...")
+
+    # The PowerLASCOPFSystem stores, in sys.outaged_line, the exact line IDs that were
+    # designated as contingency branches when the system was built (populated by
+    # powerlascopf_branches_from_csv! / powerlascopf_branches_from_json! via
+    # extended_system.jl line 140: push!(sys.outaged_line, get_transl_id(line))).
+    # This is the authoritative, case-agnostic contingency list — no hardcoded per-case
+    # function (branches_5_contingency_list, branches_14_contingency_list, …) is needed.
+    contingency_lines = system.outaged_line   # Vector{Int}: line ID for each contingency slot
+    n_available = length(contingency_lines)
+
+    if number_of_cont < 0
+        error("Number of contingencies must be non-negative, got $number_of_cont")
+    elseif number_of_cont > n_available
+        error("Requested $number_of_cont contingencies, but system only has $n_available designated contingency lines")
+    end
+    println("✓ Contingency validation passed: Using $number_of_cont out of $n_available available contingency lines")
+
+    # Build contingency map: scenario 0 → base case (no outage),
+    #                        scenario i → line contingency_lines[i] outaged.
+    contingency_map = Dict{Int,Int}(0 => 0)
+    for i in 1:number_of_cont
+        contingency_map[i] = contingency_lines[i]
+    end
+    println("Available contingency scenarios:")
+    for (scenario, line) in sort(collect(contingency_map))
+        if scenario == 0
+            println("  Scenario $scenario: Base case (no outage)")
+        else
+            println("  Scenario $scenario: Line $line outaged")
+        end
+    end
+    
+    # Calculate total number of SuperNetwork objects needed
+    total_intervals = rnd_intervals + rsd_intervals
+    base_networks = 1 + (total_intervals * (1 + number_of_cont)) # 1 for the no-outage base case
+    
+    if include_dummy_zero
+        total_supernetworks = 1 + base_networks
+        start_interval = -1  # Include dummy zero interval
+    else
+        total_supernetworks = base_networks
+        start_interval = 0
+    end
+    
+    println("Creating $total_supernetworks SuperNetwork objects...")
+    println("  - RND intervals: $rnd_intervals")
+    println("  - RSD intervals: $rsd_intervals") 
+    println("  - Number of contingencies: $number_of_cont")
+    println("  - Include dummy zero: $include_dummy_zero")
+    
+    supernetworks = PowerLASCOPF.SuperNetwork[]
+    network_id_counter = 1
+    
+    # Create SuperNetwork objects for each dispatch interval
+    for disp_interval in start_interval:(total_intervals)
+        
+        # Determine interval class
+        if disp_interval < 0
+            interval_class = 0  # dummy
+        elseif disp_interval == 0 || disp_interval == total_intervals
+            interval_class = 1  # forthcoming  or last
+        else
+            interval_class = 2  # subsequent to forthcoming
+        end
+        
+        # Determine if this is the last interval
+        last_flag = (disp_interval == total_intervals)
+        
+        # For dummy interval, create only one network
+        if disp_interval < 0
+            println("\n  Creating dummy interval network (ID: $network_id_counter)")
+
+            super_net = PowerLASCOPF.create_supernetwork_object(
+                powerlascopf_system = system,
+                pre_post_scenario = false,        # Indicate dummy interval
+                network_id = network_id_counter,
+                cont_net_vector = PowerLASCOPFSystem[],  # Initialize empty
+                solver_choice = choice_solver,          # ✓ Correct parameter name
+                set_rho_tuning = rho_tuning,            # ✓ Correct parameter name
+                post_contingency = 0,                   # ✓ Correct parameter name
+                interval_count = disp_interval,         # ✓ Correct parameter name
+                interval_class = interval_class,        # ✓ Correct parameter name
+                rnd_intervals = rnd_intervals,
+                rsd_intervals = rsd_intervals,
+                last_interval = false,                  # ✓ Correct parameter name
+                outaged_line = 0,                       # ✓ Correct parameter name
+                number_of_cont = number_of_cont,
+                number_of_generators = 0,               # Will be updated later
+                number_of_trans_lines = 0,              # Will be updated later
+                cons_lag_dim = 0,                       # Will be calculated later
+                alpha_app = 100.0,                      # Default value
+                iter_count_app = 1,                     # Default value
+                fin_tol = 1000.0,                       # Default value
+                largest_net_time_vec = Float64[],       # Initialize empty
+                single_net_time_vec = Float64[],        # Initialize empty
+                virtual_net_exec_time = 0.0,            # Default value
+                matrix_result_app_out = Dict{Any,Any}() # Initialize empty
+            )
+            push!(supernetworks, super_net)
+            network_id_counter += 1
+            
+        elseif disp_interval == 0
+            # For regular intervals, create base case network
+            # Forthcoming interval - create base case only
+            println("\n  Creating forthcoming interval $disp_interval (Base case, ID: $network_id_counter)")
+            
+            base_super_net = PowerLASCOPF.create_supernetwork_object(
+                powerlascopf_system = system,
+                pre_post_scenario = false,
+                network_id = network_id_counter,
+                cont_net_vector = PowerLASCOPFSystem[],
+                solver_choice = choice_solver,
+                set_rho_tuning = rho_tuning,
+                post_contingency = 0,
+                interval_count = disp_interval,
+                interval_class = interval_class,
+                rnd_intervals = rnd_intervals,
+                rsd_intervals = rsd_intervals,
+                last_interval = last_flag,
+                outaged_line = 0,
+                number_of_cont = number_of_cont,
+                number_of_generators = 0,
+                number_of_trans_lines = 0,
+                cons_lag_dim = 0,
+                alpha_app = 100.0,
+                iter_count_app = 1,
+                fin_tol = 1000.0,
+                largest_net_time_vec = Float64[],
+                single_net_time_vec = Float64[],
+                virtual_net_exec_time = 0.0,
+                matrix_result_app_out = Dict{Any,Any}()
+            )
+            push!(supernetworks, base_super_net)
+            network_id_counter += 1
+        else
+            # Regular intervals - create base case + contingency scenarios
+            println("\n  Creating interval $disp_interval networks:")
+            
+            # Base case (contingency scenario 0)
+            println("    - Base case (ID: $network_id_counter)")
+            base_super_net = PowerLASCOPF.create_supernetwork_object(
+                powerlascopf_system = system,
+                pre_post_scenario = false,
+                network_id = network_id_counter,
+                solver_choice = choice_solver,
+                set_rho_tuning = rho_tuning,
+                post_contingency = 0,
+                interval_count = disp_interval,
+                interval_class = interval_class,
+                rnd_intervals = rnd_intervals,
+                rsd_intervals = rsd_intervals,
+                last_interval = last_flag,
+                outaged_line = 0,  # No outage for base case
+                number_of_cont = number_of_cont
+            )
+            push!(supernetworks, base_super_net)
+            network_id_counter += 1
+
+            # Create contingency scenario networks for this interval
+            for cont_scenario in 1:number_of_cont
+                # Look up the actual line ID for this contingency scenario from the map
+                # built above from system.outaged_line (set during branch construction).
+                outaged_line = contingency_map[cont_scenario]
+                
+                cont_super_net = PowerLASCOPF.create_supernetwork_object(
+                    powerlascopf_system = system,
+                    pre_post_scenario = true,
+                    network_id = network_id_counter,
+                    cont_net_vector = PowerLASCOPFSystem[],
+                    solver_choice = choice_solver,
+                    set_rho_tuning = rho_tuning,
+                    post_contingency = cont_scenario,
+                    interval_count = disp_interval,
+                    interval_class = interval_class,
+                    rnd_intervals = rnd_intervals,
+                    rsd_intervals = rsd_intervals,
+                    last_interval = last_flag,
+                    outaged_line = outaged_line,
+                    number_of_cont = number_of_cont,
+                    number_of_generators = 0,
+                    number_of_trans_lines = 0,
+                    cons_lag_dim = 0,
+                    alpha_app = 100.0,
+                    iter_count_app = 1,
+                    fin_tol = 1000.0,
+                    largest_net_time_vec = Float64[],
+                    single_net_time_vec = Float64[],
+                    virtual_net_exec_time = 0.0,
+                    matrix_result_app_out = Dict{Any,Any}()
+                )
+                push!(supernetworks, cont_super_net)
+                network_id_counter += 1
+            end
+        end
+    end
+    
+    println("\n✓ Created $(length(supernetworks)) SuperNetwork objects")
+    
+    # Print summary
+    println("\nSuperNetwork Summary:")
+    for (i, snet) in enumerate(supernetworks)
+        interval_type = if snet.interval_count < 0
+            "Dummy"
+        elseif snet.interval_count == 0
+            "Forthcoming"
+        elseif snet.interval_count == total_intervals
+            "Last"
+        else
+            "Subsequent"
+        end
+        
+        contingency_desc = if snet.post_contingency == 0
+            "Base case"
+        else
+            "Contingency $(snet.post_contingency) (Line $(snet.outaged_line))"
+        end
+        
+        println("  [$i] ID=$(snet.network_id), Interval=$(snet.interval_count) ($interval_type), $contingency_desc")
+    end
+    
+    return supernetworks
+end
+
+"""
+Helper function to determine outaged line for a given contingency scenario.
+Creates the mapping dynamically from the contingency list defined in the system.
+Returns 0 for base case (no contingency).
+"""
+function get_outaged_line_for_contingency(contingency_index::Int)
+    # Return 0 for base case (no outage)
+    if contingency_index == 0
+        return 0
+    end
+    
+    # Get the contingency list from the system definition
+    contingency_lines = branches_5_contingency_list()
+    
+    # Validate contingency index
+    if contingency_index < 0 || contingency_index > length(contingency_lines)
+        @warn "Invalid contingency index $contingency_index. Valid range: 0-$(length(contingency_lines)). Returning 0 (no outage)."
+        return 0
+    end
+    
+    # Return the line ID for this contingency scenario
+    outaged_line_id = contingency_lines[contingency_index]
+    
+    println("  Contingency $contingency_index: Outaging line $outaged_line_id")
+    
+    return outaged_line_id
+end
+
+"""
+Alternative version that returns a dictionary mapping for all contingencies at once.
+Useful for initialization and validation.
+"""
+function get_all_contingency_mappings()
+    contingency_lines = branches_5_contingency_list()
+    
+    # Create dictionary: contingency_scenario => outaged_line_id
+    contingency_map = Dict{Int, Int}()
+    
+    # Base case (no contingency)
+    contingency_map[0] = 0
+    
+    # Add all contingency scenarios
+    for (idx, line_id) in enumerate(contingency_lines)
+        contingency_map[idx] = line_id
+    end
+    
+    return contingency_map
+end
+
+"""
+Validate that contingency scenarios are consistent with the system definition.
+"""
+function validate_contingency_scenarios(number_of_cont::Int)
+    available_contingencies = length(branches_5_contingency_list())
+    
+    if number_of_cont > available_contingencies
+        error("Requested $number_of_cont contingencies, but only $available_contingencies are defined in branches_5_contingency_list()")
+    end
+    
+    if number_of_cont < 0
+        error("Number of contingencies must be non-negative, got $number_of_cont")
+    end
+    
+    println("✓ Contingency validation passed: Using $number_of_cont out of $available_contingencies available contingencies")
+    return true
+end
+
+"""
+Updated create_5bus_powerlascopf_system function to use the new supernetwork creation
+"""
+#=function create_5bus_powerlascopf_system_with_supernetworks()
+    println("Creating 5-bus PowerLASCOPF system with SuperNetworks...")
+    
+    # Create base system data
+    system_data = create_5bus_powerlascopf_system()
+    
+    
+    
+    return system_data
+end=#
+
+"""
+Helper function to get SuperNetwork by interval and contingency scenario
+"""
+function get_supernetwork(supernetworks::Vector{PowerLASCOPF.SuperNetwork},
+                         interval::Int,
+                         contingency::Int = 0)
+    for snet in supernetworks
+        if snet.interval_count == interval && snet.post_contingency == contingency
+            return snet
+        end
+    end
+    return nothing
+end
+
+"""
+Helper function to get all SuperNetworks for a specific interval
+"""
+function get_interval_supernetworks(supernetworks::Vector{PowerLASCOPF.SuperNetwork}, interval::Int)
+    return filter(snet -> snet.interval_count == interval, supernetworks)
+end
+
+"""
+Validation function to check if the correct number of SuperNetworks were created
+"""
+function validate_supernetwork_count(supernetworks::Vector{PowerLASCOPF.SuperNetwork},
+                                   rnd_intervals::Int,
+                                   rsd_intervals::Int,
+                                   number_of_cont::Int,
+                                   include_dummy_zero::Bool)
+    
+    total_intervals = rnd_intervals + rsd_intervals
+    expected_count = if include_dummy_zero
+        2 + (total_intervals * (1 + number_of_cont))
+    else
+        1 + (total_intervals * (1 + number_of_cont))
+    end
+    
+    actual_count = length(supernetworks)
+    
+    if actual_count == expected_count
+        println("✓ SuperNetwork count validation passed: $actual_count networks created")
+        return true
+    else
+        println("✗ SuperNetwork count validation failed: expected $expected_count, got $actual_count")
+        return false
+    end
+end
+
+"""
+Run validation after creating supernetworks
+"""
+function create_and_validate_supernetworks(system_data::Dict; kwargs...)
+    supernetworks = create_supernetwork(system_data; kwargs...)
+    
+    # Extract parameters for validation
+    rnd_intervals = get(kwargs, :rnd_intervals, 6)
+    rsd_intervals = get(kwargs, :rsd_intervals, 6)
+    number_of_cont = get(kwargs, :number_of_cont, 2)
+    include_dummy_zero = get(kwargs, :include_dummy_zero, false)
+    
+    # Validate count
+    is_valid = validate_supernetwork_count(
+        supernetworks, 
+        rnd_intervals, 
+        rsd_intervals, 
+        number_of_cont, 
+        include_dummy_zero
+    )
+    
+    if !is_valid
+        error("SuperNetwork creation validation failed")
+    end
+    
+    return supernetworks
+end
+
+function create_supernetwork(system_data::Dict, kwargs...)
+    print("Creating Supernetwork for PowerLASCOPF system...")
+    # Extract components from system data
+    nodes = system_data["nodes"]
+    branches = system_data["branches"]
+    generators = vcat(system_data["thermal_generators"], system_data["renewable_generators"])  # Add hydro/storage if present
+    loads = system_data["loads"]
+    
+    # Create SuperNetwork
+    supernetwork = PowerLASCOPF.SuperNetwork(;
+        network_id = 0,
+    )
+    
+    return supernetwork
+end
+
+"""
+Helper functions for PowerLASCOPF.Node operations (needed for ADMM/APP)
+"""
+
+# Add these helper functions to support the simulation
+function p_avg_message(node::PowerLASCOPF.Node{PSY.Bus})
+    return node.P_net  # Simplified - in full implementation would average connected devices
+end
+
+function theta_avg_message(node::PowerLASCOPF.Node{PSY.Bus})
+    return node.theta_node
+end
+
+function v_avg_message(node::PowerLASCOPF.Node{PSY.Bus})
+    return node.v_node
+end
+
+function u_message!(node::PowerLASCOPF.Node{PSY.Bus})
+    return node.u
+end
+
+function get_power_balance(node::PowerLASCOPF.Node{PSY.Bus})
+    # Calculate power balance at node (simplified)
+    return node.P_net  # In full implementation: generation - load - transmission flows
+end
+
+function update_node_averages!(node::PowerLASCOPF.Node{PSY.Bus})
+    # Update node average variables from connected devices
+    # This is a simplified version - full implementation would average all connected devices
+    node.P_net = 0.0  # Placeholder
+    node.theta_node = 0.0  # Placeholder
+end
+
 if abspath(PROGRAM_FILE) == @__FILE__
     args = parse_commandline()
     results = run_simulation(args)

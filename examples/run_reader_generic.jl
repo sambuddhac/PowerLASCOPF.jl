@@ -596,19 +596,34 @@ function run_case(case_name::AbstractString;
                 powerlascopf_nodes_from_csv!(lascopf_system, nodes_path) :
                 PowerLASCOPF.Node{PSY.Bus}[]
 
+            # Read the ContingencyMarked column from the branches CSV (if present) to
+            # get the actual designated contingency lines — not a blind [1..n] identity.
+            # Fall back to collect(1:contingencies) only if the column is absent.
+            actual_cont_list = if isfile(branches_path)
+                df_b = CSV.read(branches_path, DataFrame)
+                if "ContingencyMarked" in names(df_b)
+                    findall(x -> x == 1, df_b.ContingencyMarked)
+                else
+                    collect(1:contingencies)
+                end
+            else
+                collect(1:contingencies)
+            end
+            actual_cont_count = length(actual_cont_list)
+
             branches_v = isfile(branches_path) ?
                 powerlascopf_branches_from_csv!(lascopf_system, nodes_v, branches_path,
-                    collect(1:contingencies), contingencies, rnd_intervals) :
+                    actual_cont_list, actual_cont_count, rnd_intervals) :
                 PowerLASCOPF.transmissionLine[]
 
             thermal_v   = isfile(thermal_path)  ?
-                powerlascopf_thermal_generators_from_csv!(lascopf_system, nodes_v, thermal_path, contingencies) : []
+                powerlascopf_thermal_generators_from_csv!(lascopf_system, nodes_v, thermal_path, actual_cont_count) : []
             renew_v     = isfile(renew_path)    ?
-                powerlascopf_renewable_generators_from_csv!(lascopf_system, nodes_v, renew_path, Dict(), contingencies) : []
+                powerlascopf_renewable_generators_from_csv!(lascopf_system, nodes_v, renew_path, Dict(), actual_cont_count) : []
             hydro_v     = isfile(hydro_path)    ?
-                powerlascopf_hydro_generators_from_csv!(lascopf_system, nodes_v, hydro_path, Dict(), contingencies) : []
+                powerlascopf_hydro_generators_from_csv!(lascopf_system, nodes_v, hydro_path, Dict(), actual_cont_count) : []
             storage_v   = isfile(storage_path)  ?
-                powerlascopf_storage_from_csv!(lascopf_system, nodes_v, storage_path, contingencies) : []
+                powerlascopf_storage_from_csv!(lascopf_system, nodes_v, storage_path, actual_cont_count) : []
             loads_v     = isfile(loads_path)    ?
                 powerlascopf_loads_from_csv!(lascopf_system, nodes_v, loads_path) : []
 
@@ -625,6 +640,33 @@ function run_case(case_name::AbstractString;
     catch e
         println("  ⚠️  PowerLASCOPFSystem construction unavailable: $e")
         println("      (Falling back to DataFrame-based simulation stub.)")
+    end
+
+    # ========================================================================
+    # PHASE 2.5.1: CREATE SUPERNETWORK AND NETWORK OBJECTS
+    # ========================================================================
+
+    # All three builder paths (psse/matpower, rts_gmlc, sahar/legacy) return a NamedTuple
+    # of component vectors — NOT a Dict.  create_supernetwork accepts any type for its
+    # second argument and defaults number_of_cont to length(system.outaged_line) so it
+    # always reflects what was actually built into the system (including any
+    # ContingencyMarked selections from the CSV), not just the CLI contingencies param.
+    supernetworks = PowerLASCOPF.SuperNetwork[]
+    if lascopf_system !== nothing && system_result !== nothing
+        println("  - Building Supernetwork and Network objects...")
+        supernetworks = create_supernetwork(
+            lascopf_system,
+            system_result,
+            # number_of_cont intentionally omitted: defaults to length(system.outaged_line)
+            rnd_intervals      = rnd_intervals,
+            rsd_intervals      = rsd_intervals,
+            include_dummy_zero = true,
+            choice_solver      = 1,
+            rho_tuning         = 1.0,
+            contin_sol_accuracy = 1
+        )
+    else
+        println("  ⚠️  Skipping SuperNetwork creation (PowerLASCOPFSystem or system_result not available).")
     end
 
     # ========================================================================

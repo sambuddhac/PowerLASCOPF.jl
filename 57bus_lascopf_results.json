@@ -2,7 +2,7 @@
     "line_flows": {
     },
     "convergence": {
-        "iterations": 14,
+        "iterations": 11,
         "final_residual": 0,
         "converged": true
     },
@@ -21,10 +21,10 @@
     },
     "status": "FEASIBLE",
     "case_name": "57bus",
-    "timestamp": "2026-03-18 00:46:23",
+    "timestamp": "2026-03-19 13:35:28",
     "bus_count": 57,
     "costs": {
-        "total_cost": 2945.5799751226455
+        "total_cost": 8224.270877242994
     },
     "generator_dispatch": {
     }
