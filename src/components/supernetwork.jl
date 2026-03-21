@@ -9,6 +9,7 @@ const IS = InfrastructureSystems
 # Include necessary PowerLASCOPF components
 include("../extensions/extended_system.jl")
 include("network.jl")
+include("../algorithms/admm_app_solver.jl")
 @kwdef mutable struct SuperNetwork
     # Core properties
     network_id::Int
@@ -432,22 +433,36 @@ function run_network_simulation!(
     
     println("  Running network simulation for system $(system.network_id)")
     
-    # Placeholder implementation - replace with actual solver calls
-    for gen in get_extended_thermal_generators(system)
-        # Update generator variables based on APP iteration
-        # This would call the generator solver methods
+    # Solve generator subproblems for all generator technologies
+    all_generators = [
+        get_extended_thermal_generators(system);
+        get_extended_renewable_generators(system);
+        get_extended_hydro_generators(system);
+        get_extended_storage_generators(system)
+    ]
+    for gen in all_generators
         @debug "Processing generator $(get_gen_id(gen))"
+        solve_generator_subproblem!(gen, rho_tuning, iter_count)
     end
     
     for line in get_transmission_lines(system)
         # Update transmission line variables
         # This would call the line solver methods
         @debug "Processing transmission line $(get_transl_id(line))"
+        solve_transmission_subproblems!(
+            line,
+            lambda_line,
+            power_diff_line,
+            pow_self_flow_bel,
+            pow_next_flow_bel,
+            iter_count
+        )
     end
     
     for node in get_nodes(system)
         # Update node variables and perform message passing
         @debug "Processing node $(get_node_id(node))"
+        update_node_variables!(node, iter_count)
     end
 end
 

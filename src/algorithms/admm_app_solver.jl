@@ -98,9 +98,10 @@ function initialize_admm_variables!(solver::LASCOPFSolver)
     println("  Initializing ADMM variables...")
     
     # Initialize generator variables
-    for gen in [solver.system_data["thermal_generators"]; 
-                solver.system_data["renewable_generators"]; 
-                solver.system_data["hydro_generators"]]
+    for gen in [solver.system_data["thermal_generators"];
+                solver.system_data["renewable_generators"];
+                solver.system_data["hydro_generators"];
+                solver.system_data["storage_generators"]]
         set_gen_data!(gen)
     end
     
@@ -127,18 +128,11 @@ function solve_generator_subproblems!(solver::LASCOPFSolver)
     
     rho = solver.parameters["rho"]
     
-    # Solve thermal generators
-    for (i, gen) in enumerate(solver.system_data["thermal_generators"])
-        solve_generator_subproblem!(gen, rho, solver.current_iteration)
-    end
-    
-    # Solve renewable generators
-    for (i, gen) in enumerate(solver.system_data["renewable_generators"])
-        solve_generator_subproblem!(gen, rho, solver.current_iteration)
-    end
-    
-    # Solve hydro generators
-    for (i, gen) in enumerate(solver.system_data["hydro_generators"])
+    # Solve all generator technologies
+    for gen in [solver.system_data["thermal_generators"];
+                solver.system_data["renewable_generators"];
+                solver.system_data["hydro_generators"];
+                solver.system_data["storage_generators"]]
         solve_generator_subproblem!(gen, rho, solver.current_iteration)
     end
     
