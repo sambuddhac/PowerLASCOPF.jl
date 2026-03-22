@@ -38,6 +38,11 @@ include("../core/ExtendedRenewableGenerationCost.jl")
 include("../core/ExtendedHydroGenerationCost.jl")
 include("../core/cost_utilities.jl")
 include("../solvers/generator_solvers/gensolver_first_base.jl")
+# Generator Integration Module for PowerLASCOPF System
+# This module integrates the unified generator framework with the PowerLASCOPF system
+
+include("unified_generator_framework.jl")
+include("../extensions/extended_system.jl")  # Your PSY.System extension
 
 # Define abstract type for unified generator interface
 abstract type UnifiedGenerator end
@@ -1490,22 +1495,6 @@ function is_unified_generator_available(wrapper::UnifiedGeneratorWrapper)
     end
 end
 
-# ===== EXPORT FUNCTIONS =====
-
-export UnifiedGeneratorWrapper, UnifiedGenerator
-export create_unified_thermal_generator, create_unified_hydro_generator
-export create_unified_storage_generator, create_unified_renewable_generator
-export create_unified_storage_gen_generator
-export unified_power_angle_message!, initialize_messaging!
-export get_unified_power_output, get_unified_marginal_cost, is_unified_generator_available
-export update_generator_from_messaging_result!
-
-# Generator Integration Module for PowerLASCOPF System
-# This module integrates the unified generator framework with the PowerLASCOPF system
-
-include("unified_generator_framework.jl")
-include("../extensions/extended_system.jl")  # Your PSY.System extension
-
 # ===== POWERLASCOPF SYSTEM INTEGRATION =====
 
 """
@@ -1816,6 +1805,14 @@ function validate_unified_generators(system::PowerLASCOPFSystem)
 end
 
 # ===== EXPORT FUNCTIONS =====
+
+export UnifiedGeneratorWrapper, UnifiedGenerator
+export create_unified_thermal_generator, create_unified_hydro_generator
+export create_unified_storage_generator, create_unified_renewable_generator
+export create_unified_storage_gen_generator
+export unified_power_angle_message!, initialize_messaging!
+export get_unified_power_output, get_unified_marginal_cost, is_unified_generator_available
+export update_generator_from_messaging_result!
 
 export add_unified_generator!, add_thermal_generator!, add_hydro_generator!
 export add_storage_generator!, add_renewable_generator!, add_storage_gen_generator!

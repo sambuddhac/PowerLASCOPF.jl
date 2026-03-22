@@ -58,9 +58,9 @@ end
 """
 Add decision variables to the optimization container for LASCOPF generator formulation (PREALLOCATED)
 """
-function add_decision_variables_preallocated!(container::PSI.OptimizationContainer, 
-                                             solver::GenSolver, 
-                                             devices::IS.FlattenIteratorWrapper{PSY.ThermalGen})
+function add_decision_variables_preallocated!(container::PSI.OptimizationContainer,
+                                             solver::GenSolver,
+                                             devices::Union{IS.FlattenIteratorWrapper{<:PSY.ThermalGen}, AbstractVector{<:PSY.ThermalGen}})
     time_steps = PSI.get_time_steps(container)
     
     if solver.config.enable_benchmarking
@@ -132,7 +132,7 @@ Add constraints to the optimization container for LASCOPF generator formulation 
 """
 function add_constraints_preallocated!(container::PSI.OptimizationContainer,
                                       solver::GenSolver,
-                                      devices::IS.FlattenIteratorWrapper{PSY.ThermalGen})
+                                      devices::Union{IS.FlattenIteratorWrapper{<:PSY.ThermalGen}, AbstractVector{<:PSY.ThermalGen}})
     
     time_steps = PSI.get_time_steps(container)
     jump_model = PSI.get_jump_model(container)
@@ -239,7 +239,7 @@ Set the objective function for LASCOPF generator formulation (PREALLOCATED)
 """
 function set_objective_preallocated!(container::PSI.OptimizationContainer,
                                     solver::GenSolver,
-                                    devices::IS.FlattenIteratorWrapper{PSY.ThermalGen})
+                                    devices::Union{IS.FlattenIteratorWrapper{<:PSY.ThermalGen}, AbstractVector{<:PSY.ThermalGen}})
     
     time_steps = PSI.get_time_steps(container)
     jump_model = PSI.get_jump_model(container)
@@ -510,7 +510,7 @@ Solve the LASCOPF generator optimization problem (PREALLOCATED)
 """
 function solve_gensolver_preallocated!(container::PSI.OptimizationContainer,
                                       solver::GenSolver,
-                                      devices::IS.FlattenIteratorWrapper{PSY.ThermalGen};
+                                      devices::Union{IS.FlattenIteratorWrapper{<:PSY.ThermalGen}, AbstractVector{<:PSY.ThermalGen}};
                                       optimizer_factory=nothing,
                                       solve_options=Dict())
     
@@ -671,6 +671,100 @@ function build_and_solve_gensolver!(solver::GenSolver,
                                                 solve_options=solve_options,
                                                 time_horizon=time_horizon)
     end
+end
+
+"""
+    build_and_solve_gensolver_preallocated_for_gen!(solver, device; optimizer_factory, solve_options, time_horizon)
+
+Single-device preallocated path for the APP distributed algorithm. Mirrors
+`build_and_solve_gensolver_preallocated!` but accepts a `PSY.ThermalGen` device directly
+instead of querying a `PSY.System`. Uses default resolution and system name since no
+`PSY.System` is available in the distributed per-generator context.
+"""
+function build_and_solve_gensolver_preallocated_for_gen!(solver::GenSolver,
+                                                         device::PSY.ThermalGen;
+                                                         optimizer_factory=nothing,
+                                                         solve_options=Dict(),
+                                                         time_horizon=24)
+    if solver.config.enable_benchmarking
+        total_start_time = time()
+    end
+
+    time_steps = 1:time_horizon
+    devices = [device]
+
+    container = PSI.OptimizationContainer(
+        JuMP.Model(),
+        time_steps,
+        Dates.Hour(1),              # default resolution — no PSY.System available
+        "LASCOPF_Generator_System"  # default name
+    )
+
+    add_decision_variables_preallocated!(container, solver, devices)
+    add_constraints_preallocated!(container, solver, devices)
+    set_objective_preallocated!(container, solver, devices)
+
+    results = solve_gensolver_preallocated!(container, solver, devices;
+                                            optimizer_factory=optimizer_factory,
+                                            solve_options=solve_options)
+
+    if solver.config.enable_benchmarking
+        solver.config.benchmark_results["total_preallocated_time"] = time() - total_start_time
+    end
+
+    return results
+end
+
+"""
+    build_and_solve_gensolver_for_gen!(solver, device::PSY.ThermalGen; ...)
+
+Single-device unified interface for thermal generators in the APP distributed algorithm.
+Dispatches to the preallocated or direct path based on `solver.config.use_preallocation`,
+mirroring the behaviour of `build_and_solve_gensolver!` for the single-device case.
+"""
+function build_and_solve_gensolver_for_gen!(solver::GenSolver,
+                                            device::PSY.ThermalGen;
+                                            optimizer_factory=nothing,
+                                            solve_options=Dict(),
+                                            time_horizon=24)
+    if solver.config.use_preallocation
+        return build_and_solve_gensolver_preallocated_for_gen!(solver, device;
+                                                               optimizer_factory=optimizer_factory,
+                                                               solve_options=solve_options,
+                                                               time_horizon=time_horizon)
+    else
+        time_steps = 1:time_horizon
+        model = JuMP.Model()
+        devices = [device]
+        Pg, PgNext, thetag = add_decision_variables_direct!(model, solver, devices, time_steps)
+        add_constraints_direct!(model, solver, devices, time_steps, Pg, PgNext, thetag)
+        set_objective_direct!(model, solver, devices, time_steps, Pg, PgNext, thetag)
+        return solve_gensolver_direct!(model, solver, devices, time_steps, Pg, PgNext, thetag;
+                                       optimizer_factory=optimizer_factory,
+                                       solve_options=solve_options)
+    end
+end
+
+"""
+    build_and_solve_gensolver_for_gen!(solver, device::PSY.StaticInjection; ...)
+
+Single-device fallback for non-thermal generator types (renewable, hydro, storage).
+The preallocated path is thermal-specific, so this overload always uses the direct path.
+"""
+function build_and_solve_gensolver_for_gen!(solver::GenSolver,
+                                            device::PSY.StaticInjection;
+                                            optimizer_factory=nothing,
+                                            solve_options=Dict(),
+                                            time_horizon=24)
+    time_steps = 1:time_horizon
+    model = JuMP.Model()
+    devices = [device]
+    Pg, PgNext, thetag = add_decision_variables_direct!(model, solver, devices, time_steps)
+    add_constraints_direct!(model, solver, devices, time_steps, Pg, PgNext, thetag)
+    set_objective_direct!(model, solver, devices, time_steps, Pg, PgNext, thetag)
+    return solve_gensolver_direct!(model, solver, devices, time_steps, Pg, PgNext, thetag;
+                                   optimizer_factory=optimizer_factory,
+                                   solve_options=solve_options)
 end
 
 """

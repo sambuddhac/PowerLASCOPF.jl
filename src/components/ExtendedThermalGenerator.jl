@@ -530,11 +530,69 @@ function solve_thermal_generator_subproblem!(gen::ExtendedThermalGenerator, sys:
     
     # Extract results back to generator
     extract_thermal_results_to_generator!(gen, results)
-    
+
     # Update thermal performance metrics
     update_thermal_performance!(gen)
-    
+
     return results
+end
+
+"""
+    solve_thermal_generator_subproblem!(gen::ExtendedThermalGenerator; solve_options, time_horizon, include_unit_commitment)
+
+Sys-less overload for the APP distributed algorithm. Uses `build_and_solve_gensolver_for_gen!`
+with `gen.generator` directly instead of querying a `PSY.System`, enabling per-generator
+subproblem solves without access to the full system object. Mirrors the pre/post-processing
+steps of the sys-based overload.
+"""
+function solve_thermal_generator_subproblem!(gen::ExtendedThermalGenerator;
+                                             optimizer_factory=nothing,
+                                             solve_options=Dict(),
+                                             time_horizon=24,
+                                             include_unit_commitment=false)
+    update_thermal_solver_from_generator!(gen)
+
+    thermal_solve_options = merge(solve_options, Dict(
+        "include_ramp_constraints"       => true,
+        "include_min_up_down_time"       => include_unit_commitment,
+        "include_startup_shutdown_costs" => include_unit_commitment
+    ))
+
+    results = build_and_solve_gensolver_for_gen!(
+        gen.gen_solver, gen.generator;
+        optimizer_factory=optimizer_factory,
+        solve_options=thermal_solve_options,
+        time_horizon=time_horizon
+    )
+
+    extract_thermal_results_to_generator!(gen, results)
+    update_thermal_performance!(gen)
+
+    return results
+end
+
+"""
+    solve_thermal_generator_subproblem!(gen_solver, device; solve_options, time_horizon, include_unit_commitment)
+
+Dispatch point for `GeneralizedGenerator` calls arriving from the APP solver. Accepts the
+`GenSolver` and raw `PSY.StaticInjection` device exposed by `GeneralizedGenerator` and
+routes through `build_and_solve_gensolver_for_gen!`.
+"""
+function solve_thermal_generator_subproblem!(gen_solver::GenSolver,
+                                             device::PSY.StaticInjection;
+                                             optimizer_factory=nothing,
+                                             solve_options=Dict(),
+                                             time_horizon=24,
+                                             include_unit_commitment=false)
+    thermal_solve_options = merge(solve_options, Dict(
+        "include_ramp_constraints"       => true,
+        "include_min_up_down_time"       => include_unit_commitment,
+        "include_startup_shutdown_costs" => include_unit_commitment
+    ))
+    return build_and_solve_gensolver_for_gen!(gen_solver, device;
+                                              optimizer_factory=optimizer_factory,
+                                              solve_options=thermal_solve_options,
+                                              time_horizon=time_horizon)
 end
 
 """
@@ -607,28 +665,33 @@ end
 # ...existing code for utility functions...
 
 """
-Power angle message passing for Extended Thermal Generators in APP-ADMM
-This function computes the optimal power output and voltage angle for a thermal generator
-given the current dual variables and penalty parameters in the ADMM algorithm.
+    thermal_admm_dispatch_update!(thermal, voltage_angle, lambda, rho; neighbors, iteration, temperature)
+
+Closed-form ADMM local dispatch update for a thermal generator. Uses a quadratic
+approximation of the cost function to compute the optimal power output and voltage
+angle analytically given current dual variables and penalty parameter.
+
+Note: This is distinct from `gpower_angle_message!`, which is the full APP subproblem
+solver operating on `GeneralizedGenerator` with the complete APP consensus parameter set.
 
 Arguments:
 - thermal: ExtendedThermalGenerator object
 - voltage_angle: Current voltage angle at the generator bus (radians)
 - lambda: Lagrange multiplier for power balance constraint
 - rho: Penalty parameter for ADMM
-- neighbors: Vector of neighboring generators/buses
+- neighbors: Vector of neighboring generators/buses power outputs
 - iteration: Current ADMM iteration number
 
 Returns:
-- Tuple (power, angle) with optimal power output and updated voltage angle
+- NamedTuple (power, angle) with optimal power output and updated voltage angle
 """
-function gpoweranglemessage(thermal::ExtendedThermalGenerator, 
-                          voltage_angle::Float64,
-                          lambda::Float64, 
-                          rho::Float64;
-                          neighbors::Vector{Float64} = Float64[],
-                          iteration::Int = 1,
-                          temperature::Float64 = 25.0)
+function thermal_admm_dispatch_update!(thermal::ExtendedThermalGenerator,
+                                       voltage_angle::Float64,
+                                       lambda::Float64,
+                                       rho::Float64;
+                                       neighbors::Vector{Float64} = Float64[],
+                                       iteration::Int = 1,
+                                       temperature::Float64 = 25.0)
     
     # Extract generator parameters
     min_power = get_active_power_limits(thermal).min
