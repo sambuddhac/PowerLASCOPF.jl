@@ -1,6 +1,6 @@
 [
   {
-    "LineID": "1_2",
+    "LineName": "1_2",
     "LineType": "AC",
     "fromNode": 1,
     "toNode": 2,
@@ -14,7 +14,7 @@
     "ContingencyMarked": 0
   },
   {
-    "LineID": "1_3",
+    "LineName": "1_3",
     "LineType": "AC",
     "fromNode": 1,
     "toNode": 3,
@@ -28,7 +28,7 @@
     "ContingencyMarked": 0
   },
   {
-    "LineID": "1_5",
+    "LineName": "1_5",
     "LineType": "AC",
     "fromNode": 1,
     "toNode": 5,
@@ -42,7 +42,7 @@
     "ContingencyMarked": 1
   },
   {
-    "LineID": "2_4",
+    "LineName": "2_4",
     "LineType": "AC",
     "fromNode": 2,
     "toNode": 4,
@@ -56,7 +56,7 @@
     "ContingencyMarked": 0
   },
   {
-    "LineID": "2_6",
+    "LineName": "2_6",
     "LineType": "AC",
     "fromNode": 2,
     "toNode": 6,
@@ -70,7 +70,7 @@
     "ContingencyMarked": 1
   },
   {
-    "LineID": "3_9",
+    "LineName": "3_9",
     "LineType": "AC",
     "fromNode": 3,
     "toNode": 9,
@@ -84,7 +84,7 @@
     "ContingencyMarked": 0
   },
   {
-    "LineID": "3_24",
+    "LineName": "3_24",
     "LineType": "AC",
     "fromNode": 3,
     "toNode": 24,
@@ -98,7 +98,7 @@
     "ContingencyMarked": 1
   },
   {
-    "LineID": "4_9",
+    "LineName": "4_9",
     "LineType": "AC",
     "fromNode": 4,
     "toNode": 9,
@@ -112,7 +112,7 @@
     "ContingencyMarked": 0
   },
   {
-    "LineID": "5_10",
+    "LineName": "5_10",
     "LineType": "AC",
     "fromNode": 5,
     "toNode": 10,
@@ -126,7 +126,7 @@
     "ContingencyMarked": 0
   },
   {
-    "LineID": "6_10",
+    "LineName": "6_10",
     "LineType": "AC",
     "fromNode": 6,
     "toNode": 10,
@@ -140,7 +140,7 @@
     "ContingencyMarked": 0
   },
   {
-    "LineID": "7_8",
+    "LineName": "7_8",
     "LineType": "AC",
     "fromNode": 7,
     "toNode": 8,
@@ -154,7 +154,7 @@
     "ContingencyMarked": 0
   },
   {
-    "LineID": "8_9",
+    "LineName": "8_9",
     "LineType": "AC",
     "fromNode": 8,
     "toNode": 9,
@@ -168,7 +168,7 @@
     "ContingencyMarked": 0
   },
   {
-    "LineID": "8_10",
+    "LineName": "8_10",
     "LineType": "AC",
     "fromNode": 8,
     "toNode": 10,
@@ -182,7 +182,7 @@
     "ContingencyMarked": 0
   },
   {
-    "LineID": "9_11",
+    "LineName": "9_11",
     "LineType": "AC",
     "fromNode": 9,
     "toNode": 11,
@@ -196,7 +196,7 @@
     "ContingencyMarked": 0
   },
   {
-    "LineID": "9_12",
+    "LineName": "9_12",
     "LineType": "AC",
     "fromNode": 9,
     "toNode": 12,
@@ -210,7 +210,7 @@
     "ContingencyMarked": 0
   },
   {
-    "LineID": "10_11",
+    "LineName": "10_11",
     "LineType": "AC",
     "fromNode": 10,
     "toNode": 11,
@@ -224,7 +224,7 @@
     "ContingencyMarked": 0
   },
   {
-    "LineID": "10_12",
+    "LineName": "10_12",
     "LineType": "AC",
     "fromNode": 10,
     "toNode": 12,
@@ -238,7 +238,7 @@
     "ContingencyMarked": 0
   },
   {
-    "LineID": "11_13",
+    "LineName": "11_13",
     "LineType": "AC",
     "fromNode": 11,
     "toNode": 13,
@@ -252,7 +252,7 @@
     "ContingencyMarked": 0
   },
   {
-    "LineID": "11_14",
+    "LineName": "11_14",
     "LineType": "AC",
     "fromNode": 11,
     "toNode": 14,
@@ -266,7 +266,7 @@
     "ContingencyMarked": 0
   },
   {
-    "LineID": "12_13",
+    "LineName": "12_13",
     "LineType": "AC",
     "fromNode": 12,
     "toNode": 13,
@@ -280,7 +280,7 @@
     "ContingencyMarked": 0
   },
   {
-    "LineID": "12_23",
+    "LineName": "12_23",
     "LineType": "AC",
     "fromNode": 12,
     "toNode": 23,
@@ -294,7 +294,7 @@
     "ContingencyMarked": 0
   },
   {
-    "LineID": "13_23",
+    "LineName": "13_23",
     "LineType": "AC",
     "fromNode": 13,
     "toNode": 23,
@@ -308,7 +308,7 @@
     "ContingencyMarked": 0
   },
   {
-    "LineID": "14_16",
+    "LineName": "14_16",
     "LineType": "AC",
     "fromNode": 14,
     "toNode": 16,
@@ -322,7 +322,7 @@
     "ContingencyMarked": 0
   },
   {
-    "LineID": "15_16",
+    "LineName": "15_16",
     "LineType": "AC",
     "fromNode": 15,
     "toNode": 16,
@@ -336,7 +336,7 @@
     "ContingencyMarked": 0
   },
   {
-    "LineID": "15_21",
+    "LineName": "15_21",
     "LineType": "AC",
     "fromNode": 15,
     "toNode": 21,
@@ -350,7 +350,7 @@
     "ContingencyMarked": 0
   },
   {
-    "LineID": "15_24",
+    "LineName": "15_24",
     "LineType": "AC",
     "fromNode": 15,
     "toNode": 24,
@@ -364,7 +364,7 @@
     "ContingencyMarked": 0
   },
   {
-    "LineID": "16_17",
+    "LineName": "16_17",
     "LineType": "AC",
     "fromNode": 16,
     "toNode": 17,
@@ -378,7 +378,7 @@
     "ContingencyMarked": 0
   },
   {
-    "LineID": "16_19",
+    "LineName": "16_19",
     "LineType": "AC",
     "fromNode": 16,
     "toNode": 19,
@@ -392,7 +392,7 @@
     "ContingencyMarked": 0
   },
   {
-    "LineID": "17_18",
+    "LineName": "17_18",
     "LineType": "AC",
     "fromNode": 17,
     "toNode": 18,
@@ -406,7 +406,7 @@
     "ContingencyMarked": 0
   },
   {
-    "LineID": "17_22",
+    "LineName": "17_22",
     "LineType": "AC",
     "fromNode": 17,
     "toNode": 22,
@@ -420,7 +420,7 @@
     "ContingencyMarked": 0
   },
   {
-    "LineID": "18_21",
+    "LineName": "18_21",
     "LineType": "AC",
     "fromNode": 18,
     "toNode": 21,
@@ -434,7 +434,7 @@
     "ContingencyMarked": 0
   },
   {
-    "LineID": "19_20",
+    "LineName": "19_20",
     "LineType": "AC",
     "fromNode": 19,
     "toNode": 20,
@@ -448,7 +448,7 @@
     "ContingencyMarked": 0
   },
   {
-    "LineID": "20_23",
+    "LineName": "20_23",
     "LineType": "AC",
     "fromNode": 20,
     "toNode": 23,
@@ -462,7 +462,7 @@
     "ContingencyMarked": 0
   },
   {
-    "LineID": "21_22",
+    "LineName": "21_22",
     "LineType": "AC",
     "fromNode": 21,
     "toNode": 22,
@@ -476,7 +476,7 @@
     "ContingencyMarked": 0
   },
   {
-    "LineID": "25_26",
+    "LineName": "25_26",
     "LineType": "AC",
     "fromNode": 25,
     "toNode": 26,
@@ -490,7 +490,7 @@
     "ContingencyMarked": 0
   },
   {
-    "LineID": "25_27",
+    "LineName": "25_27",
     "LineType": "AC",
     "fromNode": 25,
     "toNode": 27,
@@ -504,7 +504,7 @@
     "ContingencyMarked": 0
   },
   {
-    "LineID": "25_29",
+    "LineName": "25_29",
     "LineType": "AC",
     "fromNode": 25,
     "toNode": 29,
@@ -518,7 +518,7 @@
     "ContingencyMarked": 0
   },
   {
-    "LineID": "26_28",
+    "LineName": "26_28",
     "LineType": "AC",
     "fromNode": 26,
     "toNode": 28,
@@ -532,7 +532,7 @@
     "ContingencyMarked": 0
   },
   {
-    "LineID": "26_30",
+    "LineName": "26_30",
     "LineType": "AC",
     "fromNode": 26,
     "toNode": 30,
@@ -546,7 +546,7 @@
     "ContingencyMarked": 0
   },
   {
-    "LineID": "27_33",
+    "LineName": "27_33",
     "LineType": "AC",
     "fromNode": 27,
     "toNode": 33,
@@ -560,7 +560,7 @@
     "ContingencyMarked": 0
   },
   {
-    "LineID": "27_48",
+    "LineName": "27_48",
     "LineType": "AC",
     "fromNode": 27,
     "toNode": 48,
@@ -574,7 +574,7 @@
     "ContingencyMarked": 0
   },
   {
-    "LineID": "28_33",
+    "LineName": "28_33",
     "LineType": "AC",
     "fromNode": 28,
     "toNode": 33,
@@ -588,7 +588,7 @@
     "ContingencyMarked": 0
   },
   {
-    "LineID": "29_34",
+    "LineName": "29_34",
     "LineType": "AC",
     "fromNode": 29,
     "toNode": 34,
@@ -602,7 +602,7 @@
     "ContingencyMarked": 0
   },
   {
-    "LineID": "30_34",
+    "LineName": "30_34",
     "LineType": "AC",
     "fromNode": 30,
     "toNode": 34,
@@ -616,7 +616,7 @@
     "ContingencyMarked": 0
   },
   {
-    "LineID": "31_32",
+    "LineName": "31_32",
     "LineType": "AC",
     "fromNode": 31,
     "toNode": 32,
@@ -630,7 +630,7 @@
     "ContingencyMarked": 0
   },
   {
-    "LineID": "32_33",
+    "LineName": "32_33",
     "LineType": "AC",
     "fromNode": 32,
     "toNode": 33,
@@ -644,7 +644,7 @@
     "ContingencyMarked": 0
   },
   {
-    "LineID": "32_34",
+    "LineName": "32_34",
     "LineType": "AC",
     "fromNode": 32,
     "toNode": 34,
@@ -658,7 +658,7 @@
     "ContingencyMarked": 0
   },
   {
-    "LineID": "33_35",
+    "LineName": "33_35",
     "LineType": "AC",
     "fromNode": 33,
     "toNode": 35,
@@ -672,7 +672,7 @@
     "ContingencyMarked": 0
   },
   {
-    "LineID": "33_36",
+    "LineName": "33_36",
     "LineType": "AC",
     "fromNode": 33,
     "toNode": 36,
@@ -686,7 +686,7 @@
     "ContingencyMarked": 0
   },
   {
-    "LineID": "34_35",
+    "LineName": "34_35",
     "LineType": "AC",
     "fromNode": 34,
     "toNode": 35,
@@ -700,7 +700,7 @@
     "ContingencyMarked": 0
   },
   {
-    "LineID": "34_36",
+    "LineName": "34_36",
     "LineType": "AC",
     "fromNode": 34,
     "toNode": 36,
@@ -714,7 +714,7 @@
     "ContingencyMarked": 0
   },
   {
-    "LineID": "35_37",
+    "LineName": "35_37",
     "LineType": "AC",
     "fromNode": 35,
     "toNode": 37,
@@ -728,7 +728,7 @@
     "ContingencyMarked": 0
   },
   {
-    "LineID": "35_38",
+    "LineName": "35_38",
     "LineType": "AC",
     "fromNode": 35,
     "toNode": 38,
@@ -742,7 +742,7 @@
     "ContingencyMarked": 0
   },
   {
-    "LineID": "36_37",
+    "LineName": "36_37",
     "LineType": "AC",
     "fromNode": 36,
     "toNode": 37,
@@ -756,7 +756,7 @@
     "ContingencyMarked": 0
   },
   {
-    "LineID": "36_47",
+    "LineName": "36_47",
     "LineType": "AC",
     "fromNode": 36,
     "toNode": 47,
@@ -770,7 +770,7 @@
     "ContingencyMarked": 0
   },
   {
-    "LineID": "37_47",
+    "LineName": "37_47",
     "LineType": "AC",
     "fromNode": 37,
     "toNode": 47,
@@ -784,7 +784,7 @@
     "ContingencyMarked": 0
   },
   {
-    "LineID": "38_40",
+    "LineName": "38_40",
     "LineType": "AC",
     "fromNode": 38,
     "toNode": 40,
@@ -798,7 +798,7 @@
     "ContingencyMarked": 0
   },
   {
-    "LineID": "39_40",
+    "LineName": "39_40",
     "LineType": "AC",
     "fromNode": 39,
     "toNode": 40,
@@ -812,7 +812,7 @@
     "ContingencyMarked": 0
   },
   {
-    "LineID": "39_45",
+    "LineName": "39_45",
     "LineType": "AC",
     "fromNode": 39,
     "toNode": 45,
@@ -826,7 +826,7 @@
     "ContingencyMarked": 0
   },
   {
-    "LineID": "39_48",
+    "LineName": "39_48",
     "LineType": "AC",
     "fromNode": 39,
     "toNode": 48,
@@ -840,7 +840,7 @@
     "ContingencyMarked": 0
   },
   {
-    "LineID": "40_41",
+    "LineName": "40_41",
     "LineType": "AC",
     "fromNode": 40,
     "toNode": 41,
@@ -854,7 +854,7 @@
     "ContingencyMarked": 0
   },
   {
-    "LineID": "40_43",
+    "LineName": "40_43",
     "LineType": "AC",
     "fromNode": 40,
     "toNode": 43,
@@ -868,7 +868,7 @@
     "ContingencyMarked": 0
   },
   {
-    "LineID": "41_42",
+    "LineName": "41_42",
     "LineType": "AC",
     "fromNode": 41,
     "toNode": 42,
@@ -882,7 +882,7 @@
     "ContingencyMarked": 0
   },
   {
-    "LineID": "41_46",
+    "LineName": "41_46",
     "LineType": "AC",
     "fromNode": 41,
     "toNode": 46,
@@ -896,7 +896,7 @@
     "ContingencyMarked": 0
   },
   {
-    "LineID": "42_45",
+    "LineName": "42_45",
     "LineType": "AC",
     "fromNode": 42,
     "toNode": 45,
@@ -910,7 +910,7 @@
     "ContingencyMarked": 0
   },
   {
-    "LineID": "43_44",
+    "LineName": "43_44",
     "LineType": "AC",
     "fromNode": 43,
     "toNode": 44,
@@ -924,7 +924,7 @@
     "ContingencyMarked": 0
   },
   {
-    "LineID": "44_47",
+    "LineName": "44_47",
     "LineType": "AC",
     "fromNode": 44,
     "toNode": 47,
@@ -938,7 +938,7 @@
     "ContingencyMarked": 0
   },
   {
-    "LineID": "45_46",
+    "LineName": "45_46",
     "LineType": "AC",
     "fromNode": 45,
     "toNode": 46,
@@ -952,7 +952,7 @@
     "ContingencyMarked": 0
   },
   {
-    "LineID": "7_27",
+    "LineName": "7_27",
     "LineType": "AC",
     "fromNode": 7,
     "toNode": 27,
@@ -966,7 +966,7 @@
     "ContingencyMarked": 0
   },
   {
-    "LineID": "13_39",
+    "LineName": "13_39",
     "LineType": "AC",
     "fromNode": 13,
     "toNode": 39,
@@ -980,7 +980,7 @@
     "ContingencyMarked": 0
   },
   {
-    "LineID": "23_41",
+    "LineName": "23_41",
     "LineType": "AC",
     "fromNode": 23,
     "toNode": 41,

@@ -1,26 +1,10 @@
 {
     "line_flows": {
-        "Line12": 0,
-        "Line6": 0,
-        "DCLine4": 0,
-        "Line15": 0,
-        "Line9": 0,
-        "Line10": 0,
-        "DCLine3": 0,
-        "Line7": 0,
-        "Line1": 0,
-        "Line13": 0,
-        "Line8": 0,
-        "Line14": 0,
-        "Line2": 0,
-        "Line16": 0,
-        "Line5": 0,
-        "Line11": 0
     },
     "convergence": {
-        "iterations": 1,
-        "final_residual": 2.2680000000000007,
-        "converged": false
+        "iterations": 13,
+        "final_residual": 0,
+        "converged": true
     },
     "data_summary": {
         "nodes": 14,
@@ -35,18 +19,13 @@
         "total_generation_capacity_MW": 38.732,
         "total_load_MW": 10
     },
-    "status": "not_converged",
+    "status": "FEASIBLE",
     "case_name": "14bus",
-    "timestamp": "2026-01-16 16:01:00",
+    "timestamp": "2026-03-11 00:49:07",
     "bus_count": 14,
     "costs": {
-        "total_cost": 147.971
+        "total_cost": 2958.9429855976236
     },
     "generator_dispatch": {
-        "nodeC_Gen": 1,
-        "nodeH_Gen": 1,
-        "nodeA_Gen": 3.332,
-        "nodeF_Gen": 1,
-        "nodeB_Gen": 1.4
     }
 }

@@ -1,0 +1,31 @@
+{
+    "line_flows": {
+    },
+    "convergence": {
+        "iterations": 10,
+        "final_residual": 0,
+        "converged": false
+    },
+    "data_summary": {
+        "nodes": 73,
+        "branches": 120,
+        "thermal_generators": 73,
+        "storage": 21,
+        "loads": 51,
+        "renewable_generators": 57,
+        "hydro_generators": 1
+    },
+    "system_metrics": {
+        "total_generation_capacity_MW": 11041.9,
+        "total_load_MW": 8550
+    },
+    "status": "MAX_ITERATIONS_REACHED",
+    "case_name": "RTS_GMLC",
+    "timestamp": "2026-03-11 00:39:18",
+    "bus_count": 73,
+    "costs": {
+        "total_cost": 4364.968019635306
+    },
+    "generator_dispatch": {
+    }
+}

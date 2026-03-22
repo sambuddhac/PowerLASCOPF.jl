@@ -1,4 +1,10 @@
 include("../core/types.jl")
+# Define abstract types for PowerLASCOPF hierarchy
+#=
+abstract type PowerLASCOPFComponent end
+abstract type Subsystem <: PowerLASCOPFComponent end
+abstract type Device <: PowerLASCOPFComponent end
+abstract type PowerGenerator <: Device end=#
 # Define the Node struct extending PowerSystems.Bus for Sienna integration
 mutable struct Node{T<:PSY.Bus} <: Subsystem
     # Core node properties

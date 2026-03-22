@@ -1,0 +1,31 @@
+{
+    "line_flows": {
+    },
+    "convergence": {
+        "iterations": 10,
+        "final_residual": 0,
+        "converged": false
+    },
+    "data_summary": {
+        "nodes": 0,
+        "branches": 0,
+        "thermal_generators": 0,
+        "storage": 0,
+        "loads": 0,
+        "renewable_generators": 0,
+        "hydro_generators": 0
+    },
+    "system_metrics": {
+        "total_generation_capacity_MW": 0,
+        "total_load_MW": 0
+    },
+    "status": "MAX_ITERATIONS_REACHED",
+    "case_name": "SyntheticUSA",
+    "timestamp": "2026-03-11 00:41:12",
+    "bus_count": 70000,
+    "costs": {
+        "total_cost": 761.1298456293447
+    },
+    "generator_dispatch": {
+    }
+}

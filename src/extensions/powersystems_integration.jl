@@ -104,6 +104,7 @@ function PSI.add_variable!(
 end
 
 # Add PgPrev variable for previous interval power output
+# Add PgPrev variable for next interval power output
 function PSI.add_variable!(
     container::PSI.OptimizationContainer,
     ::Type{PgPrevVariable},
@@ -137,6 +138,42 @@ function PSI.add_variable!(
         )
     end
 
+    return
+end
+
+function PSI.add_variable!(
+    container::PSI.OptimizationContainer,
+    ::Type{PgNextVariable},
+    ::LASCOPFGeneratorFormulation,
+    devices::IS.FlattenIteratorWrapper{PSY.ThermalGen},
+    model::PSI.DecisionModel
+)
+    time_steps = PSI.get_time_steps(container)
+    variable_name = PSI.make_variable_name(PgNextVariable, PSY.ThermalGen)
+    
+    PSI._add_variable_container!(
+        container,
+        PgNextVariable,
+        PSY.ThermalGen,
+        [PSY.get_name(d) for d in devices],
+        time_steps
+    )
+    
+    variable = PSI.get_variable(container, PgNextVariable, PSY.ThermalGen)
+    jump_model = PSI.get_jump_model(container)
+    
+    for device in devices, t in time_steps
+        name = PSY.get_name(device)
+        limits = PSY.get_active_power_limits(device)
+        
+        variable[name, t] = JuMP.@variable(
+            jump_model,
+            base_name = "$(variable_name)_$(name)_$(t)",
+            lower_bound = limits.min,
+            upper_bound = limits.max
+        )
+    end
+    
     return
 end
 
