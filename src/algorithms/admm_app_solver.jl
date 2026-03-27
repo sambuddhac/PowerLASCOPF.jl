@@ -210,6 +210,69 @@ function solve_thermal_generator_subproblem!(gen::GeneralizedGenerator;
 end
 
 """
+    solve_renewable_generator_subproblem!(gen::GeneralizedGenerator; ...)
+
+Overload of `solve_renewable_generator_subproblem!` for `GeneralizedGenerator`. Routes
+through the `(GenSolver, PSY.RenewableGen)` dispatch overload in ExtendedRenewableGenerator.jl.
+"""
+function solve_renewable_generator_subproblem!(gen::GeneralizedGenerator;
+                                               optimizer_factory=nothing,
+                                               solve_options=Dict(),
+                                               time_horizon=24,
+                                               include_unit_commitment=false)
+    return solve_renewable_generator_subproblem!(gen.gen_solver, gen.generator;
+                                                 optimizer_factory=optimizer_factory,
+                                                 solve_options=solve_options,
+                                                 time_horizon=time_horizon,
+                                                 include_unit_commitment=include_unit_commitment)
+end
+
+"""
+    solve_hydro_generator_subproblem!(gen::GeneralizedGenerator; ...)
+
+Overload of `solve_hydro_generator_subproblem!` for `GeneralizedGenerator`. Routes
+through the `(GenSolver, PSY.HydroGen)` dispatch overload in ExtendedHydroGenerator.jl.
+"""
+function solve_hydro_generator_subproblem!(gen::GeneralizedGenerator;
+                                           optimizer_factory=nothing,
+                                           solve_options=Dict(),
+                                           time_horizon=24,
+                                           include_unit_commitment=false)
+    return solve_hydro_generator_subproblem!(gen.gen_solver, gen.generator;
+                                             optimizer_factory=optimizer_factory,
+                                             solve_options=solve_options,
+                                             time_horizon=time_horizon,
+                                             include_unit_commitment=include_unit_commitment)
+end
+
+"""
+    solve_storage_generator_subproblem!(gen::GeneralizedGenerator; ...)
+
+Overload of `solve_storage_generator_subproblem!` for `GeneralizedGenerator`. Routes
+through the `(GenSolver, PSY.Storage)` dispatch overload in ExtendedStorageGenerator.jl.
+"""
+function solve_storage_generator_subproblem!(gen::GeneralizedGenerator;
+                                              optimizer_factory=nothing,
+                                              solve_options=Dict(),
+                                              time_horizon=24,
+                                              include_unit_commitment=false)
+    return solve_storage_generator_subproblem!(gen.gen_solver, gen.generator;
+                                               optimizer_factory=optimizer_factory,
+                                               solve_options=solve_options,
+                                               time_horizon=time_horizon,
+                                               include_unit_commitment=include_unit_commitment)
+end
+
+"""
+Technology dispatch for APP generator subproblem. Selects the correct
+`solve_*_generator_subproblem!` based on the PSY type wrapped by `GeneralizedGenerator`.
+"""
+_dispatch_gen_subproblem!(gen::GeneralizedGenerator{<:PSY.ThermalGen})  = solve_thermal_generator_subproblem!(gen)
+_dispatch_gen_subproblem!(gen::GeneralizedGenerator{<:PSY.RenewableGen}) = solve_renewable_generator_subproblem!(gen)
+_dispatch_gen_subproblem!(gen::GeneralizedGenerator{<:PSY.HydroGen})    = solve_hydro_generator_subproblem!(gen)
+_dispatch_gen_subproblem!(gen::GeneralizedGenerator{<:PSY.Storage})     = solve_storage_generator_subproblem!(gen)
+
+"""
     gpower_angle_message!(gen::GeneralizedGenerator, outerAPPIt, APPItCount, gsRho, ...)
 
 APP message-passing subproblem for `GeneralizedGenerator`. Maps the full APP consensus
@@ -281,8 +344,8 @@ function gpower_angle_message!(
         "lambda_2"     => LambAPP2External
     ))
 
-    # Invoke the generator optimization subproblem with the updated APP state
-    return solve_thermal_generator_subproblem!(gen)
+    # Invoke the technology-appropriate generator subproblem with the updated APP state
+    return _dispatch_gen_subproblem!(gen)
 end
 
 """

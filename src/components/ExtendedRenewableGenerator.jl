@@ -778,6 +778,62 @@ function Base.show(io::IO, gen::ExtendedRenewableGenSys)
     print(io, ")")
 end
 
+"""
+    solve_renewable_generator_subproblem!(gen::ExtendedRenewableGenerator; optimizer_factory, solve_options, time_horizon, include_unit_commitment)
+
+Sys-less overload for the APP distributed algorithm. Updates the solver interval state
+from the generator's current operating point, then calls `build_and_solve_gensolver_for_gen!`
+with `gen.generator` directly.
+"""
+function solve_renewable_generator_subproblem!(gen::ExtendedRenewableGenerator;
+                                               optimizer_factory=nothing,
+                                               solve_options=Dict(),
+                                               time_horizon=24,
+                                               include_unit_commitment=false)
+    # Sync interval state from current generator operating point
+    interval = gen.gen_solver.interval_type
+    if isa(interval, GenFirstBaseInterval)
+        interval.Pg_prev     = gen.P_gen_prev
+        interval.Pg_nu       = gen.Pg
+        interval.Pg_nu_inner = gen.Pg
+        interval.Pg_next_nu  = [gen.P_gen_next]
+    end
+
+    renewable_solve_options = merge(solve_options, Dict(
+        "include_curtailment_constraints" => true,
+        "forecast_power"                  => gen.forecast_power
+    ))
+
+    return build_and_solve_gensolver_for_gen!(
+        gen.gen_solver, gen.generator;
+        optimizer_factory=optimizer_factory,
+        solve_options=renewable_solve_options,
+        time_horizon=time_horizon
+    )
+end
+
+"""
+    solve_renewable_generator_subproblem!(gen_solver, device; optimizer_factory, solve_options, time_horizon, include_unit_commitment)
+
+Dispatch point for `GeneralizedGenerator` calls arriving from the APP solver. Accepts the
+`GenSolver` and raw `PSY.RenewableGen` device exposed by `GeneralizedGenerator` and routes
+through `build_and_solve_gensolver_for_gen!`.
+"""
+function solve_renewable_generator_subproblem!(gen_solver::GenSolver,
+                                               device::PSY.RenewableGen;
+                                               optimizer_factory=nothing,
+                                               solve_options=Dict(),
+                                               time_horizon=24,
+                                               include_unit_commitment=false)
+    renewable_solve_options = merge(solve_options, Dict(
+        "include_curtailment_constraints" => true
+    ))
+    return build_and_solve_gensolver_for_gen!(gen_solver, device;
+                                              optimizer_factory=optimizer_factory,
+                                              solve_options=renewable_solve_options,
+                                              time_horizon=time_horizon)
+end
+
 # Export functions
 export ExtendedRenewableGenerator
 export initialize_renewable_parameters!, extract_renewable_timeseries!

@@ -824,22 +824,31 @@ end
 
 # APP-ADMM specific functions for storage
 """
-Storage power angle message passing for APP-ADMM
+    storage_admm_dispatch_update!(storage::ExtendedStorageSystem, voltage_angle::Float64,
+                                  lambda::Float64, rho::Float64)
+
+Storage ADMM dispatch update for the per-device consensus step. Computes the optimal
+dispatch power for `storage` given the dual variable `lambda` and penalty `rho` at the
+supplied `voltage_angle`.
+
+Note: this function is distinct from `gpower_angle_message!` (the full APP subproblem
+defined on `GeneralizedGenerator`), which orchestrates the complete multi-parameter
+ADMM state update and routes through `build_and_solve_gensolver_for_gen!`.
 """
-function gpoweranglemessage(storage::ExtendedStorageSystem, voltage_angle::Float64, 
+function storage_admm_dispatch_update!(storage::ExtendedStorageSystem, voltage_angle::Float64,
                            lambda::Float64, rho::Float64)
     # For storage, the power angle relationship is simpler than for thermal generators
     # Storage can provide instantaneous response based on SOC and limits
-    
+
     available_up = get_available_discharge_power(storage)
     available_down = get_available_charge_power(storage)
-    
+
     # Calculate optimal power based on price signal and constraints
     base_power = (lambda - get_variable_cost(get_operation_cost(storage))) / rho
-    
+
     # Clip to available capacity
     optimal_power = max(-available_down, min(available_up, base_power))
-    
+
     # Storage doesn't have significant angle dependency, so return current angle
     return (power = optimal_power, angle = voltage_angle)
 end
@@ -1293,6 +1302,67 @@ get_temperature(gen::ExtendedStorage) = gen.temperature
 function set_temperature!(gen::ExtendedStorage, temp::Float64)
     gen.temperature = clamp(temp, gen.thermal_limits.min, gen.thermal_limits.max)
     return nothing
+end
+
+"""
+    solve_storage_generator_subproblem!(gen::ExtendedStorageGenerator; optimizer_factory, solve_options, time_horizon, include_unit_commitment)
+
+Sys-less overload for the APP distributed algorithm. Updates the solver interval state
+from the generator's current operating point, then calls `build_and_solve_gensolver_for_gen!`
+with `gen.generator` directly.
+"""
+function solve_storage_generator_subproblem!(gen::ExtendedStorageGenerator;
+                                              optimizer_factory=nothing,
+                                              solve_options=Dict(),
+                                              time_horizon=24,
+                                              include_unit_commitment=false)
+    # Sync interval state from current generator operating point
+    interval = gen.gen_solver.interval_type
+    if isa(interval, GenFirstBaseInterval)
+        interval.Pg_prev     = gen.P_gen_prev
+        interval.Pg_nu       = gen.Pg
+        interval.Pg_nu_inner = gen.Pg
+        interval.Pg_next_nu  = [gen.P_gen_next]
+    end
+
+    storage_solve_options = merge(solve_options, Dict(
+        "include_charge_discharge_constraints" => true,
+        "include_soc_constraints"              => true
+    ))
+
+    results = build_and_solve_gensolver_for_gen!(
+        gen.gen_solver, gen.generator;
+        optimizer_factory=optimizer_factory,
+        solve_options=storage_solve_options,
+        time_horizon=time_horizon
+    )
+
+    update_storage_performance!(gen, 1.0)
+
+    return results
+end
+
+"""
+    solve_storage_generator_subproblem!(gen_solver, device; optimizer_factory, solve_options, time_horizon, include_unit_commitment)
+
+Dispatch point for `GeneralizedGenerator` calls arriving from the APP solver. Accepts the
+`GenSolver` and raw `PSY.Storage` device exposed by `GeneralizedGenerator` and routes
+through `build_and_solve_gensolver_for_gen!`.
+"""
+function solve_storage_generator_subproblem!(gen_solver::GenSolver,
+                                              device::PSY.Storage;
+                                              optimizer_factory=nothing,
+                                              solve_options=Dict(),
+                                              time_horizon=24,
+                                              include_unit_commitment=false)
+    storage_solve_options = merge(solve_options, Dict(
+        "include_charge_discharge_constraints" => true,
+        "include_soc_constraints"              => true
+    ))
+    return build_and_solve_gensolver_for_gen!(gen_solver, device;
+                                              optimizer_factory=optimizer_factory,
+                                              solve_options=storage_solve_options,
+                                              time_horizon=time_horizon)
 end
 
 # Export all functions

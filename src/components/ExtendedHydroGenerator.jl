@@ -940,6 +940,69 @@ function solve_hydro_subproblem(hydro::ExtendedHydroReservoir, time_periods::Int
     end
 end
 
+"""
+    solve_hydro_generator_subproblem!(gen::ExtendedHydroGenerator; optimizer_factory, solve_options, time_horizon, include_unit_commitment)
+
+Sys-less overload for the APP distributed algorithm. Validates hydro state via
+`set_hydro_gen_data!`, then calls `build_and_solve_gensolver_for_gen!` with `gen.generator`
+directly. Updates hydro performance metrics after solving.
+"""
+function solve_hydro_generator_subproblem!(gen::ExtendedHydroGenerator;
+                                           optimizer_factory=nothing,
+                                           solve_options=Dict(),
+                                           time_horizon=24,
+                                           include_unit_commitment=false)
+    # Validate hydro constraints and sync interval state from generator
+    set_hydro_gen_data!(gen)
+
+    interval = gen.gen_solver.interval_type
+    if isa(interval, GenFirstBaseInterval)
+        interval.Pg_prev     = gen.P_gen_prev
+        interval.Pg_nu       = gen.Pg
+        interval.Pg_nu_inner = gen.Pg
+        interval.Pg_next_nu  = [gen.P_gen_next]
+    end
+
+    hydro_solve_options = merge(solve_options, Dict(
+        "include_water_flow_constraints"    => true,
+        "include_reservoir_level_constraints" => true
+    ))
+
+    results = build_and_solve_gensolver_for_gen!(
+        gen.gen_solver, gen.generator;
+        optimizer_factory=optimizer_factory,
+        solve_options=hydro_solve_options,
+        time_horizon=time_horizon
+    )
+
+    update_hydro_performance!(gen)
+
+    return results
+end
+
+"""
+    solve_hydro_generator_subproblem!(gen_solver, device; optimizer_factory, solve_options, time_horizon, include_unit_commitment)
+
+Dispatch point for `GeneralizedGenerator` calls arriving from the APP solver. Accepts the
+`GenSolver` and raw `PSY.HydroGen` device exposed by `GeneralizedGenerator` and routes
+through `build_and_solve_gensolver_for_gen!`.
+"""
+function solve_hydro_generator_subproblem!(gen_solver::GenSolver,
+                                           device::PSY.HydroGen;
+                                           optimizer_factory=nothing,
+                                           solve_options=Dict(),
+                                           time_horizon=24,
+                                           include_unit_commitment=false)
+    hydro_solve_options = merge(solve_options, Dict(
+        "include_water_flow_constraints"      => true,
+        "include_reservoir_level_constraints" => true
+    ))
+    return build_and_solve_gensolver_for_gen!(gen_solver, device;
+                                              optimizer_factory=optimizer_factory,
+                                              solve_options=hydro_solve_options,
+                                              time_horizon=time_horizon)
+end
+
 # Export additional functions
 export calculate_power_output, calculate_required_flow, update_reservoir_level!
 export calculate_water_value, calculate_spillage, add_upstream_plant!
