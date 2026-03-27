@@ -20,13 +20,12 @@ using PowerSystems
 using InfrastructureSystems
 
 # Import the specialized generator types
-include("extended_hydro.jl")
-include("extended_storage.jl") 
-include("renewable_generator.jl")
-include("storage_generator.jl")
+include("ExtendedStorageGenerator.jl") 
+include("ExtendedRenewableGenerator.jl")
+include("ExtendedHydroGenerator.jl")
 # Import the common messaging framework
 include("ExtendedThermalGenerator.jl")
-include("GeneralizedGenerator.jl")
+#include("GeneralizedGenerator.jl")
 
 # Include necessary modules from the codebase
 include("GeneratorScenario.jl")
@@ -36,12 +35,12 @@ include("../core/solver_model_types.jl")
 include("../core/ExtendedThermalGenerationCost.jl")
 include("../core/ExtendedRenewableGenerationCost.jl")
 include("../core/ExtendedHydroGenerationCost.jl")
+include("../core/ExtendedStorageCost.jl")
 include("../core/cost_utilities.jl")
 include("../solvers/generator_solvers/gensolver_first_base.jl")
 # Generator Integration Module for PowerLASCOPF System
 # This module integrates the unified generator framework with the PowerLASCOPF system
 
-include("unified_generator_framework.jl")
 include("../extensions/extended_system.jl")  # Your PSY.System extension
 
 # Define abstract type for unified generator interface
