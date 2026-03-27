@@ -9,6 +9,7 @@ using JuMP
 using Ipopt
 using LinearAlgebra
 using Printf
+using JSON
 
 """
     LASCOPFSolver
@@ -544,7 +545,6 @@ end
 Save results to JSON file
 """
 function save_results(results::Dict, system_data::Dict, filename::String)
-    using JSON
     
     output_data = Dict(
         "system_name" => system_data["name"],
