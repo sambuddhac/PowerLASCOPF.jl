@@ -1867,33 +1867,238 @@ end
 """
     _make_gen_interval(cont_count::Int)
 
-Helper to create a standard GenFirstBaseInterval initialised to zero.
-Uses the same parameter values as data_14bus_pu.jl.
+Helper to create all concrete `GenIntervals` subtypes initialised to zero / default values.
+Returns a `NamedTuple` with one entry per interval type so that each `powerlascopf_*_generators_from_csv!`
+function can pass the correct interval to each `GenSolver` variant without repeating `Nothing`-constructor calls.
+
+Fields returned:
+- `first_base`    — `GenFirstBaseInterval`    (sized to `cont_count`)
+- `first_base_dz` — `GenFirstBaseIntervalDZ`  (default zeros)
+- `first_cont`    — `GenFirstContInterval`    (default zeros)
+- `first_cont_dz` — `GenFirstContIntervalDZ`  (default zeros)
+- `last_base`     — `GenLastBaseInterval`     (default zeros)
+- `last_cont`     — `GenLastContInterval`     (default zeros)
+- `rnd`           — `GenInterRNDInterval`     (default zeros)
+- `rsd`           — `GenInterRSDInterval`     (default zeros)
 """
 function _make_gen_interval(cont_count::Int)
-    return PowerLASCOPF.GenFirstBaseInterval(
-        zeros(cont_count + 1),  # lambda_1
-        zeros(cont_count + 1),  # lambda_2
-        zeros(cont_count + 1),  # B
-        zeros(cont_count + 1),  # D
-        zeros(cont_count),      # BSC
-        cont_count,             # cont_count
-        0.1,                    # rho
-        0.1,                    # beta
-        0.1,                    # beta_inner
-        0.2,                    # gamma
-        0.2,                    # gamma_sc
-        zeros(cont_count),      # lambda_1_sc
-        0.0,                    # Pg_N_init
-        0.0,                    # Pg_N_avg
-        0.0,                    # thetag_N_avg
-        0.0,                    # ug_N
-        1.0,                    # vg_N
-        1.0,                    # Vg_N_avg
-        0.0,                    # Pg_nu
-        0.0,                    # Pg_nu_inner
-        zeros(cont_count),      # Pg_next_nu
-        0.0                     # Pg_prev
+    # Shared sizing constants
+    n1 = cont_count + 1   # size for lambda_1, lambda_2, B, D arrays
+    nc = cont_count        # size for BSC, lambda_1_sc, Pg_next_nu arrays
+
+    first_base = PowerLASCOPF.GenFirstBaseInterval(
+        zeros(n1),   # lambda_1
+        zeros(n1),   # lambda_2
+        zeros(n1),   # B
+        zeros(n1),   # D
+        zeros(nc),   # BSC
+        cont_count,  # cont_count
+        0.1,         # rho
+        0.1,         # beta
+        0.1,         # beta_inner
+        0.2,         # gamma
+        0.2,         # gamma_sc
+        zeros(nc),   # lambda_1_sc
+        0.0,         # Pg_N_init
+        0.0,         # Pg_N_avg
+        0.0,         # thetag_N_avg
+        0.0,         # ug_N
+        1.0,         # vg_N
+        1.0,         # Vg_N_avg
+        0.0,         # Pg_nu
+        0.0,         # Pg_nu_inner
+        zeros(nc),   # Pg_next_nu
+        0.0          # Pg_prev
+    )
+
+    # GenFirstBaseIntervalDZ — same array fields as GenFirstBaseInterval plus A (scalar),
+    # lambda_3/lambda_4 (scalars), and Pg_prev_nu instead of Pg_prev
+    first_base_dz = PowerLASCOPF.GenFirstBaseIntervalDZ(;
+        rho          = 0.1,
+        beta         = 0.1,
+        beta_inner   = 0.1,
+        gamma        = 0.2,
+        gamma_sc     = 0.2,
+        lambda_1     = zeros(n1),
+        lambda_2     = zeros(n1),
+        lambda_3     = 0.0,
+        lambda_4     = 0.0,
+        lambda_1_sc  = zeros(nc),
+        Pg_N_init    = 0.0,
+        Pg_N_avg     = 0.0,
+        thetag_N_avg = 0.0,
+        ug_N         = 0.0,
+        vg_N         = 1.0,
+        Vg_N_avg     = 1.0,
+        Pg_nu        = 0.0,
+        Pg_nu_inner  = 0.0,
+        Pg_next_nu   = zeros(nc),
+        Pg_prev_nu   = 0.0,
+        A            = 0.0,
+        B            = zeros(n1),
+        D            = zeros(n1),
+        BSC          = zeros(nc),
+        cont_count   = cont_count
+    )
+
+    # GenFirstContInterval — BSC and lambda_1_sc are scalars (Float64) here, not arrays
+    first_cont = PowerLASCOPF.GenFirstContInterval(;
+        rho          = 0.1,
+        beta         = 0.1,
+        beta_inner   = 0.1,
+        gamma        = 0.2,
+        gamma_sc     = 0.2,
+        lambda_1_sc  = 0.0,
+        lambda_1     = zeros(n1),
+        lambda_2     = zeros(n1),
+        B            = zeros(n1),
+        D            = zeros(n1),
+        BSC          = 0.0,
+        Pg_N_init    = 0.0,
+        Pg_N_avg     = 0.0,
+        thetag_N_avg = 0.0,
+        ug_N         = 0.0,
+        vg_N         = 1.0,
+        Vg_N_avg     = 1.0,
+        Pg_nu        = 0.0,
+        Pg_nu_inner  = 0.0,
+        Pg_next_nu   = zeros(nc),
+        Pg_prev      = 0.0
+    )
+
+    # GenFirstContIntervalDZ — same structure as GenFirstContInterval; uses Pg_prev (scalar)
+    first_cont_dz = PowerLASCOPF.GenFirstContIntervalDZ(;
+        rho          = 0.1,
+        beta         = 0.1,
+        beta_inner   = 0.1,
+        gamma        = 0.2,
+        gamma_sc     = 0.2,
+        lambda_1_sc  = 0.0,
+        lambda_1     = zeros(n1),
+        lambda_2     = zeros(n1),
+        B            = zeros(n1),
+        D            = zeros(n1),
+        BSC          = 0.0,
+        Pg_N_init    = 0.0,
+        Pg_N_avg     = 0.0,
+        thetag_N_avg = 0.0,
+        ug_N         = 0.0,
+        vg_N         = 1.0,
+        Vg_N_avg     = 1.0,
+        Pg_nu        = 0.0,
+        Pg_nu_inner  = 0.0,
+        Pg_next_nu   = zeros(nc),
+        Pg_prev      = 0.0
+    )
+
+    # GenLastBaseInterval — lambda_1_sc and BSC are arrays; A, B are scalars;
+    # uses Pg_prev_nu, Pg_next (scalars) and select_zero instead of Pg_prev/Pg_next_nu
+    last_base = PowerLASCOPF.GenLastBaseInterval(;
+        rho          = 0.1,
+        beta         = 0.1,
+        beta_inner   = 0.1,
+        gamma        = 0.2,
+        gamma_sc     = 0.2,
+        lambda_3     = 0.0,
+        lambda_4     = 0.0,
+        lambda_1_sc  = zeros(nc),
+        BSC          = zeros(nc),
+        A            = 0.0,
+        B            = 0.0,
+        Pg_N_init    = 0.0,
+        Pg_N_avg     = 0.0,
+        thetag_N_avg = 0.0,
+        ug_N         = 0.0,
+        vg_N         = 1.0,
+        Vg_N_avg     = 1.0,
+        Pg_nu        = 0.0,
+        Pg_nu_inner  = 0.0,
+        Pg_prev_nu   = 0.0,
+        Pg_next      = 0.0,
+        select_zero  = 0
+    )
+
+    # GenLastContInterval — all scalars (lambda_1_sc, BSC, A, B are Float64)
+    last_cont = PowerLASCOPF.GenLastContInterval(;
+        rho          = 0.1,
+        beta         = 0.1,
+        beta_inner   = 0.1,
+        gamma        = 0.2,
+        gamma_sc     = 0.2,
+        lambda_3     = 0.0,
+        lambda_4     = 0.0,
+        lambda_1_sc  = 0.0,
+        BSC          = 0.0,
+        A            = 0.0,
+        B            = 0.0,
+        Pg_N_init    = 0.0,
+        Pg_N_avg     = 0.0,
+        thetag_N_avg = 0.0,
+        ug_N         = 0.0,
+        vg_N         = 1.0,
+        Vg_N_avg     = 1.0,
+        Pg_nu        = 0.0,
+        Pg_nu_inner  = 0.0,
+        Pg_prev_nu   = 0.0,
+        Pg_next      = 0.0,
+        select_zero  = 0
+    )
+
+    # GenInterRNDInterval — all scalars; no beta_inner or gamma_sc; A, B, D are Float64
+    rnd = PowerLASCOPF.GenInterRNDInterval(;
+        rho          = 0.1,
+        beta         = 0.1,
+        gamma        = 0.2,
+        lambda_3     = 0.0,
+        lambda_4     = 0.0,
+        A            = 0.0,
+        B            = 0.0,
+        D            = 0.0,
+        Pg_N_init    = 0.0,
+        Pg_N_avg     = 0.0,
+        thetag_N_avg = 0.0,
+        ug_N         = 0.0,
+        vg_N         = 1.0,
+        Vg_N_avg     = 1.0,
+        Pg_nu        = 0.0,
+        Pg_nu_inner  = 0.0,
+        Pg_prev_nu   = 0.0,
+        Pg_next      = 0.0,
+        select_zero  = 0
+    )
+
+    # GenInterRSDInterval — identical field set to GenInterRNDInterval
+    rsd = PowerLASCOPF.GenInterRSDInterval(;
+        rho          = 0.1,
+        beta         = 0.1,
+        gamma        = 0.2,
+        lambda_3     = 0.0,
+        lambda_4     = 0.0,
+        A            = 0.0,
+        B            = 0.0,
+        D            = 0.0,
+        Pg_N_init    = 0.0,
+        Pg_N_avg     = 0.0,
+        thetag_N_avg = 0.0,
+        ug_N         = 0.0,
+        vg_N         = 1.0,
+        Vg_N_avg     = 1.0,
+        Pg_nu        = 0.0,
+        Pg_nu_inner  = 0.0,
+        Pg_prev_nu   = 0.0,
+        Pg_next      = 0.0,
+        select_zero  = 0
+    )
+
+    return (
+        first_base     = first_base,
+        first_base_dz  = first_base_dz,
+        first_cont     = first_cont,
+        first_cont_dz  = first_cont_dz,
+        last_base      = last_base,
+        last_cont      = last_cont,
+        rnd            = rnd,
+        rsd            = rsd,
     )
 end
 
@@ -1976,30 +2181,31 @@ function powerlascopf_thermal_generators_from_csv!(
 
         PSY.add_component!(system.psy_system, gen)
 
-        gen_interval = _make_gen_interval(cont_count)
+        intervals    = _make_gen_interval(cont_count)
+        gen_interval = intervals.first_base
 
         extended_cost = PowerLASCOPF.ExtendedThermalGenerationCost(gen.operation_cost, gen_interval)
         gensolver_first_base = PowerLASCOPF.GenSolver(gen_interval, extended_cost)
 
-        extended_cost_first_base_dz = PowerLASCOPF.ExtendedThermalGenerationCost(gen.operation_cost, PowerLASCOPF.GenFirstBaseIntervalDZ(nothing))
+        extended_cost_first_base_dz = PowerLASCOPF.ExtendedThermalGenerationCost(gen.operation_cost, intervals.first_base_dz)
         gensolver_first_base_dz = PowerLASCOPF.GenSolver(extended_cost_first_base_dz.regularization_term, extended_cost_first_base_dz)
 
-        extended_cost_first_cont = PowerLASCOPF.ExtendedThermalGenerationCost(gen.operation_cost, PowerLASCOPF.GenFirstContInterval(nothing))
+        extended_cost_first_cont = PowerLASCOPF.ExtendedThermalGenerationCost(gen.operation_cost, intervals.first_cont)
         gensolver_first_cont = PowerLASCOPF.GenSolver(extended_cost_first_cont.regularization_term, extended_cost_first_cont)
 
-        extended_cost_first_cont_dz = PowerLASCOPF.ExtendedThermalGenerationCost(gen.operation_cost, PowerLASCOPF.GenFirstContIntervalDZ(nothing))
+        extended_cost_first_cont_dz = PowerLASCOPF.ExtendedThermalGenerationCost(gen.operation_cost, intervals.first_cont_dz)
         gensolver_first_cont_dz = PowerLASCOPF.GenSolver(extended_cost_first_cont_dz.regularization_term, extended_cost_first_cont_dz)
 
-        extended_cost_last_base = PowerLASCOPF.ExtendedThermalGenerationCost(gen.operation_cost, PowerLASCOPF.GenLastBaseInterval(nothing))
+        extended_cost_last_base = PowerLASCOPF.ExtendedThermalGenerationCost(gen.operation_cost, intervals.last_base)
         gensolver_last_base = PowerLASCOPF.GenSolver(extended_cost_last_base.regularization_term, extended_cost_last_base)
 
-        extended_cost_RND = PowerLASCOPF.ExtendedThermalGenerationCost(gen.operation_cost, PowerLASCOPF.GenInterRNDInterval(nothing))
+        extended_cost_RND = PowerLASCOPF.ExtendedThermalGenerationCost(gen.operation_cost, intervals.rnd)
         gensolver_RND = PowerLASCOPF.GenSolver(extended_cost_RND.regularization_term, extended_cost_RND)
 
-        extended_cost_RSD = PowerLASCOPF.ExtendedThermalGenerationCost(gen.operation_cost, PowerLASCOPF.GenInterRSDInterval(nothing))
+        extended_cost_RSD = PowerLASCOPF.ExtendedThermalGenerationCost(gen.operation_cost, intervals.rsd)
         gensolver_RSD = PowerLASCOPF.GenSolver(extended_cost_RSD.regularization_term, extended_cost_RSD)
 
-        extended_cost_last_cont = PowerLASCOPF.ExtendedThermalGenerationCost(gen.operation_cost, PowerLASCOPF.GenLastContInterval(nothing))
+        extended_cost_last_cont = PowerLASCOPF.ExtendedThermalGenerationCost(gen.operation_cost, intervals.last_cont)
         gensolver_last_cont = PowerLASCOPF.GenSolver(extended_cost_last_cont.regularization_term, extended_cost_last_cont)
 
         extended_gen  = PowerLASCOPF.ExtendedThermalGenerator(
@@ -2084,30 +2290,31 @@ function powerlascopf_renewable_generators_from_csv!(
             PSY.add_time_series!(system.psy_system, gen, PSY.SingleTimeSeries("max_active_power", ts_data))
         end
 
-        gen_interval = _make_gen_interval(cont_count)
+        intervals    = _make_gen_interval(cont_count)
+        gen_interval = intervals.first_base
 
         extended_cost = PowerLASCOPF.ExtendedRenewableGenerationCost(gen.operation_cost, gen_interval)
         gensolver_first_base = PowerLASCOPF.GenSolver(gen_interval, extended_cost)
 
-        extended_cost_first_base_dz = PowerLASCOPF.ExtendedRenewableGenerationCost(gen.operation_cost, PowerLASCOPF.GenFirstBaseIntervalDZ(nothing))
+        extended_cost_first_base_dz = PowerLASCOPF.ExtendedRenewableGenerationCost(gen.operation_cost, intervals.first_base_dz)
         gensolver_first_base_dz = PowerLASCOPF.GenSolver(extended_cost_first_base_dz.regularization_term, extended_cost_first_base_dz)
 
-        extended_cost_first_cont = PowerLASCOPF.ExtendedRenewableGenerationCost(gen.operation_cost, PowerLASCOPF.GenFirstContInterval(nothing))
+        extended_cost_first_cont = PowerLASCOPF.ExtendedRenewableGenerationCost(gen.operation_cost, intervals.first_cont)
         gensolver_first_cont = PowerLASCOPF.GenSolver(extended_cost_first_cont.regularization_term, extended_cost_first_cont)
 
-        extended_cost_first_cont_dz = PowerLASCOPF.ExtendedRenewableGenerationCost(gen.operation_cost, PowerLASCOPF.GenFirstContIntervalDZ(nothing))
+        extended_cost_first_cont_dz = PowerLASCOPF.ExtendedRenewableGenerationCost(gen.operation_cost, intervals.first_cont_dz)
         gensolver_first_cont_dz = PowerLASCOPF.GenSolver(extended_cost_first_cont_dz.regularization_term, extended_cost_first_cont_dz)
 
-        extended_cost_last_base = PowerLASCOPF.ExtendedRenewableGenerationCost(gen.operation_cost, PowerLASCOPF.GenLastBaseInterval(nothing))
+        extended_cost_last_base = PowerLASCOPF.ExtendedRenewableGenerationCost(gen.operation_cost, intervals.last_base)
         gensolver_last_base = PowerLASCOPF.GenSolver(extended_cost_last_base.regularization_term, extended_cost_last_base)
 
-        extended_cost_RND = PowerLASCOPF.ExtendedRenewableGenerationCost(gen.operation_cost, PowerLASCOPF.GenInterRNDInterval(nothing))
+        extended_cost_RND = PowerLASCOPF.ExtendedRenewableGenerationCost(gen.operation_cost, intervals.rnd)
         gensolver_RND = PowerLASCOPF.GenSolver(extended_cost_RND.regularization_term, extended_cost_RND)
 
-        extended_cost_RSD = PowerLASCOPF.ExtendedRenewableGenerationCost(gen.operation_cost, PowerLASCOPF.GenInterRSDInterval(nothing))
+        extended_cost_RSD = PowerLASCOPF.ExtendedRenewableGenerationCost(gen.operation_cost, intervals.rsd)
         gensolver_RSD = PowerLASCOPF.GenSolver(extended_cost_RSD.regularization_term, extended_cost_RSD)
 
-        extended_cost_last_cont = PowerLASCOPF.ExtendedRenewableGenerationCost(gen.operation_cost, PowerLASCOPF.GenLastContInterval(nothing))
+        extended_cost_last_cont = PowerLASCOPF.ExtendedRenewableGenerationCost(gen.operation_cost, intervals.last_cont)
         gensolver_last_cont = PowerLASCOPF.GenSolver(extended_cost_last_cont.regularization_term, extended_cost_last_cont)
 
         extended_gen  = PowerLASCOPF.ExtendedRenewableGenerator(
@@ -2238,30 +2445,31 @@ function powerlascopf_hydro_generators_from_csv!(
             PSY.add_time_series!(system.psy_system, gen, PSY.SingleTimeSeries("max_active_power", ts_data))
         end
 
-        gen_interval = _make_gen_interval(cont_count)
+        intervals    = _make_gen_interval(cont_count)
+        gen_interval = intervals.first_base
 
         extended_cost_h = PowerLASCOPF.ExtendedHydroGenerationCost(gen.operation_cost, gen_interval)
         gensolver_first_base = PowerLASCOPF.GenSolver(gen_interval, extended_cost_h)
 
-        extended_cost_first_base_dz = PowerLASCOPF.ExtendedHydroGenerationCost(gen.operation_cost, PowerLASCOPF.GenFirstBaseIntervalDZ(nothing))
+        extended_cost_first_base_dz = PowerLASCOPF.ExtendedHydroGenerationCost(gen.operation_cost, intervals.first_base_dz)
         gensolver_first_base_dz = PowerLASCOPF.GenSolver(extended_cost_first_base_dz.regularization_term, extended_cost_first_base_dz)
 
-        extended_cost_first_cont = PowerLASCOPF.ExtendedHydroGenerationCost(gen.operation_cost, PowerLASCOPF.GenFirstContInterval(nothing))
+        extended_cost_first_cont = PowerLASCOPF.ExtendedHydroGenerationCost(gen.operation_cost, intervals.first_cont)
         gensolver_first_cont = PowerLASCOPF.GenSolver(extended_cost_first_cont.regularization_term, extended_cost_first_cont)
 
-        extended_cost_first_cont_dz = PowerLASCOPF.ExtendedHydroGenerationCost(gen.operation_cost, PowerLASCOPF.GenFirstContIntervalDZ(nothing))
+        extended_cost_first_cont_dz = PowerLASCOPF.ExtendedHydroGenerationCost(gen.operation_cost, intervals.first_cont_dz)
         gensolver_first_cont_dz = PowerLASCOPF.GenSolver(extended_cost_first_cont_dz.regularization_term, extended_cost_first_cont_dz)
 
-        extended_cost_last_base = PowerLASCOPF.ExtendedHydroGenerationCost(gen.operation_cost, PowerLASCOPF.GenLastBaseInterval(nothing))
+        extended_cost_last_base = PowerLASCOPF.ExtendedHydroGenerationCost(gen.operation_cost, intervals.last_base)
         gensolver_last_base = PowerLASCOPF.GenSolver(extended_cost_last_base.regularization_term, extended_cost_last_base)
 
-        extended_cost_RND = PowerLASCOPF.ExtendedHydroGenerationCost(gen.operation_cost, PowerLASCOPF.GenInterRNDInterval(nothing))
+        extended_cost_RND = PowerLASCOPF.ExtendedHydroGenerationCost(gen.operation_cost, intervals.rnd)
         gensolver_RND = PowerLASCOPF.GenSolver(extended_cost_RND.regularization_term, extended_cost_RND)
 
-        extended_cost_RSD = PowerLASCOPF.ExtendedHydroGenerationCost(gen.operation_cost, PowerLASCOPF.GenInterRSDInterval(nothing))
+        extended_cost_RSD = PowerLASCOPF.ExtendedHydroGenerationCost(gen.operation_cost, intervals.rsd)
         gensolver_RSD = PowerLASCOPF.GenSolver(extended_cost_RSD.regularization_term, extended_cost_RSD)
 
-        extended_cost_last_cont = PowerLASCOPF.ExtendedHydroGenerationCost(gen.operation_cost, PowerLASCOPF.GenLastContInterval(nothing))
+        extended_cost_last_cont = PowerLASCOPF.ExtendedHydroGenerationCost(gen.operation_cost, intervals.last_cont)
         gensolver_last_cont = PowerLASCOPF.GenSolver(extended_cost_last_cont.regularization_term, extended_cost_last_cont)
 
         extended_gen    = PowerLASCOPF.ExtendedHydroGenerator(
@@ -2334,81 +2542,141 @@ function powerlascopf_storage_from_csv!(
 
         if is_new_format
             # New format: has SOC_Min, SOC_Max, StorageTarget, etc.
-            soc_min = Float64(row.SOC_Min)
-            soc_max = Float64(row.SOC_Max)
-            rp_min  = "ReactivePowerMin" in cols ? Float64(row.ReactivePowerMin) : 0.0
-            rp_max  = "ReactivePowerMax" in cols ? Float64(row.ReactivePowerMax) : 0.0
-            pm      = "PrimeMover" in cols ? _prime_mover(row.PrimeMover) : PrimeMovers.BA
+            # PSY v4.6: storage_level_limits is a fraction (0–1); storage_capacity is total MWh.
+            soc_min  = Float64(row.SOC_Min)
+            soc_max  = Float64(row.SOC_Max)
+            rp_min   = "ReactivePowerMin" in cols ? Float64(row.ReactivePowerMin) : 0.0
+            rp_max   = "ReactivePowerMax" in cols ? Float64(row.ReactivePowerMax) : 0.0
+            pm       = "PrimeMover"  in cols ? _prime_mover(row.PrimeMover) : PrimeMovers.BA
+            stor_tec = "StorageType" in cols && !ismissing(row.StorageType) ?
+                           getproperty(PSY.StorageTech, Symbol(row.StorageType)) :
+                           PSY.StorageTech.OTHER_CHEM
 
-            # Check for storage management cost fields
-            has_cost = "EnergyShortageCost" in cols &&
-                       !ismissing(row.EnergyShortageCost) && !ismissing(row.EnergySurplusCost)
+            # storage_capacity (MWh): read from CSV if present, else assume 1-hour equivalent
+            if "StorageCapacity" in cols && !ismissing(row.StorageCapacity)
+                stor_cap = Float64(row.StorageCapacity)
+            else
+                stor_cap = Float64(row.OutputActivePowerMax)   # 1-hour capacity fallback
+                log_warn("No StorageCapacity column for $(row[name_col]); defaulting to OutputActivePowerMax = $stor_cap MWh")
+            end
+
+            # initial_storage_capacity_level is a fraction [0, 1]
+            init_lvl = "InitialEnergy" in cols ? Float64(row.InitialEnergy) : 0.5
+
+            has_cost   = "EnergyShortageCost" in cols &&
+                         !ismissing(row.EnergyShortageCost) && !ismissing(row.EnergySurplusCost)
             has_target = "StorageTarget" in cols && !ismissing(row.StorageTarget)
 
             if has_cost
-                op_cost = PSY.StorageManagementCost(
-                    variable          = PSY.VariableCost(0.0),
-                    fixed             = 0.0,
-                    start_up          = 0.0,
-                    shut_down         = 0.0,
-                    energy_shortage_cost = Float64(row.EnergyShortageCost),
-                    energy_surplus_cost  = Float64(row.EnergySurplusCost)
+                op_cost = PSY.StorageCost(
+                    charge_variable_cost    = IS.CostCurve(IS.LinearCurve(0.0)),
+                    discharge_variable_cost = IS.CostCurve(IS.LinearCurve(0.0)),
+                    fixed                   = 0.0,
+                    start_up                = 0.0,
+                    shut_down               = 0.0,
+                    energy_shortage_cost    = Float64(row.EnergyShortageCost),
+                    energy_surplus_cost     = Float64(row.EnergySurplusCost)
                 )
             else
-                op_cost = PSY.StorageManagementCost()
+                op_cost = PSY.StorageCost()
             end
 
             gen = PSY.EnergyReservoirStorage(;
-                name                       = String(row[name_col]),
-                prime_mover_type           = pm,
-                available                  = Bool(row.Available),
-                bus                        = bus,
-                initial_energy             = Float64(row.InitialEnergy),
-                state_of_charge_limits     = (min = soc_min, max = soc_max),
-                rating                     = rating,
-                active_power               = Float64(row.ActivePower),
-                input_active_power_limits  = (min = Float64(row.InputActivePowerMin), max = Float64(row.InputActivePowerMax)),
-                output_active_power_limits = (min = Float64(row.OutputActivePowerMin), max = Float64(row.OutputActivePowerMax)),
-                efficiency                 = (in = Float64(row.EfficiencyIn), out = Float64(row.EfficiencyOut)),
-                reactive_power             = Float64(row.ReactivePower),
-                reactive_power_limits      = (min = rp_min, max = rp_max),
-                base_power                 = Float64(row.BasePower),
-                storage_target             = has_target ? Float64(row.StorageTarget) : 0.0,
-                operation_cost             = op_cost
+                name                           = String(row[name_col]),
+                available                      = Bool(row.Available),
+                bus                            = bus,
+                prime_mover_type               = pm,
+                storage_technology_type        = stor_tec,
+                storage_capacity               = stor_cap,
+                storage_level_limits           = (min = soc_min, max = soc_max),
+                initial_storage_capacity_level = init_lvl,
+                rating                         = rating,
+                active_power                   = Float64(row.ActivePower),
+                input_active_power_limits      = (min = Float64(row.InputActivePowerMin),  max = Float64(row.InputActivePowerMax)),
+                output_active_power_limits     = (min = Float64(row.OutputActivePowerMin), max = Float64(row.OutputActivePowerMax)),
+                efficiency                     = (in = Float64(row.EfficiencyIn), out = Float64(row.EfficiencyOut)),
+                reactive_power                 = Float64(row.ReactivePower),
+                reactive_power_limits          = (min = rp_min, max = rp_max),
+                base_power                     = Float64(row.BasePower),
+                storage_target                 = has_target ? Float64(row.StorageTarget) : 0.0,
+                operation_cost                 = op_cost
             )
         else
-            # Old format: BatteryName, StorageCapacity, no SOC_Min/Max
-            cap = "StorageCapacity" in cols ? Float64(row.StorageCapacity) : rating
+            # Old format: BatteryName, StorageCapacity (MWh), no SOC fractions.
+            # PSY v4.6: storage_level_limits is (0.0, 1.0) fractions; storage_capacity is the MWh value.
+            stor_cap = "StorageCapacity" in cols ? Float64(row.StorageCapacity) : Float64(row.OutputActivePowerMax)
+            init_lvl = "InitialEnergy"   in cols ? Float64(row.InitialEnergy)   : 0.5
+
             gen = PSY.EnergyReservoirStorage(;
-                name                       = String(row[name_col]),
-                prime_mover_type           = PrimeMovers.BA,
-                available                  = Bool(row.Available),
-                bus                        = bus,
-                initial_energy             = Float64(row.InitialEnergy),
-                state_of_charge_limits     = (min = 0.0, max = cap),
-                rating                     = rating,
-                active_power               = Float64(row.ActivePower),
-                input_active_power_limits  = (min = Float64(row.InputActivePowerMin), max = Float64(row.InputActivePowerMax)),
-                output_active_power_limits = (min = Float64(row.OutputActivePowerMin), max = Float64(row.OutputActivePowerMax)),
-                efficiency                 = (in = Float64(row.EfficiencyIn), out = Float64(row.EfficiencyOut)),
-                reactive_power             = Float64(row.ReactivePower),
-                reactive_power_limits      = (min = 0.0, max = 0.0),
-                base_power                 = Float64(row.BasePower),
-                operation_cost             = PSY.StorageManagementCost()
+                name                           = String(row[name_col]),
+                available                      = Bool(row.Available),
+                bus                            = bus,
+                prime_mover_type               = PrimeMovers.BA,
+                storage_technology_type        = PSY.StorageTech.OTHER_CHEM,
+                storage_capacity               = stor_cap,
+                storage_level_limits           = (min = 0.0, max = 1.0),
+                initial_storage_capacity_level = init_lvl,
+                rating                         = rating,
+                active_power                   = Float64(row.ActivePower),
+                input_active_power_limits      = (min = Float64(row.InputActivePowerMin),  max = Float64(row.InputActivePowerMax)),
+                output_active_power_limits     = (min = Float64(row.OutputActivePowerMin), max = Float64(row.OutputActivePowerMax)),
+                efficiency                     = (in = Float64(row.EfficiencyIn), out = Float64(row.EfficiencyOut)),
+                reactive_power                 = Float64(row.ReactivePower),
+                reactive_power_limits          = (min = 0.0, max = 0.0),
+                base_power                     = Float64(row.BasePower),
+                operation_cost                 = PSY.StorageCost()
             )
         end
 
         PSY.add_component!(system.psy_system, gen)
 
-        gen_interval = _make_gen_interval(cont_count)
-        lascopf_gen  = PowerLASCOPF.GeneralizedGenerator(
+        intervals    = _make_gen_interval(cont_count)
+        gen_interval = intervals.first_base
+
+        extended_cost = PowerLASCOPF.ExtendedStorageCost(gen.operation_cost, gen_interval)
+        gensolver_first_base = PowerLASCOPF.GenSolver(gen_interval, extended_cost)
+
+        extended_cost_first_base_dz = PowerLASCOPF.ExtendedStorageCost(gen.operation_cost, intervals.first_base_dz)
+        gensolver_first_base_dz = PowerLASCOPF.GenSolver(extended_cost_first_base_dz.regularization_term, extended_cost_first_base_dz)
+
+        extended_cost_first_cont = PowerLASCOPF.ExtendedStorageCost(gen.operation_cost, intervals.first_cont)
+        gensolver_first_cont = PowerLASCOPF.GenSolver(extended_cost_first_cont.regularization_term, extended_cost_first_cont)
+
+        extended_cost_first_cont_dz = PowerLASCOPF.ExtendedStorageCost(gen.operation_cost, intervals.first_cont_dz)
+        gensolver_first_cont_dz = PowerLASCOPF.GenSolver(extended_cost_first_cont_dz.regularization_term, extended_cost_first_cont_dz)
+
+        extended_cost_last_base = PowerLASCOPF.ExtendedStorageCost(gen.operation_cost, intervals.last_base)
+        gensolver_last_base = PowerLASCOPF.GenSolver(extended_cost_last_base.regularization_term, extended_cost_last_base)
+
+        extended_cost_RND = PowerLASCOPF.ExtendedStorageCost(gen.operation_cost, intervals.rnd)
+        gensolver_RND = PowerLASCOPF.GenSolver(extended_cost_RND.regularization_term, extended_cost_RND)
+
+        extended_cost_RSD = PowerLASCOPF.ExtendedStorageCost(gen.operation_cost, intervals.rsd)
+        gensolver_RSD = PowerLASCOPF.GenSolver(extended_cost_RSD.regularization_term, extended_cost_RSD)
+
+        extended_cost_last_cont = PowerLASCOPF.ExtendedStorageCost(gen.operation_cost, intervals.last_cont)
+        gensolver_last_cont = PowerLASCOPF.GenSolver(extended_cost_last_cont.regularization_term, extended_cost_last_cont)
+
+        extended_gen = PowerLASCOPF.ExtendedStorageGenerator(
+            gen, extended_cost, i, 1, false, cont_count, cont_count + 1, 1, 0, 1, node, cont_count, nrow(df)
+        )
+        PowerLASCOPF.add_extended_storage_generator!(system, extended_gen)
+
+        lascopf_gen = PowerLASCOPF.GeneralizedGenerator(
             gen, gen_interval, i, 1, false, cont_count, cont_count + 1, 1, 0, 1, node, cont_count
         )
         push!(generators, lascopf_gen)
     end
 
+    println("=" ^ 50)
     log_info("Created $(length(generators)) PowerLASCOPF Storage units from CSV.")
     println("Created $(length(generators)) PowerLASCOPF Storage units from CSV: $csv_path")
+    println("PSY System after adding Storage: ", system.psy_system)
+    log_info("PSY System after adding Storage: $(system.psy_system)")
+    println("PowerLASCOPF System after adding Storage: ", system)
+    log_info("PowerLASCOPF System after adding Storage: $(system)")
+    PSY.show_components(system.psy_system, PSY.EnergyReservoirStorage)
+    println("=" ^ 50)
     return generators
 end
 
@@ -2654,30 +2922,31 @@ function powerlascopf_from_psy_system!(
             )
         end
 
-        gen_interval = _make_gen_interval(cont_count)
+        intervals    = _make_gen_interval(cont_count)
+        gen_interval = intervals.first_base
 
         extended_cost = PowerLASCOPF.ExtendedThermalGenerationCost(op_cost, gen_interval)
         gensolver_first_base = PowerLASCOPF.GenSolver(gen_interval, extended_cost)
 
-        extended_cost_first_base_dz = PowerLASCOPF.ExtendedThermalGenerationCost(op_cost, PowerLASCOPF.GenFirstBaseIntervalDZ(nothing))
+        extended_cost_first_base_dz = PowerLASCOPF.ExtendedThermalGenerationCost(op_cost, intervals.first_base_dz)
         gensolver_first_base_dz = PowerLASCOPF.GenSolver(extended_cost_first_base_dz.regularization_term, extended_cost_first_base_dz)
 
-        extended_cost_first_cont = PowerLASCOPF.ExtendedThermalGenerationCost(op_cost, PowerLASCOPF.GenFirstContInterval(nothing))
+        extended_cost_first_cont = PowerLASCOPF.ExtendedThermalGenerationCost(op_cost, intervals.first_cont)
         gensolver_first_cont = PowerLASCOPF.GenSolver(extended_cost_first_cont.regularization_term, extended_cost_first_cont)
 
-        extended_cost_first_cont_dz = PowerLASCOPF.ExtendedThermalGenerationCost(op_cost, PowerLASCOPF.GenFirstContIntervalDZ(nothing))
+        extended_cost_first_cont_dz = PowerLASCOPF.ExtendedThermalGenerationCost(op_cost, intervals.first_cont_dz)
         gensolver_first_cont_dz = PowerLASCOPF.GenSolver(extended_cost_first_cont_dz.regularization_term, extended_cost_first_cont_dz)
 
-        extended_cost_last_base = PowerLASCOPF.ExtendedThermalGenerationCost(op_cost, PowerLASCOPF.GenLastBaseInterval(nothing))
+        extended_cost_last_base = PowerLASCOPF.ExtendedThermalGenerationCost(op_cost, intervals.last_base)
         gensolver_last_base = PowerLASCOPF.GenSolver(extended_cost_last_base.regularization_term, extended_cost_last_base)
 
-        extended_cost_RND = PowerLASCOPF.ExtendedThermalGenerationCost(op_cost, PowerLASCOPF.GenInterRNDInterval(nothing))
+        extended_cost_RND = PowerLASCOPF.ExtendedThermalGenerationCost(op_cost, intervals.rnd)
         gensolver_RND = PowerLASCOPF.GenSolver(extended_cost_RND.regularization_term, extended_cost_RND)
 
-        extended_cost_RSD = PowerLASCOPF.ExtendedThermalGenerationCost(op_cost, PowerLASCOPF.GenInterRSDInterval(nothing))
+        extended_cost_RSD = PowerLASCOPF.ExtendedThermalGenerationCost(op_cost, intervals.rsd)
         gensolver_RSD = PowerLASCOPF.GenSolver(extended_cost_RSD.regularization_term, extended_cost_RSD)
 
-        extended_cost_last_cont = PowerLASCOPF.ExtendedThermalGenerationCost(op_cost, PowerLASCOPF.GenLastContInterval(nothing))
+        extended_cost_last_cont = PowerLASCOPF.ExtendedThermalGenerationCost(op_cost, intervals.last_cont)
         gensolver_last_cont = PowerLASCOPF.GenSolver(extended_cost_last_cont.regularization_term, extended_cost_last_cont)
 
         extended_gen = PowerLASCOPF.ExtendedThermalGenerator(
@@ -2712,30 +2981,31 @@ function powerlascopf_from_psy_system!(
             )
         end
 
-        gen_interval = _make_gen_interval(cont_count)
+        intervals    = _make_gen_interval(cont_count)
+        gen_interval = intervals.first_base
 
         extended_cost = PowerLASCOPF.ExtendedRenewableGenerationCost(op_cost, gen_interval)
         gensolver_first_base = PowerLASCOPF.GenSolver(gen_interval, extended_cost)
 
-        extended_cost_first_base_dz = PowerLASCOPF.ExtendedRenewableGenerationCost(op_cost, PowerLASCOPF.GenFirstBaseIntervalDZ(nothing))
+        extended_cost_first_base_dz = PowerLASCOPF.ExtendedRenewableGenerationCost(op_cost, intervals.first_base_dz)
         gensolver_first_base_dz = PowerLASCOPF.GenSolver(extended_cost_first_base_dz.regularization_term, extended_cost_first_base_dz)
 
-        extended_cost_first_cont = PowerLASCOPF.ExtendedRenewableGenerationCost(op_cost, PowerLASCOPF.GenFirstContInterval(nothing))
+        extended_cost_first_cont = PowerLASCOPF.ExtendedRenewableGenerationCost(op_cost, intervals.first_cont)
         gensolver_first_cont = PowerLASCOPF.GenSolver(extended_cost_first_cont.regularization_term, extended_cost_first_cont)
 
-        extended_cost_first_cont_dz = PowerLASCOPF.ExtendedRenewableGenerationCost(op_cost, PowerLASCOPF.GenFirstContIntervalDZ(nothing))
+        extended_cost_first_cont_dz = PowerLASCOPF.ExtendedRenewableGenerationCost(op_cost, intervals.first_cont_dz)
         gensolver_first_cont_dz = PowerLASCOPF.GenSolver(extended_cost_first_cont_dz.regularization_term, extended_cost_first_cont_dz)
 
-        extended_cost_last_base = PowerLASCOPF.ExtendedRenewableGenerationCost(op_cost, PowerLASCOPF.GenLastBaseInterval(nothing))
+        extended_cost_last_base = PowerLASCOPF.ExtendedRenewableGenerationCost(op_cost, intervals.last_base)
         gensolver_last_base = PowerLASCOPF.GenSolver(extended_cost_last_base.regularization_term, extended_cost_last_base)
 
-        extended_cost_RND = PowerLASCOPF.ExtendedRenewableGenerationCost(op_cost, PowerLASCOPF.GenInterRNDInterval(nothing))
+        extended_cost_RND = PowerLASCOPF.ExtendedRenewableGenerationCost(op_cost, intervals.rnd)
         gensolver_RND = PowerLASCOPF.GenSolver(extended_cost_RND.regularization_term, extended_cost_RND)
 
-        extended_cost_RSD = PowerLASCOPF.ExtendedRenewableGenerationCost(op_cost, PowerLASCOPF.GenInterRSDInterval(nothing))
+        extended_cost_RSD = PowerLASCOPF.ExtendedRenewableGenerationCost(op_cost, intervals.rsd)
         gensolver_RSD = PowerLASCOPF.GenSolver(extended_cost_RSD.regularization_term, extended_cost_RSD)
 
-        extended_cost_last_cont = PowerLASCOPF.ExtendedRenewableGenerationCost(op_cost, PowerLASCOPF.GenLastContInterval(nothing))
+        extended_cost_last_cont = PowerLASCOPF.ExtendedRenewableGenerationCost(op_cost, intervals.last_cont)
         gensolver_last_cont = PowerLASCOPF.GenSolver(extended_cost_last_cont.regularization_term, extended_cost_last_cont)
 
         extended_gen = PowerLASCOPF.ExtendedRenewableGenerator(
@@ -2778,30 +3048,31 @@ function powerlascopf_from_psy_system!(
             )
         end
 
-        gen_interval = _make_gen_interval(cont_count)
+        intervals    = _make_gen_interval(cont_count)
+        gen_interval = intervals.first_base
 
         extended_cost_h = PowerLASCOPF.ExtendedHydroGenerationCost(op_cost, gen_interval)
         gensolver_first_base = PowerLASCOPF.GenSolver(gen_interval, extended_cost_h)
 
-        extended_cost_first_base_dz = PowerLASCOPF.ExtendedHydroGenerationCost(op_cost, PowerLASCOPF.GenFirstBaseIntervalDZ(nothing))
+        extended_cost_first_base_dz = PowerLASCOPF.ExtendedHydroGenerationCost(op_cost, intervals.first_base_dz)
         gensolver_first_base_dz = PowerLASCOPF.GenSolver(extended_cost_first_base_dz.regularization_term, extended_cost_first_base_dz)
 
-        extended_cost_first_cont = PowerLASCOPF.ExtendedHydroGenerationCost(op_cost, PowerLASCOPF.GenFirstContInterval(nothing))
+        extended_cost_first_cont = PowerLASCOPF.ExtendedHydroGenerationCost(op_cost, intervals.first_cont)
         gensolver_first_cont = PowerLASCOPF.GenSolver(extended_cost_first_cont.regularization_term, extended_cost_first_cont)
 
-        extended_cost_first_cont_dz = PowerLASCOPF.ExtendedHydroGenerationCost(op_cost, PowerLASCOPF.GenFirstContIntervalDZ(nothing))
+        extended_cost_first_cont_dz = PowerLASCOPF.ExtendedHydroGenerationCost(op_cost, intervals.first_cont_dz)
         gensolver_first_cont_dz = PowerLASCOPF.GenSolver(extended_cost_first_cont_dz.regularization_term, extended_cost_first_cont_dz)
 
-        extended_cost_last_base = PowerLASCOPF.ExtendedHydroGenerationCost(op_cost, PowerLASCOPF.GenLastBaseInterval(nothing))
+        extended_cost_last_base = PowerLASCOPF.ExtendedHydroGenerationCost(op_cost, intervals.last_base)
         gensolver_last_base = PowerLASCOPF.GenSolver(extended_cost_last_base.regularization_term, extended_cost_last_base)
 
-        extended_cost_RND = PowerLASCOPF.ExtendedHydroGenerationCost(op_cost, PowerLASCOPF.GenInterRNDInterval(nothing))
+        extended_cost_RND = PowerLASCOPF.ExtendedHydroGenerationCost(op_cost, intervals.rnd)
         gensolver_RND = PowerLASCOPF.GenSolver(extended_cost_RND.regularization_term, extended_cost_RND)
 
-        extended_cost_RSD = PowerLASCOPF.ExtendedHydroGenerationCost(op_cost, PowerLASCOPF.GenInterRSDInterval(nothing))
+        extended_cost_RSD = PowerLASCOPF.ExtendedHydroGenerationCost(op_cost, intervals.rsd)
         gensolver_RSD = PowerLASCOPF.GenSolver(extended_cost_RSD.regularization_term, extended_cost_RSD)
 
-        extended_cost_last_cont = PowerLASCOPF.ExtendedHydroGenerationCost(op_cost, PowerLASCOPF.GenLastContInterval(nothing))
+        extended_cost_last_cont = PowerLASCOPF.ExtendedHydroGenerationCost(op_cost, intervals.last_cont)
         gensolver_last_cont = PowerLASCOPF.GenSolver(extended_cost_last_cont.regularization_term, extended_cost_last_cont)
 
         extended_gen = PowerLASCOPF.ExtendedHydroGenerator(
@@ -3209,7 +3480,8 @@ function powerlascopf_from_rts_gmlc!(
             fuel_prc
         )
 
-        gen_interval = _make_gen_interval(cont_count)
+        intervals    = _make_gen_interval(cont_count)
+        gen_interval = intervals.first_base
 
         # ---- THERMAL ----
         if unit_type in _THERMAL_TYPES
@@ -3260,25 +3532,25 @@ function powerlascopf_from_rts_gmlc!(
             extended_cost = PowerLASCOPF.ExtendedThermalGenerationCost(gen.operation_cost, gen_interval)
             gensolver_first_base = PowerLASCOPF.GenSolver(gen_interval, extended_cost)
 
-            extended_cost_first_base_dz = PowerLASCOPF.ExtendedThermalGenerationCost(gen.operation_cost, PowerLASCOPF.GenFirstBaseIntervalDZ(nothing))
+            extended_cost_first_base_dz = PowerLASCOPF.ExtendedThermalGenerationCost(gen.operation_cost, intervals.first_base_dz)
             gensolver_first_base_dz = PowerLASCOPF.GenSolver(extended_cost_first_base_dz.regularization_term, extended_cost_first_base_dz)
 
-            extended_cost_first_cont = PowerLASCOPF.ExtendedThermalGenerationCost(gen.operation_cost, PowerLASCOPF.GenFirstContInterval(nothing))
+            extended_cost_first_cont = PowerLASCOPF.ExtendedThermalGenerationCost(gen.operation_cost, intervals.first_cont)
             gensolver_first_cont = PowerLASCOPF.GenSolver(extended_cost_first_cont.regularization_term, extended_cost_first_cont)
 
-            extended_cost_first_cont_dz = PowerLASCOPF.ExtendedThermalGenerationCost(gen.operation_cost, PowerLASCOPF.GenFirstContIntervalDZ(nothing))
+            extended_cost_first_cont_dz = PowerLASCOPF.ExtendedThermalGenerationCost(gen.operation_cost, intervals.first_cont_dz)
             gensolver_first_cont_dz = PowerLASCOPF.GenSolver(extended_cost_first_cont_dz.regularization_term, extended_cost_first_cont_dz)
 
-            extended_cost_last_base = PowerLASCOPF.ExtendedThermalGenerationCost(gen.operation_cost, PowerLASCOPF.GenLastBaseInterval(nothing))
+            extended_cost_last_base = PowerLASCOPF.ExtendedThermalGenerationCost(gen.operation_cost, intervals.last_base)
             gensolver_last_base = PowerLASCOPF.GenSolver(extended_cost_last_base.regularization_term, extended_cost_last_base)
 
-            extended_cost_RND = PowerLASCOPF.ExtendedThermalGenerationCost(gen.operation_cost, PowerLASCOPF.GenInterRNDInterval(nothing))
+            extended_cost_RND = PowerLASCOPF.ExtendedThermalGenerationCost(gen.operation_cost, intervals.rnd)
             gensolver_RND = PowerLASCOPF.GenSolver(extended_cost_RND.regularization_term, extended_cost_RND)
 
-            extended_cost_RSD = PowerLASCOPF.ExtendedThermalGenerationCost(gen.operation_cost, PowerLASCOPF.GenInterRSDInterval(nothing))
+            extended_cost_RSD = PowerLASCOPF.ExtendedThermalGenerationCost(gen.operation_cost, intervals.rsd)
             gensolver_RSD = PowerLASCOPF.GenSolver(extended_cost_RSD.regularization_term, extended_cost_RSD)
 
-            extended_cost_last_cont = PowerLASCOPF.ExtendedThermalGenerationCost(gen.operation_cost, PowerLASCOPF.GenLastContInterval(nothing))
+            extended_cost_last_cont = PowerLASCOPF.ExtendedThermalGenerationCost(gen.operation_cost, intervals.last_cont)
             gensolver_last_cont = PowerLASCOPF.GenSolver(extended_cost_last_cont.regularization_term, extended_cost_last_cont)
 
             extended_gen = PowerLASCOPF.ExtendedThermalGenerator(
@@ -3318,25 +3590,25 @@ function powerlascopf_from_rts_gmlc!(
             extended_cost = PowerLASCOPF.ExtendedRenewableGenerationCost(gen.operation_cost, gen_interval)
             gensolver_first_base = PowerLASCOPF.GenSolver(gen_interval, extended_cost)
 
-            extended_cost_first_base_dz = PowerLASCOPF.ExtendedRenewableGenerationCost(gen.operation_cost, PowerLASCOPF.GenFirstBaseIntervalDZ(nothing))
+            extended_cost_first_base_dz = PowerLASCOPF.ExtendedRenewableGenerationCost(gen.operation_cost, intervals.first_base_dz)
             gensolver_first_base_dz = PowerLASCOPF.GenSolver(extended_cost_first_base_dz.regularization_term, extended_cost_first_base_dz)
 
-            extended_cost_first_cont = PowerLASCOPF.ExtendedRenewableGenerationCost(gen.operation_cost, PowerLASCOPF.GenFirstContInterval(nothing))
+            extended_cost_first_cont = PowerLASCOPF.ExtendedRenewableGenerationCost(gen.operation_cost, intervals.first_cont)
             gensolver_first_cont = PowerLASCOPF.GenSolver(extended_cost_first_cont.regularization_term, extended_cost_first_cont)
 
-            extended_cost_first_cont_dz = PowerLASCOPF.ExtendedRenewableGenerationCost(gen.operation_cost, PowerLASCOPF.GenFirstContIntervalDZ(nothing))
+            extended_cost_first_cont_dz = PowerLASCOPF.ExtendedRenewableGenerationCost(gen.operation_cost, intervals.first_cont_dz)
             gensolver_first_cont_dz = PowerLASCOPF.GenSolver(extended_cost_first_cont_dz.regularization_term, extended_cost_first_cont_dz)
 
-            extended_cost_last_base = PowerLASCOPF.ExtendedRenewableGenerationCost(gen.operation_cost, PowerLASCOPF.GenLastBaseInterval(nothing))
+            extended_cost_last_base = PowerLASCOPF.ExtendedRenewableGenerationCost(gen.operation_cost, intervals.last_base)
             gensolver_last_base = PowerLASCOPF.GenSolver(extended_cost_last_base.regularization_term, extended_cost_last_base)
 
-            extended_cost_RND = PowerLASCOPF.ExtendedRenewableGenerationCost(gen.operation_cost, PowerLASCOPF.GenInterRNDInterval(nothing))
+            extended_cost_RND = PowerLASCOPF.ExtendedRenewableGenerationCost(gen.operation_cost, intervals.rnd)
             gensolver_RND = PowerLASCOPF.GenSolver(extended_cost_RND.regularization_term, extended_cost_RND)
 
-            extended_cost_RSD = PowerLASCOPF.ExtendedRenewableGenerationCost(gen.operation_cost, PowerLASCOPF.GenInterRSDInterval(nothing))
+            extended_cost_RSD = PowerLASCOPF.ExtendedRenewableGenerationCost(gen.operation_cost, intervals.rsd)
             gensolver_RSD = PowerLASCOPF.GenSolver(extended_cost_RSD.regularization_term, extended_cost_RSD)
 
-            extended_cost_last_cont = PowerLASCOPF.ExtendedRenewableGenerationCost(gen.operation_cost, PowerLASCOPF.GenLastContInterval(nothing))
+            extended_cost_last_cont = PowerLASCOPF.ExtendedRenewableGenerationCost(gen.operation_cost, intervals.last_cont)
             gensolver_last_cont = PowerLASCOPF.GenSolver(extended_cost_last_cont.regularization_term, extended_cost_last_cont)
 
             extended_gen = PowerLASCOPF.ExtendedRenewableGenerator(
@@ -3395,25 +3667,25 @@ function powerlascopf_from_rts_gmlc!(
             extended_cost_h = PowerLASCOPF.ExtendedHydroGenerationCost(gen.operation_cost, gen_interval)
             gensolver_first_base = PowerLASCOPF.GenSolver(gen_interval, extended_cost_h)
 
-            extended_cost_first_base_dz = PowerLASCOPF.ExtendedHydroGenerationCost(gen.operation_cost, PowerLASCOPF.GenFirstBaseIntervalDZ(nothing))
+            extended_cost_first_base_dz = PowerLASCOPF.ExtendedHydroGenerationCost(gen.operation_cost, intervals.first_base_dz)
             gensolver_first_base_dz = PowerLASCOPF.GenSolver(extended_cost_first_base_dz.regularization_term, extended_cost_first_base_dz)
 
-            extended_cost_first_cont = PowerLASCOPF.ExtendedHydroGenerationCost(gen.operation_cost, PowerLASCOPF.GenFirstContInterval(nothing))
+            extended_cost_first_cont = PowerLASCOPF.ExtendedHydroGenerationCost(gen.operation_cost, intervals.first_cont)
             gensolver_first_cont = PowerLASCOPF.GenSolver(extended_cost_first_cont.regularization_term, extended_cost_first_cont)
 
-            extended_cost_first_cont_dz = PowerLASCOPF.ExtendedHydroGenerationCost(gen.operation_cost, PowerLASCOPF.GenFirstContIntervalDZ(nothing))
+            extended_cost_first_cont_dz = PowerLASCOPF.ExtendedHydroGenerationCost(gen.operation_cost, intervals.first_cont_dz)
             gensolver_first_cont_dz = PowerLASCOPF.GenSolver(extended_cost_first_cont_dz.regularization_term, extended_cost_first_cont_dz)
 
-            extended_cost_last_base = PowerLASCOPF.ExtendedHydroGenerationCost(gen.operation_cost, PowerLASCOPF.GenLastBaseInterval(nothing))
+            extended_cost_last_base = PowerLASCOPF.ExtendedHydroGenerationCost(gen.operation_cost, intervals.last_base)
             gensolver_last_base = PowerLASCOPF.GenSolver(extended_cost_last_base.regularization_term, extended_cost_last_base)
 
-            extended_cost_RND = PowerLASCOPF.ExtendedHydroGenerationCost(gen.operation_cost, PowerLASCOPF.GenInterRNDInterval(nothing))
+            extended_cost_RND = PowerLASCOPF.ExtendedHydroGenerationCost(gen.operation_cost, intervals.rnd)
             gensolver_RND = PowerLASCOPF.GenSolver(extended_cost_RND.regularization_term, extended_cost_RND)
 
-            extended_cost_RSD = PowerLASCOPF.ExtendedHydroGenerationCost(gen.operation_cost, PowerLASCOPF.GenInterRSDInterval(nothing))
+            extended_cost_RSD = PowerLASCOPF.ExtendedHydroGenerationCost(gen.operation_cost, intervals.rsd)
             gensolver_RSD = PowerLASCOPF.GenSolver(extended_cost_RSD.regularization_term, extended_cost_RSD)
 
-            extended_cost_last_cont = PowerLASCOPF.ExtendedHydroGenerationCost(gen.operation_cost, PowerLASCOPF.GenLastContInterval(nothing))
+            extended_cost_last_cont = PowerLASCOPF.ExtendedHydroGenerationCost(gen.operation_cost, intervals.last_cont)
             gensolver_last_cont = PowerLASCOPF.GenSolver(extended_cost_last_cont.regularization_term, extended_cost_last_cont)
 
             extended_gen = PowerLASCOPF.ExtendedHydroGenerator(

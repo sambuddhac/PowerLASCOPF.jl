@@ -9,6 +9,7 @@ using JuMP
 using Ipopt
 using LinearAlgebra
 using Printf
+using JSON
 
 """
     LASCOPFSolver
@@ -98,9 +99,10 @@ function initialize_admm_variables!(solver::LASCOPFSolver)
     println("  Initializing ADMM variables...")
     
     # Initialize generator variables
-    for gen in [solver.system_data["thermal_generators"]; 
-                solver.system_data["renewable_generators"]; 
-                solver.system_data["hydro_generators"]]
+    for gen in [solver.system_data["thermal_generators"];
+                solver.system_data["renewable_generators"];
+                solver.system_data["hydro_generators"];
+                solver.system_data["storage_generators"]]
         set_gen_data!(gen)
     end
     
@@ -127,18 +129,11 @@ function solve_generator_subproblems!(solver::LASCOPFSolver)
     
     rho = solver.parameters["rho"]
     
-    # Solve thermal generators
-    for (i, gen) in enumerate(solver.system_data["thermal_generators"])
-        solve_generator_subproblem!(gen, rho, solver.current_iteration)
-    end
-    
-    # Solve renewable generators
-    for (i, gen) in enumerate(solver.system_data["renewable_generators"])
-        solve_generator_subproblem!(gen, rho, solver.current_iteration)
-    end
-    
-    # Solve hydro generators
-    for (i, gen) in enumerate(solver.system_data["hydro_generators"])
+    # Solve all generator technologies
+    for gen in [solver.system_data["thermal_generators"];
+                solver.system_data["renewable_generators"];
+                solver.system_data["hydro_generators"];
+                solver.system_data["storage_generators"]]
         solve_generator_subproblem!(gen, rho, solver.current_iteration)
     end
     
@@ -193,6 +188,165 @@ function solve_generator_subproblem!(gen::GeneralizedGenerator, rho::Float64, it
         DAPPExternal, LambAPP1External, LambAPP2External,
         LambAPP3External, LambAPP4External, BAPP, LambAPP1
     )
+end
+
+"""
+    solve_thermal_generator_subproblem!(gen::GeneralizedGenerator; optimizer_factory, solve_options, time_horizon, include_unit_commitment)
+
+Overload of `solve_thermal_generator_subproblem!` for `GeneralizedGenerator` in the APP
+distributed context. Unpacks `gen.gen_solver` and `gen.generator` and routes through the
+`(GenSolver, PSY.StaticInjection)` dispatch overload defined in ExtendedThermalGenerator.jl,
+which calls `build_and_solve_gensolver_for_gen!` in gensolver_first_base.jl.
+"""
+function solve_thermal_generator_subproblem!(gen::GeneralizedGenerator;
+                                             optimizer_factory=nothing,
+                                             solve_options=Dict(),
+                                             time_horizon=24,
+                                             include_unit_commitment=false)
+    return solve_thermal_generator_subproblem!(gen.gen_solver, gen.generator;
+                                               optimizer_factory=optimizer_factory,
+                                               solve_options=solve_options,
+                                               time_horizon=time_horizon,
+                                               include_unit_commitment=include_unit_commitment)
+end
+
+"""
+    solve_renewable_generator_subproblem!(gen::GeneralizedGenerator; ...)
+
+Overload of `solve_renewable_generator_subproblem!` for `GeneralizedGenerator`. Routes
+through the `(GenSolver, PSY.RenewableGen)` dispatch overload in ExtendedRenewableGenerator.jl.
+"""
+function solve_renewable_generator_subproblem!(gen::GeneralizedGenerator;
+                                               optimizer_factory=nothing,
+                                               solve_options=Dict(),
+                                               time_horizon=24,
+                                               include_unit_commitment=false)
+    return solve_renewable_generator_subproblem!(gen.gen_solver, gen.generator;
+                                                 optimizer_factory=optimizer_factory,
+                                                 solve_options=solve_options,
+                                                 time_horizon=time_horizon,
+                                                 include_unit_commitment=include_unit_commitment)
+end
+
+"""
+    solve_hydro_generator_subproblem!(gen::GeneralizedGenerator; ...)
+
+Overload of `solve_hydro_generator_subproblem!` for `GeneralizedGenerator`. Routes
+through the `(GenSolver, PSY.HydroGen)` dispatch overload in ExtendedHydroGenerator.jl.
+"""
+function solve_hydro_generator_subproblem!(gen::GeneralizedGenerator;
+                                           optimizer_factory=nothing,
+                                           solve_options=Dict(),
+                                           time_horizon=24,
+                                           include_unit_commitment=false)
+    return solve_hydro_generator_subproblem!(gen.gen_solver, gen.generator;
+                                             optimizer_factory=optimizer_factory,
+                                             solve_options=solve_options,
+                                             time_horizon=time_horizon,
+                                             include_unit_commitment=include_unit_commitment)
+end
+
+"""
+    solve_storage_generator_subproblem!(gen::GeneralizedGenerator; ...)
+
+Overload of `solve_storage_generator_subproblem!` for `GeneralizedGenerator`. Routes
+through the `(GenSolver, PSY.Storage)` dispatch overload in ExtendedStorageGenerator.jl.
+"""
+function solve_storage_generator_subproblem!(gen::GeneralizedGenerator;
+                                              optimizer_factory=nothing,
+                                              solve_options=Dict(),
+                                              time_horizon=24,
+                                              include_unit_commitment=false)
+    return solve_storage_generator_subproblem!(gen.gen_solver, gen.generator;
+                                               optimizer_factory=optimizer_factory,
+                                               solve_options=solve_options,
+                                               time_horizon=time_horizon,
+                                               include_unit_commitment=include_unit_commitment)
+end
+
+"""
+Technology dispatch for APP generator subproblem. Selects the correct
+`solve_*_generator_subproblem!` based on the PSY type wrapped by `GeneralizedGenerator`.
+"""
+_dispatch_gen_subproblem!(gen::GeneralizedGenerator{<:PSY.ThermalGen})  = solve_thermal_generator_subproblem!(gen)
+_dispatch_gen_subproblem!(gen::GeneralizedGenerator{<:PSY.RenewableGen}) = solve_renewable_generator_subproblem!(gen)
+_dispatch_gen_subproblem!(gen::GeneralizedGenerator{<:PSY.HydroGen})    = solve_hydro_generator_subproblem!(gen)
+_dispatch_gen_subproblem!(gen::GeneralizedGenerator{<:PSY.Storage})     = solve_storage_generator_subproblem!(gen)
+
+"""
+    gpower_angle_message!(gen::GeneralizedGenerator, outerAPPIt, APPItCount, gsRho, ...)
+
+APP message-passing subproblem for `GeneralizedGenerator`. Maps the full APP consensus
+parameter set onto the `GenFirstBaseInterval` ADMM state via `update_admm_parameters!`,
+then delegates to `solve_thermal_generator_subproblem!` to run the JuMP optimization.
+
+Parameter mapping to `GenFirstBaseInterval` fields:
+- gsRho          → rho
+- Pgenavg        → Pg_N_avg
+- Powerprice     → ug_N      (net power balance dual)
+- Angpriceavg    → Vg_N_avg  (average angle dual)
+- Angavg         → thetag_N_avg
+- Angprice       → vg_N      (angle balance dual)
+- P_gen_prevAPP  → Pg_prev
+- PgenAPP        → Pg_N_init, Pg_nu   (outer-iterate reference)
+- PgenAPPInner   → Pg_nu_inner
+- P_gen_nextAPP  → Pg_next_nu
+- BAPP           → B         (base-case cumulative disagreement)
+- BAPPExternal   → BSC       (contingency cumulative disagreement)
+- DAPPExternal   → D         (next-interval disagreement)
+- LambAPP1       → lambda_1  (base-case Lagrange multiplier)
+- LambAPP1External → lambda_1_sc (contingency Lagrange multiplier)
+- LambAPP2External → lambda_2   (next-interval Lagrange multiplier)
+- AAPPExternal, LambAPP3External, LambAPP4External: contingency coupling terms
+  not yet mapped to GenFirstBaseInterval fields (reserved for future extension)
+"""
+function gpower_angle_message!(
+    gen::GeneralizedGenerator,
+    outerAPPIt::Int,
+    APPItCount::Int,
+    gsRho::Float64,
+    Pgenavg::Float64,
+    Powerprice::Float64,
+    Angpriceavg::Float64,
+    Angavg::Float64,
+    Angprice::Float64,
+    P_gen_prevAPP::Float64,
+    PgenAPP::Float64,
+    PgenAPPInner::Float64,
+    P_gen_nextAPP::Vector{Float64},
+    AAPPExternal::Float64,
+    BAPPExternal::Vector{Float64},
+    DAPPExternal::Vector{Float64},
+    LambAPP1External::Vector{Float64},
+    LambAPP2External::Vector{Float64},
+    LambAPP3External::Float64,
+    LambAPP4External::Float64,
+    BAPP::Vector{Float64},
+    LambAPP1::Vector{Float64}
+)
+    # Map APP consensus parameters onto GenFirstBaseInterval ADMM state
+    update_admm_parameters!(gen.gen_solver, Dict(
+        "rho"          => gsRho,
+        "Pg_N_avg"     => Pgenavg,
+        "ug_N"         => Powerprice,
+        "Vg_N_avg"     => Angpriceavg,
+        "thetag_N_avg" => Angavg,
+        "vg_N"         => Angprice,
+        "Pg_prev"      => P_gen_prevAPP,
+        "Pg_N_init"    => PgenAPP,
+        "Pg_nu"        => PgenAPP,
+        "Pg_nu_inner"  => PgenAPPInner,
+        "Pg_next_nu"   => P_gen_nextAPP,
+        "B"            => BAPP,
+        "BSC"          => BAPPExternal,
+        "D"            => DAPPExternal,
+        "lambda_1"     => LambAPP1,
+        "lambda_1_sc"  => LambAPP1External,
+        "lambda_2"     => LambAPP2External
+    ))
+
+    # Invoke the technology-appropriate generator subproblem with the updated APP state
+    return _dispatch_gen_subproblem!(gen)
 end
 
 """
@@ -391,7 +545,6 @@ end
 Save results to JSON file
 """
 function save_results(results::Dict, system_data::Dict, filename::String)
-    using JSON
     
     output_data = Dict(
         "system_name" => system_data["name"],
