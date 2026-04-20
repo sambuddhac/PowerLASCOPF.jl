@@ -1,7 +1,7 @@
 name = "PowerLASCOPF"
 uuid = "12345678-1234-5678-9abc-123456789abc"
-authors = ["PowerLASCOPF Contributors"]
 version = "0.1.0"
+authors = ["PowerLASCOPF Contributors"]
 
 [deps]
 BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
@@ -75,7 +75,7 @@ PlotlyJS = "0.18"
 Plots = "1"
 PowerModels = "0.20, 0.21"
 PowerSimulations = "0.27, 0.28"
-PowerSystems = "3, 4"
+PowerSystems = "3, 4, 5"
 Printf = "1"
 PyCall = "1"
 Random = "1"
