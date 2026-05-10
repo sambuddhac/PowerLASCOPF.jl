@@ -771,6 +771,20 @@ function execute_simulation(
         "solver"               => solver_choice
     )
     
+    # Real ADMM/APP solver path (uses src/algorithms/admm_app_solver.jl)
+    if system !== nothing && isdefined(Main, :PowerLASCOPF) &&
+       isdefined(PowerLASCOPF, :LASCOPFSolver) &&
+       isdefined(PowerLASCOPF, :solve_lascopf!)
+
+        solver_data = copy(system_data)
+        if !haskey(solver_data, "storage_generators")
+            solver_data["storage_generators"] = Any[]
+        end
+
+        solver = PowerLASCOPF.LASCOPFSolver(solver_data, admm_params)
+        return PowerLASCOPF.solve_lascopf!(solver)
+    end
+
     if verbose
         println("  ADMM Parameters:")
         for (key, value) in sort(collect(admm_params), by=x->x[1])
