@@ -140,21 +140,22 @@ end
 """
     regularization_term(interval::GenFirstBaseInterval, Pg, PgNext, Thetag)
 
-Compute regularization term for GenFirstBaseInterval based on the optimization formulation:
-(beta/2)*(square(Pg-PgNu)+sum(square(PgNext-PgNextNu)))+(betaInner/2)*(square(Pg-PgNuInner))+
-(gammaSC)*(sum(Pg*BSC))+sum(Pg*lambda_1SC)+(gamma)*(sum(Pg*B)+(PgNext)'*D)+
-sum(Pg*lambda_1)+(lambda_2)'*PgNext+(rho/2)*(square(Pg-Pg_N_init+Pg_N_avg+ug_N)+
-square(Thetag-Vg_N_avg-Thetag_N_avg+vg_N))
+Compute regularization term for GenFirstBaseInterval (first dispatch interval, base case).
+FROM DISSERTATION (Chakrabarti 2017, pp. 162-165, 207-210):
+  - APP proximal: (beta/2)*||Pg-Pg_nu||^2 + (beta/2)*sum_i||PgNext_i-Pg_next_nu_i||^2 + (beta_inner/2)*||Pg-Pg_nu_inner||^2
+  - APP consensus: gamma_sc*sum_i(Pg*BSC_i) + sum_i(Pg*lambda_1_sc_i) + gamma*sum_i(Pg*B_i) + gamma*sum_i(PgNext_i*D_i) + sum_i(Pg*lambda_1_i) + sum_i(PgNext_i*lambda_2_i)
+  - ADMM consensus: (rho/2)*||Pg - Pg_N_init + Pg_N_avg + ug_N||^2 + (rho/2)*||Thetag - Vg_N_avg - Thetag_N_avg + vg_N||^2
+See: Chakrabarti (2017) APP/ADMM message-passing formulation, pages 214-217.
 """
 function regularization_term(interval::GenFirstBaseInterval, Pg, PgNext, Thetag)
     reg_term = JuMP.QuadExpr()
     
     # APP regularization terms
-    JuMP.add_to_expression!(reg_term, interval.beta/2, (Pg - interval.Pg_nu), (Pg - interval.Pg_nu))
+    JuMP.add_to_expression!(reg_term, (interval.beta/2) * (Pg - interval.Pg_nu), (Pg - interval.Pg_nu))
     for i in eachindex(PgNext)
-        JuMP.add_to_expression!(reg_term, interval.beta/2, (PgNext[i] - interval.Pg_next_nu[i]), (PgNext[i] - interval.Pg_next_nu[i]))
+        JuMP.add_to_expression!(reg_term, (interval.beta/2) * (PgNext[i] - interval.Pg_next_nu[i]), (PgNext[i] - interval.Pg_next_nu[i]))
     end
-    JuMP.add_to_expression!(reg_term, interval.beta_inner/2, (Pg - interval.Pg_nu_inner), (Pg - interval.Pg_nu_inner))
+    JuMP.add_to_expression!(reg_term, (interval.beta_inner/2) * (Pg - interval.Pg_nu_inner), (Pg - interval.Pg_nu_inner))
 
     # APP consensus terms
     for i in eachindex(interval.BSC)
@@ -178,10 +179,10 @@ function regularization_term(interval::GenFirstBaseInterval, Pg, PgNext, Thetag)
     
     # ADMM consensus terms
     power_consensus = Pg - interval.Pg_N_init + interval.Pg_N_avg + interval.ug_N
-    JuMP.add_to_expression!(reg_term, interval.rho/2, power_consensus, power_consensus)
+    JuMP.add_to_expression!(reg_term, (interval.rho/2) * power_consensus, power_consensus)
     
     angle_consensus = Thetag - interval.Vg_N_avg - interval.thetag_N_avg + interval.vg_N
-    JuMP.add_to_expression!(reg_term, interval.rho/2, angle_consensus, angle_consensus)
+    JuMP.add_to_expression!(reg_term, (interval.rho/2) * angle_consensus, angle_consensus)
 
     return reg_term
 end
@@ -253,7 +254,7 @@ end
     Pg_nu::Float64 # Previous iterates of the corresponding decision variable values
     Pg_nu_inner::Float64 # Previous iterates of the corresponding decision variable values
     Pg_next_nu::Array{Float64} # Previous iterates of the corresponding decision variable values
-    Pg_prev_nu::Float64 # Generator's output in the previous interval
+    Pg_prev_nu::Float64 # Previous iterates of the previous-interval decision variable
     A::Float64 # Disagreement between the generator output values for the previous interval by the present and the previous interval, at the previous iteration
     B::Array{Float64} # Cumulative disagreement between the generator output values for the previous and next intervals by the present, next, and the previous intervals, at the previous iteration
     D::Array{Float64} # Disagreement between the generator output values for the next interval by the present and the next interval, at the previous iteration
@@ -296,7 +297,7 @@ function GenFirstBaseIntervalDZ(::Nothing)
     Pg_nu = 0.0, # Previous iterates of the corresponding decision variable values
     Pg_nu_inner = 0.0, # Previous iterates of the corresponding decision variable values
     Pg_next_nu = Float64[], # Previous iterates of the corresponding decision variable values
-    Pg_prev_nu = 0.0, # Generator's output in the previous interval
+    Pg_prev_nu = 0.0, # Previous iterates of the previous-interval decision variable
     A = 0.0, # Disagreement between the generator output values for the previous interval by the present and the previous interval, at the previous iteration
     B = Float64[], # Cumulative disagreement between the generator output values for the previous and next intervals by the present, next, and the previous intervals, at the previous iteration
     D = Float64[], # Disagreement between the generator output values for the next interval by the present and the next interval, at the previous iteration
@@ -312,18 +313,23 @@ end
 """
     regularization_term(interval::GenFirstBaseIntervalDZ, Pg, PgNext, PgPrev, Thetag)
 
-Compute regularization term for GenFirstBaseIntervalDZ with dummy zero interval
+Compute regularization term for GenFirstBaseIntervalDZ (dummy-zero base case interval).
+Extends GenFirstBaseInterval with PgPrev from previous interval. FROM DISSERTATION (pp. 214-217):
+  - APP proximal: (beta/2)*||PgPrev-Pg_prev_nu||^2 + (beta/2)*||Pg-Pg_nu||^2 + (beta/2)*sum_i||PgNext_i-Pg_next_nu_i||^2 + (beta_inner/2)*||Pg-Pg_nu_inner||^2
+  - APP consensus: gamma_sc*sum_i(Pg*BSC_i) + sum_i(Pg*lambda_1_sc_i) + gamma*A*PgPrev + gamma*sum_i(Pg*B_i) + gamma*sum_i(PgNext_i*D_i) + sum_i(Pg*lambda_1_i) + sum_i(PgNext_i*lambda_2_i) - lambda_3*PgPrev - lambda_4*Pg
+  - ADMM: (rho/2)*||Pg - Pg_N_init + Pg_N_avg + ug_N||^2 + (rho/2)*||Thetag - Vg_N_avg - Thetag_N_avg + vg_N||^2
+See: Chakrabarti (2017) dummy-zero consensus formulation, pages 214-217.
 """
 function regularization_term(interval::GenFirstBaseIntervalDZ, Pg, PgNext, PgPrev, Thetag)
     reg_term = JuMP.QuadExpr()
     
     # APP regularization terms
-    JuMP.add_to_expression!(reg_term, interval.beta/2, (PgPrev - interval.Pg_prev_nu), (PgPrev - interval.Pg_prev_nu))
-    JuMP.add_to_expression!(reg_term, interval.beta/2, (Pg - interval.Pg_nu), (Pg - interval.Pg_nu))
+    JuMP.add_to_expression!(reg_term, (interval.beta/2) * (PgPrev - interval.Pg_prev_nu), (PgPrev - interval.Pg_prev_nu))
+    JuMP.add_to_expression!(reg_term, (interval.beta/2) * (Pg - interval.Pg_nu), (Pg - interval.Pg_nu))
     for i in eachindex(PgNext)
-        JuMP.add_to_expression!(reg_term, interval.beta/2, (PgNext[i] - interval.Pg_next_nu[i]), (PgNext[i] - interval.Pg_next_nu[i]))
+        JuMP.add_to_expression!(reg_term, (interval.beta/2) * (PgNext[i] - interval.Pg_next_nu[i]), (PgNext[i] - interval.Pg_next_nu[i]))
     end
-    JuMP.add_to_expression!(reg_term, interval.beta_inner/2, (Pg - interval.Pg_nu_inner), (Pg - interval.Pg_nu_inner))
+    JuMP.add_to_expression!(reg_term, (interval.beta_inner/2) * (Pg - interval.Pg_nu_inner), (Pg - interval.Pg_nu_inner))
     
     # APP consensus terms
     for i in eachindex(interval.BSC)
@@ -350,10 +356,10 @@ function regularization_term(interval::GenFirstBaseIntervalDZ, Pg, PgNext, PgPre
 
     # ADMM consensus terms
     power_consensus = Pg - interval.Pg_N_init + interval.Pg_N_avg + interval.ug_N
-    JuMP.add_to_expression!(reg_term, interval.rho/2, power_consensus, power_consensus)
+    JuMP.add_to_expression!(reg_term, (interval.rho/2) * power_consensus, power_consensus)
     
     angle_consensus = Thetag - interval.Vg_N_avg - interval.thetag_N_avg + interval.vg_N
-    JuMP.add_to_expression!(reg_term, interval.rho/2, angle_consensus, angle_consensus)
+    JuMP.add_to_expression!(reg_term, (interval.rho/2) * angle_consensus, angle_consensus)
 
     return reg_term
 end
@@ -471,17 +477,22 @@ end
 """
     regularization_term(interval::GenFirstContInterval, Pg, PgNext, Thetag)
 
-Compute regularization term for GenFirstContInterval
+Compute regularization term for GenFirstContInterval (first interval, contingency case).
+Similar to GenFirstBaseInterval but applied to contingency dispatch scenarios. FROM DISSERTATION (pp. 162-165, 207-213):
+  - APP proximal: (beta/2)*||Pg-Pg_nu||^2 + (beta/2)*sum_i||PgNext_i-Pg_next_nu_i||^2 + (beta_inner/2)*||Pg-Pg_nu_inner||^2
+  - APP consensus: gamma_sc*BSC*Pg - lambda_1_sc*Pg + gamma*sum_i(Pg*B_i) + gamma*sum_i(PgNext_i*D_i) + sum_i(Pg*lambda_1_i) + sum_i(PgNext_i*lambda_2_i)
+  - ADMM: (rho/2)*||Pg - Pg_N_init + Pg_N_avg + ug_N||^2 + (rho/2)*||Thetag - Vg_N_avg - Thetag_N_avg + vg_N||^2
+See: Chakrabarti (2017) contingency dispatch intervals, pages 207-213.
 """
 function regularization_term(interval::GenFirstContInterval, Pg, PgNext, Thetag)
     reg_term = JuMP.QuadExpr()
     
     # APP regularization terms
-    JuMP.add_to_expression!(reg_term, interval.beta/2, (Pg - interval.Pg_nu), (Pg - interval.Pg_nu))
+    JuMP.add_to_expression!(reg_term, (interval.beta/2) * (Pg - interval.Pg_nu), (Pg - interval.Pg_nu))
     for i in eachindex(PgNext)
-        JuMP.add_to_expression!(reg_term, interval.beta/2, (PgNext[i] - interval.Pg_next_nu[i]), (PgNext[i] - interval.Pg_next_nu[i]))
+        JuMP.add_to_expression!(reg_term, (interval.beta/2) * (PgNext[i] - interval.Pg_next_nu[i]), (PgNext[i] - interval.Pg_next_nu[i]))
     end
-    JuMP.add_to_expression!(reg_term, interval.beta_inner/2, (Pg - interval.Pg_nu_inner), (Pg - interval.Pg_nu_inner))
+    JuMP.add_to_expression!(reg_term, (interval.beta_inner/2) * (Pg - interval.Pg_nu_inner), (Pg - interval.Pg_nu_inner))
     
     # APP consensus terms
     JuMP.add_to_expression!(reg_term, interval.gamma_sc * interval.BSC, Pg)
@@ -501,10 +512,10 @@ function regularization_term(interval::GenFirstContInterval, Pg, PgNext, Thetag)
     
     # ADMM consensus terms
     power_consensus = Pg - interval.Pg_N_init + interval.Pg_N_avg + interval.ug_N
-    JuMP.add_to_expression!(reg_term, interval.rho/2, power_consensus, power_consensus)
+    JuMP.add_to_expression!(reg_term, (interval.rho/2) * power_consensus, power_consensus)
     
     angle_consensus = Thetag - interval.Vg_N_avg - interval.thetag_N_avg + interval.vg_N
-    JuMP.add_to_expression!(reg_term, interval.rho/2, angle_consensus, angle_consensus)
+    JuMP.add_to_expression!(reg_term, (interval.rho/2) * angle_consensus, angle_consensus)
 
     return reg_term
 end
@@ -556,7 +567,7 @@ subject to
   RgMin <= Pg-PgPrev <= RgMax
 end
 """
-##This is currently just a placeholder; Need to modify
+## Generator First Contingency Interval with dummy zero interval
 @kwdef mutable struct GenFirstContIntervalDZ <: GenIntervals
     rho::Float64 # ADMM tuning parameter
     beta::Float64 # APP tuning parameter for across the dispatch intervals
@@ -566,6 +577,9 @@ end
     lambda_1_sc::Float64 # APP Lagrange Multiplier corresponding to the complementary slackness
     lambda_1::Array{Float64}
     lambda_2::Array{Float64} # APP Lagrange Multiplier corresponding to the complementary slackness
+    lambda_3::Float64 = 0.0 # APP Lagrange Multiplier corresponding to the complementary slackness
+    lambda_4::Float64 = 0.0 # APP Lagrange Multiplier corresponding to the complementary slackness
+    A::Float64 # Disagreement between the generator output values for the previous interval by the present and the previous interval, at the previous iteration
     B::Array{Float64} # Disagreement between the generator output values for the previous interval by the present and the previous interval, at the previous iteration
     D::Array{Float64} # Cumulative disagreement between the generator output values for the previous and next intervals by the present, next, and the previous intervals, at the previous iteration
     BSC::Float64 # Cumulative disagreement between the generator output values for the previous and next intervals by the present, next, and the previous intervals, at the previous iteration
@@ -578,20 +592,21 @@ end
     Pg_nu::Float64 # Previous iterates of the corresponding decision variable values
     Pg_nu_inner::Float64 # Previous iterates of the corresponding decision variable values
     Pg_next_nu::Array{Float64} # Previous iterates of the corresponding decision variable values
-    Pg_prev::Float64 # Generator's output in the previous interval
+    Pg_prev_nu::Float64 # Previous iterates of the previous-interval decision variable
 end
 
-# Simplified constructor for GenFirstContInterval that provides compatibility with existing code
-function GenFirstContIntervalDZ(lambda_1, lambda_2, B, D, BSC,
+# Simplified constructor for GenFirstContIntervalDZ that provides compatibility with existing code
+function GenFirstContIntervalDZ(lambda_1, lambda_2, lambda_3, lambda_4, B, D, BSC, A,
                               Pg_N_init, Pg_N_avg, thetag_N_avg, 
                               ug_N, vg_N, Vg_N_avg, Pg_nu, Pg_nu_inner, 
-                              Pg_next_nu, Pg_prev, rho, beta, beta_inner, 
+                              Pg_next_nu, Pg_prev_nu, rho, beta, beta_inner,
                               gamma, gamma_sc, lambda_1_sc)
     return GenFirstContIntervalDZ(rho=rho, beta=beta, beta_inner=beta_inner, gamma=gamma, gamma_sc=gamma_sc,
-                              lambda_1_sc=lambda_1_sc, lambda_1=lambda_1, lambda_2=lambda_2, B=B, D=D, 
+                              lambda_1_sc=lambda_1_sc, lambda_1=lambda_1, lambda_2=lambda_2, lambda_3=lambda_3,
+                              lambda_4=lambda_4, A=A, B=B, D=D,
                               BSC=BSC, Pg_N_init=Pg_N_init, Pg_N_avg=Pg_N_avg, thetag_N_avg=thetag_N_avg,
                               ug_N=ug_N, vg_N=vg_N, Vg_N_avg=Vg_N_avg, Pg_nu=Pg_nu, Pg_nu_inner=Pg_nu_inner,
-                              Pg_next_nu=Pg_next_nu, Pg_prev=Pg_prev)
+                              Pg_next_nu=Pg_next_nu, Pg_prev_nu=Pg_prev_nu)
 end
 
 # Alternative constructor for Nothing input
@@ -605,6 +620,9 @@ function GenFirstContIntervalDZ(::Nothing)
     lambda_1_sc = 0.0, # APP Lagrange Multiplier corresponding to the complementary slackness
     lambda_1 = Float64[],
     lambda_2 = Float64[], # APP Lagrange Multiplier corresponding to the complementary slackness
+    lambda_3 = 0.0, # APP Lagrange Multiplier corresponding to the complementary slackness
+    lambda_4 = 0.0, # APP Lagrange Multiplier corresponding to the complementary slackness
+    A = 0.0, # Disagreement between the generator output values for the previous interval
     B = Float64[], # Disagreement between the generator output values for the previous interval by the present and the previous interval, at the previous iteration
     D = Float64[], # Cumulative disagreement between the generator output values for the previous and next intervals by the present, next, and the previous intervals, at the previous iteration
     BSC = 0.0, # Cumulative disagreement between the generator output values for the previous and next intervals by the present, next, and the previous intervals, at the previous iteration
@@ -617,32 +635,39 @@ function GenFirstContIntervalDZ(::Nothing)
     Pg_nu = 0.0, # Previous iterates of the corresponding decision variable values
     Pg_nu_inner = 0.0, # Previous iterates of the corresponding decision variable values
     Pg_next_nu = Float64[], # Previous iterates of the corresponding decision variable values
-    Pg_prev = 0.0 # Generator's output in the previous interval
+    Pg_prev_nu = 0.0 # Previous iterates of the previous-interval decision variable
     )
 end
 
 """
     regularization_term(interval::GenFirstContIntervalDZ, Pg, PgNext, PgPrev, Thetag)
 
-Compute regularization term for GenFirstContIntervalDZ
+Compute regularization term for GenFirstContIntervalDZ (dummy-zero contingency interval).
+Combines contingency dispatch with dummy-zero consensus terms. FROM DISSERTATION (pp. 214-217):
+  - APP proximal: (beta/2)*||PgPrev-Pg_prev_nu||^2 + (beta/2)*||Pg-Pg_nu||^2 + (beta/2)*sum_i||PgNext_i-Pg_next_nu_i||^2 + (beta_inner/2)*||Pg-Pg_nu_inner||^2
+  - APP consensus: gamma_sc*BSC*Pg - lambda_1_sc*Pg + gamma*A*PgPrev + gamma*sum_i(Pg*B_i) + gamma*sum_i(PgNext_i*D_i) + sum_i(Pg*lambda_1_i) + sum_i(PgNext_i*lambda_2_i) - lambda_3*PgPrev - lambda_4*Pg
+  - ADMM: (rho/2)*||Pg - Pg_N_init + Pg_N_avg + ug_N||^2 + (rho/2)*||Thetag - Vg_N_avg - Thetag_N_avg + vg_N||^2
+See: Chakrabarti (2017) dummy-zero with contingencies, pages 214-217.
 """
 
 function regularization_term(interval::GenFirstContIntervalDZ, Pg, PgNext, PgPrev, Thetag)
     reg_term = JuMP.QuadExpr()
     
     # APP regularization terms
-    JuMP.add_to_expression!(reg_term, interval.beta/2, (PgPrev - interval.Pg_prev_nu), (PgPrev - interval.Pg_prev_nu))
-    JuMP.add_to_expression!(reg_term, interval.beta/2, (Pg - interval.Pg_nu), (Pg - interval.Pg_nu))
+    JuMP.add_to_expression!(reg_term, (interval.beta/2) * (PgPrev - interval.Pg_prev_nu), (PgPrev - interval.Pg_prev_nu))
+    JuMP.add_to_expression!(reg_term, (interval.beta/2) * (Pg - interval.Pg_nu), (Pg - interval.Pg_nu))
     for i in eachindex(PgNext)
-        JuMP.add_to_expression!(reg_term, interval.beta/2, (PgNext[i] - interval.Pg_next_nu[i]), (PgNext[i] - interval.Pg_next_nu[i]))
+        JuMP.add_to_expression!(reg_term, (interval.beta/2) * (PgNext[i] - interval.Pg_next_nu[i]), (PgNext[i] - interval.Pg_next_nu[i]))
     end
-    JuMP.add_to_expression!(reg_term, interval.beta_inner/2, (Pg - interval.Pg_nu_inner), (Pg - interval.Pg_nu_inner))
+    JuMP.add_to_expression!(reg_term, (interval.beta_inner/2) * (Pg - interval.Pg_nu_inner), (Pg - interval.Pg_nu_inner))
     
     # APP consensus terms
     JuMP.add_to_expression!(reg_term, interval.gamma_sc * interval.BSC, Pg)
     JuMP.add_to_expression!(reg_term, -interval.lambda_1_sc, Pg)
     JuMP.add_to_expression!(reg_term, interval.gamma * interval.A, PgPrev)
-    JuMP.add_to_expression!(reg_term, interval.gamma * interval.B, Pg)
+    for i in eachindex(interval.B)
+        JuMP.add_to_expression!(reg_term, interval.gamma * interval.B[i], Pg)
+    end
     for i in eachindex(interval.D)
         JuMP.add_to_expression!(reg_term, interval.gamma * interval.D[i], PgNext[i])
     end
@@ -657,10 +682,10 @@ function regularization_term(interval::GenFirstContIntervalDZ, Pg, PgNext, PgPre
     
     # ADMM consensus terms
     power_consensus = Pg - interval.Pg_N_init + interval.Pg_N_avg + interval.ug_N
-    JuMP.add_to_expression!(reg_term, interval.rho/2, power_consensus, power_consensus)
+    JuMP.add_to_expression!(reg_term, (interval.rho/2) * power_consensus, power_consensus)
     
     angle_consensus = Thetag - interval.Vg_N_avg - interval.thetag_N_avg + interval.vg_N
-    JuMP.add_to_expression!(reg_term, interval.rho/2, angle_consensus, angle_consensus)
+    JuMP.add_to_expression!(reg_term, (interval.rho/2) * angle_consensus, angle_consensus)
 
     return reg_term
 end
@@ -737,15 +762,20 @@ end
 """
     regularization_term(interval::GenLastBaseInterval, Pg, PgPrev, Thetag)
 
-Compute regularization term for GenLastBaseInterval
+Compute regularization term for GenLastBaseInterval (last dispatch interval, base case).
+Terminal interval with generator ramp-down penalties. FROM DISSERTATION (pp. 220-221):
+  - APP proximal: (beta/2)*||PgPrev-Pg_prev_nu||^2 + (beta/2)*||Pg-Pg_nu||^2 + (beta_inner/2)*||Pg-Pg_nu_inner||^2
+  - APP consensus: gamma_sc*sum_i(Pg*BSC_i) + sum_i(Pg*lambda_1_sc_i) + gamma*A*PgPrev + gamma*B*Pg - lambda_3*PgPrev - lambda_4*Pg
+  - ADMM: (rho/2)*||Pg - Pg_N_init + Pg_N_avg + ug_N||^2 + (rho/2)*||Thetag - Vg_N_avg - Thetag_N_avg + vg_N||^2
+See: Chakrabarti (2017) final interval consensus, pages 220-221.
 """
 function regularization_term(interval::GenLastBaseInterval, Pg, PgPrev, Thetag)
     reg_term = JuMP.QuadExpr()
     
     # APP regularization terms
-    JuMP.add_to_expression!(reg_term, interval.beta/2, (PgPrev - interval.Pg_prev_nu), (PgPrev - interval.Pg_prev_nu))
-    JuMP.add_to_expression!(reg_term, interval.beta/2, (Pg - interval.Pg_nu), (Pg - interval.Pg_nu))
-    JuMP.add_to_expression!(reg_term, interval.beta_inner/2, (Pg - interval.Pg_nu_inner), (Pg - interval.Pg_nu_inner))
+    JuMP.add_to_expression!(reg_term, (interval.beta/2) * (PgPrev - interval.Pg_prev_nu), (PgPrev - interval.Pg_prev_nu))
+    JuMP.add_to_expression!(reg_term, (interval.beta/2) * (Pg - interval.Pg_nu), (Pg - interval.Pg_nu))
+    JuMP.add_to_expression!(reg_term, (interval.beta_inner/2) * (Pg - interval.Pg_nu_inner), (Pg - interval.Pg_nu_inner))
 
     # APP consensus terms
     for i in eachindex(interval.BSC)
@@ -761,10 +791,10 @@ function regularization_term(interval::GenLastBaseInterval, Pg, PgPrev, Thetag)
 
     # ADMM consensus terms
     power_consensus = Pg - interval.Pg_N_init + interval.Pg_N_avg + interval.ug_N
-    JuMP.add_to_expression!(reg_term, interval.rho/2, power_consensus, power_consensus)
+    JuMP.add_to_expression!(reg_term, (interval.rho/2) * power_consensus, power_consensus)
 
     angle_consensus = Thetag - interval.Vg_N_avg - interval.thetag_N_avg + interval.vg_N
-    JuMP.add_to_expression!(reg_term, interval.rho/2, angle_consensus, angle_consensus)
+    JuMP.add_to_expression!(reg_term, (interval.rho/2) * angle_consensus, angle_consensus)
 
     return reg_term
 end
@@ -840,15 +870,20 @@ end
 """
     regularization_term(interval::GenLastContInterval, Pg, PgPrev, Thetag)
 
-Compute regularization term for GenLastContInterval
+Compute regularization term for GenLastContInterval (last interval, contingency case).
+Terminal interval for contingency scenarios with ramp-down penalties. FROM DISSERTATION (pp. 220-221):
+  - APP proximal: (beta/2)*||PgPrev-Pg_prev_nu||^2 + (beta/2)*||Pg-Pg_nu||^2 + (beta_inner/2)*||Pg-Pg_nu_inner||^2
+  - APP consensus: gamma_sc*BSC*Pg - lambda_1_sc*Pg + gamma*A*PgPrev + gamma*B*Pg - lambda_3*PgPrev - lambda_4*Pg
+  - ADMM: (rho/2)*||Pg - Pg_N_init + Pg_N_avg + ug_N||^2 + (rho/2)*||Thetag - Vg_N_avg - Thetag_N_avg + vg_N||^2
+See: Chakrabarti (2017) contingency final interval, pages 220-221.
 """
 function regularization_term(interval::GenLastContInterval, Pg, PgPrev, Thetag)
     reg_term = JuMP.QuadExpr()
     
     # APP regularization terms
-    JuMP.add_to_expression!(reg_term, interval.beta/2, (PgPrev - interval.Pg_prev_nu), (PgPrev - interval.Pg_prev_nu))
-    JuMP.add_to_expression!(reg_term, interval.beta/2, (Pg - interval.Pg_nu), (Pg - interval.Pg_nu))
-    JuMP.add_to_expression!(reg_term, interval.beta_inner/2, (Pg - interval.Pg_nu_inner), (Pg - interval.Pg_nu_inner))
+    JuMP.add_to_expression!(reg_term, (interval.beta/2) * (PgPrev - interval.Pg_prev_nu), (PgPrev - interval.Pg_prev_nu))
+    JuMP.add_to_expression!(reg_term, (interval.beta/2) * (Pg - interval.Pg_nu), (Pg - interval.Pg_nu))
+    JuMP.add_to_expression!(reg_term, (interval.beta_inner/2) * (Pg - interval.Pg_nu_inner), (Pg - interval.Pg_nu_inner))
 
     # APP consensus terms
     JuMP.add_to_expression!(reg_term, interval.gamma_sc * interval.BSC, Pg)
@@ -860,10 +895,10 @@ function regularization_term(interval::GenLastContInterval, Pg, PgPrev, Thetag)
 
     # ADMM consensus terms
     power_consensus = Pg - interval.Pg_N_init + interval.Pg_N_avg + interval.ug_N
-    JuMP.add_to_expression!(reg_term, interval.rho/2, power_consensus, power_consensus)
+    JuMP.add_to_expression!(reg_term, (interval.rho/2) * power_consensus, power_consensus)
 
     angle_consensus = Thetag - interval.Vg_N_avg - interval.thetag_N_avg + interval.vg_N
-    JuMP.add_to_expression!(reg_term, interval.rho/2, angle_consensus, angle_consensus)
+    JuMP.add_to_expression!(reg_term, (interval.rho/2) * angle_consensus, angle_consensus)
 
     return reg_term
 end
@@ -896,6 +931,7 @@ Generator Intermediate RND Interval for ED
     Pg_nu::Float64 # Previous iterates of the corresponding decision variable values
     Pg_nu_inner::Float64 # Previous iterates of the corresponding decision variable values
     Pg_prev_nu::Float64 # Previous iterates of the corresponding decision variable values
+    Pg_next_nu::Float64 # Previous iterates of the next-interval decision variable
     Pg_next::Float64 # Generator's belief about its output in the next interval
     select_zero::Int # Selection parameter to include or not include the last interval for PgNext constraint
 end
@@ -903,13 +939,13 @@ end
 # Simplified constructor for GenInterRNDInterval that provides compatibility with existing code
 function GenInterRNDInterval(lambda_3, lambda_4, A, B, D, Pg_N_init, Pg_N_avg,
                            thetag_N_avg, ug_N, vg_N, Vg_N_avg, Pg_nu, Pg_nu_inner,
-                           Pg_prev_nu, Pg_next, select_zero;
+                           Pg_prev_nu, Pg_next_nu, Pg_next, select_zero;
                            rho, beta, gamma)
     return GenInterRNDInterval(rho=rho, beta=beta, gamma=gamma, lambda_3=lambda_3, lambda_4=lambda_4,
                              A=A, B=B, D=D, Pg_N_init=Pg_N_init, Pg_N_avg=Pg_N_avg,
                              thetag_N_avg=thetag_N_avg, ug_N=ug_N, vg_N=vg_N, Vg_N_avg=Vg_N_avg,
                              Pg_nu=Pg_nu, Pg_nu_inner=Pg_nu_inner, Pg_prev_nu=Pg_prev_nu,
-                             Pg_next=Pg_next, select_zero=select_zero)
+                             Pg_next_nu=Pg_next_nu, Pg_next=Pg_next, select_zero=select_zero)
 end
 
 # Alternative constructor for Nothing input
@@ -932,23 +968,29 @@ function GenInterRNDInterval(::Nothing)
         Pg_nu = 0.0, # Previous iterates of the corresponding decision variable values
         Pg_nu_inner = 0.0, # Previous iterates of the corresponding decision variable values
         Pg_prev_nu = 0.0, # Previous iterates of the corresponding decision variable values
+        Pg_next_nu = 0.0, # Previous iterates of the next-interval decision variable
         Pg_next = 0.0, # Generator's belief about its output in the next interval
         select_zero = 0 # Selection parameter to include or not include the last interval for PgNext constraint
     )
 end
 
 """
-    regularization_term(interval::GenLastBaseInterval, Pg, PgPrev, Thetag)
+    regularization_term(interval::GenInterRNDInterval, Pg, PgPrev, PgNext, Thetag)
 
-Compute regularization term for GenLastBaseInterval
+Compute regularization term for GenInterRNDInterval (intermediate RND interval for ED).
+Applies message-passing consensus across intermediate dispatch intervals. FROM DISSERTATION (pp. 220-221):
+  - APP proximal: (beta/2)*||PgPrev-Pg_prev_nu||^2 + (beta/2)*||Pg-Pg_nu||^2 + (beta/2)*||PgNext-Pg_next_nu||^2
+  - APP consensus: gamma*A*PgPrev + gamma*B*Pg + gamma*D*PgNext - lambda_3*PgPrev - lambda_4*Pg
+  - ADMM: (rho/2)*||Pg - Pg_N_init + Pg_N_avg + ug_N||^2 + (rho/2)*||Thetag - Vg_N_avg - Thetag_N_avg + vg_N||^2
+See: Chakrabarti (2017) intermediate interval consensus (RND), pages 220-221.
 """
 function regularization_term(interval::GenInterRNDInterval, Pg, PgPrev, PgNext, Thetag)
     reg_term = JuMP.QuadExpr()
     
     # APP regularization terms
-    JuMP.add_to_expression!(reg_term, interval.beta/2, (PgPrev - interval.Pg_prev_nu), (PgPrev - interval.Pg_prev_nu))
-    JuMP.add_to_expression!(reg_term, interval.beta/2, (Pg - interval.Pg_nu), (Pg - interval.Pg_nu))
-    JuMP.add_to_expression!(reg_term, interval.beta/2, (PgNext - interval.Pg_next_nu), (PgNext - interval.Pg_next_nu))
+    JuMP.add_to_expression!(reg_term, (interval.beta/2) * (PgPrev - interval.Pg_prev_nu), (PgPrev - interval.Pg_prev_nu))
+    JuMP.add_to_expression!(reg_term, (interval.beta/2) * (Pg - interval.Pg_nu), (Pg - interval.Pg_nu))
+    JuMP.add_to_expression!(reg_term, (interval.beta/2) * (PgNext - interval.Pg_next_nu), (PgNext - interval.Pg_next_nu))
 
     # APP consensus terms
     JuMP.add_to_expression!(reg_term, interval.gamma * interval.A, PgPrev)
@@ -959,10 +1001,10 @@ function regularization_term(interval::GenInterRNDInterval, Pg, PgPrev, PgNext, 
 
     # ADMM consensus terms
     power_consensus = Pg - interval.Pg_N_init + interval.Pg_N_avg + interval.ug_N
-    JuMP.add_to_expression!(reg_term, interval.rho/2, power_consensus, power_consensus)
+    JuMP.add_to_expression!(reg_term, (interval.rho/2) * power_consensus, power_consensus)
 
     angle_consensus = Thetag - interval.Vg_N_avg - interval.thetag_N_avg + interval.vg_N
-    JuMP.add_to_expression!(reg_term, interval.rho/2, angle_consensus, angle_consensus)
+    JuMP.add_to_expression!(reg_term, (interval.rho/2) * angle_consensus, angle_consensus)
 
     return reg_term
 end
@@ -994,6 +1036,7 @@ Generator Intermediate RSD Interval for OPF
     Pg_nu::Float64 # Previous iterates of the corresponding decision variable values
     Pg_nu_inner::Float64 # Previous iterates of the corresponding decision variable values
     Pg_prev_nu::Float64 # Previous iterates of the corresponding decision variable values
+    Pg_next_nu::Float64 # Previous iterates of the next-interval decision variable
     Pg_next::Float64 # Generator's belief about its output in the next interval
     select_zero::Int # Selection parameter to include or not include the last interval for PgNext constraint
 end
@@ -1001,13 +1044,13 @@ end
 # Simplified constructor for GenInterRSDInterval that provides compatibility with existing code
 function GenInterRSDInterval(lambda_3, lambda_4, A, B, D, Pg_N_init, Pg_N_avg,
                            thetag_N_avg, ug_N, vg_N, Vg_N_avg, Pg_nu, Pg_nu_inner,
-                           Pg_prev_nu, Pg_next, select_zero;
+                           Pg_prev_nu, Pg_next_nu, Pg_next, select_zero;
                            rho, beta, gamma)
     return GenInterRSDInterval(rho=rho, beta=beta, gamma=gamma, lambda_3=lambda_3, lambda_4=lambda_4,
                              A=A, B=B, D=D, Pg_N_init=Pg_N_init, Pg_N_avg=Pg_N_avg,
                              thetag_N_avg=thetag_N_avg, ug_N=ug_N, vg_N=vg_N, Vg_N_avg=Vg_N_avg,
                              Pg_nu=Pg_nu, Pg_nu_inner=Pg_nu_inner, Pg_prev_nu=Pg_prev_nu,
-                             Pg_next=Pg_next, select_zero=select_zero)
+                             Pg_next_nu=Pg_next_nu, Pg_next=Pg_next, select_zero=select_zero)
 end
 
 # Alternative constructor for Nothing input
@@ -1030,23 +1073,29 @@ function GenInterRSDInterval(::Nothing)
         Pg_nu = 0.0, # Previous iterates of the corresponding decision variable values
         Pg_nu_inner = 0.0, # Previous iterates of the corresponding decision variable values
         Pg_prev_nu = 0.0, # Previous iterates of the corresponding decision variable values
+        Pg_next_nu = 0.0, # Previous iterates of the next-interval decision variable
         Pg_next = 0.0, # Generator's belief about its output in the next interval
         select_zero = 0 # Selection parameter to include or not include the last interval for PgNext constraint
     )
 end
 
 """
-    regularization_term(interval::GenLastBaseInterval, Pg, PgPrev, Thetag)
+    regularization_term(interval::GenInterRSDInterval, Pg, PgPrev, PgNext, Thetag)
 
-Compute regularization term for GenLastBaseInterval
+Compute regularization term for GenInterRSDInterval (intermediate RSD interval for OPF).
+Applies message-passing consensus across intermediate OPF (real-time security-constrained) intervals. FROM DISSERTATION (pp. 220-221):
+  - APP proximal: (beta/2)*||PgPrev-Pg_prev_nu||^2 + (beta/2)*||Pg-Pg_nu||^2 + (beta/2)*||PgNext-Pg_next_nu||^2
+  - APP consensus: gamma*A*PgPrev + gamma*B*Pg + gamma*D*PgNext - lambda_3*PgPrev - lambda_4*Pg
+  - ADMM: (rho/2)*||Pg - Pg_N_init + Pg_N_avg + ug_N||^2 + (rho/2)*||Thetag - Vg_N_avg - Thetag_N_avg + vg_N||^2
+See: Chakrabarti (2017) intermediate interval consensus (RSD), pages 220-221.
 """
 function regularization_term(interval::GenInterRSDInterval, Pg, PgPrev, PgNext, Thetag)
    reg_term = JuMP.QuadExpr()
     
     # APP regularization terms
-    JuMP.add_to_expression!(reg_term, interval.beta/2, (PgPrev - interval.Pg_prev_nu), (PgPrev - interval.Pg_prev_nu))
-    JuMP.add_to_expression!(reg_term, interval.beta/2, (Pg - interval.Pg_nu), (Pg - interval.Pg_nu))
-    JuMP.add_to_expression!(reg_term, interval.beta/2, (PgNext - interval.Pg_next_nu), (PgNext - interval.Pg_next_nu))
+    JuMP.add_to_expression!(reg_term, (interval.beta/2) * (PgPrev - interval.Pg_prev_nu), (PgPrev - interval.Pg_prev_nu))
+    JuMP.add_to_expression!(reg_term, (interval.beta/2) * (Pg - interval.Pg_nu), (Pg - interval.Pg_nu))
+    JuMP.add_to_expression!(reg_term, (interval.beta/2) * (PgNext - interval.Pg_next_nu), (PgNext - interval.Pg_next_nu))
 
     # APP consensus terms
     JuMP.add_to_expression!(reg_term, interval.gamma * interval.A, PgPrev)
@@ -1057,10 +1106,10 @@ function regularization_term(interval::GenInterRSDInterval, Pg, PgPrev, PgNext, 
 
     # ADMM consensus terms
     power_consensus = Pg - interval.Pg_N_init + interval.Pg_N_avg + interval.ug_N
-    JuMP.add_to_expression!(reg_term, interval.rho/2, power_consensus, power_consensus)
+    JuMP.add_to_expression!(reg_term, (interval.rho/2) * power_consensus, power_consensus)
 
     angle_consensus = Thetag - interval.Vg_N_avg - interval.thetag_N_avg + interval.vg_N
-    JuMP.add_to_expression!(reg_term, interval.rho/2, angle_consensus, angle_consensus)
+    JuMP.add_to_expression!(reg_term, (interval.rho/2) * angle_consensus, angle_consensus)
 
     return reg_term
 end
