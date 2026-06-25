@@ -10,6 +10,7 @@ using Ipopt
 using LinearAlgebra
 using Printf
 using JSON
+using Base.Threads
 
 """
     LASCOPFSolver
@@ -124,22 +125,36 @@ end
 
 Solve all generator optimization subproblems
 """
-function solve_generator_subproblems!(solver::LASCOPFSolver)
+function solve_generator_subproblems!(solver::LASCOPFSolver, multithreaded::Bool=true=>true)
     println("    Solving generator subproblems...")
     
     rho = solver.parameters["rho"]
     
-    # Solve all generator technologies
-    for gen in [solver.system_data["thermal_generators"];
-                solver.system_data["renewable_generators"];
-                solver.system_data["hydro_generators"];
-                solver.system_data["storage_generators"]]
-        solve_generator_subproblem!(gen, rho, solver.current_iteration)
-    end
-    
-    println("    ✓ Generator subproblems solved")
-end
+    if multithreaded
+        gens = vcat(
+            solver.system_data["thermal_generators"],
+            solver.system_data["renewable_generators"],
+            solver.system_data["hydro_generators"],
+            solver.system_data["storage_generators"],
+        )
 
+        Threads.@threads for i in eachindex(gens)
+            solve_generator_subproblem!(gens[i], rho, solver.current_iteration)
+        end
+
+        println("    ✓ Generator subproblems solved")
+    else
+        # Solve all generator technologies
+        for gen in [solver.system_data["thermal_generators"];
+                    solver.system_data["renewable_generators"];
+                    solver.system_data["hydro_generators"];
+                    solver.system_data["storage_generators"]]
+            solve_generator_subproblem!(gen, rho, solver.current_iteration)
+        end
+        
+        println("    ✓ Generator subproblems solved")
+    end
+end
 """
     solve_generator_subproblem!(gen::GeneralizedGenerator, rho::Float64, iteration::Int)
 
@@ -354,13 +369,19 @@ end
 
 Solve all transmission line optimization subproblems
 """
-function solve_transmission_subproblems!(solver::LASCOPFSolver)
+function solve_transmission_subproblems!(solver::LASCOPFSolver, multithreaded::Bool=true)
     println("    Solving transmission subproblems...")
     
     rho = solver.parameters["rho"]
     
-    for line in solver.system_data["branches"]
-        solve_transmission_subproblem!(line, rho)
+    if multithreaded
+        Threads.@threads for i in eachindex(solver.system_data["branches"])
+            solve_transmission_subproblem!(solver.system_data["branches"][i], rho)
+        end
+    else
+        for line in solver.system_data["branches"]
+            solve_transmission_subproblem!(line, rho)
+        end
     end
     
     println("    ✓ Transmission subproblems solved")
@@ -467,6 +488,30 @@ function calculate_residuals(solver::LASCOPFSolver)
         "primal_residual" => primal_residual,
         "dual_residual" => dual_residual,
         "iteration" => solver.current_iteration
+    )
+end
+
+function calculate_residuals(solver::LASCOPFSolver, multithreaded::Bool=true)
+    nodes  = solver.system_data["nodes"]
+    all_gens = [solver.system_data["thermal_generators"];
+                solver.system_data["renewable_generators"];
+                solver.system_data["hydro_generators"]]
+
+    node_sq  = zeros(length(nodes))
+    gen_sq   = zeros(length(all_gens))
+
+    Threads.@threads for k in 1:length(nodes)
+        node_sq[k] = get_power_balance(nodes[k])^2
+    end
+    Threads.@threads for k in 1:length(all_gens)
+        P_avg = p_avg_message(all_gens[k].conn_nodeg_ptr)
+        gen_sq[k] = P_avg !== nothing ? (all_gens[k].Pg - P_avg)^2 : 0.0
+    end
+
+    return Dict(
+        "primal_residual" => sqrt(sum(node_sq)),
+        "dual_residual"   => sqrt(sum(gen_sq)),
+        "iteration"       => solver.current_iteration
     )
 end
 
