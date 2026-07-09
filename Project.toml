@@ -1,7 +1,7 @@
 name = "PowerLASCOPF"
 uuid = "12345678-1234-5678-9abc-123456789abc"
-authors = ["PowerLASCOPF Contributors"]
 version = "0.1.0"
+authors = ["PowerLASCOPF Contributors"]
 
 [deps]
 BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
@@ -55,7 +55,7 @@ BenchmarkTools = "1"
 CSV = "0.10"
 Colors = "0.12"
 DataFrames = "1"
-DataStructures = "0.18"
+DataStructures = "0.18, 0.19"
 Distributions = "0.25"
 GLPK = "1"
 GraphRecipes = "0.5"
