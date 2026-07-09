@@ -1,7 +1,7 @@
 name = "PowerLASCOPF"
 uuid = "12345678-1234-5678-9abc-123456789abc"
-authors = ["PowerLASCOPF Contributors"]
 version = "0.1.0"
+authors = ["PowerLASCOPF Contributors"]
 
 [deps]
 BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
@@ -69,7 +69,7 @@ JuMP = "1"
 Logging = "1.11.0"
 MathOptInterface = "1"
 NetworkLayout = "0.4"
-POMDPTools = "0.1"
+POMDPTools = "0.1, 1"
 POMDPs = "0.9"
 PlotlyJS = "0.18"
 Plots = "1"
