@@ -391,6 +391,132 @@ function run_power_lascopf_optimization!(super_net::SuperNetwork)
     println("*** SIMULATION IN PROGRESS ***")
     
     # Main APP iteration loop
+        
+    # Run simulations for all networks
+    # Partition networks by contingency scenario for Level 1 distribution
+    # (done at call site by the inter-node pmap — see Level 1 below)
+    # Here we handle Level 2: intra-node distribution of temporal intervals
+    
+    while fin_tol >= 0.005 && iter_count_app <= super_net.max_outer_iterations
+        single_supernet_time_vec = Float64[]
+        
+        println("\n📈 APP Iteration $iter_count_app")
+        # Level 2: pmap over temporal intervals on intra-node workers
+        # Each worker runs Level-3-threaded solve internally
+        net_times = pmap(enumerate(super_net.networks)) do (net_idx, network)
+            t0 = time()
+            run_simulation!(network, super_net, iter_count_app, net_idx)
+            return time() - t0
+        end
+        
+        actual_supernet_time += sum(net_times)
+        push!(super_net.largest_supernet_time_vec, maximum(net_times))
+        
+        # These must stay serial on the master — they aggregate across networks
+        if super_net.dummy_zero_flag
+            calculate_power_disagreements_with_dummy!(super_net)
+        else
+            calculate_power_disagreements_without_dummy!(super_net)
+        end
+        
+        alpha_app = tune_alpha_app(iter_count_app)
+        super_net.app_lambda  .+= alpha_app .* super_net.diff_of_power
+        super_net.lambda_line .+= alpha_app .* super_net.power_diff_line
+        
+        # Update Lagrange multipliers
+        for i in 1:length(super_net.app_lambda)
+            super_net.app_lambda[i] += alpha_app * super_net.diff_of_power[i]
+        end
+        
+        for i in 1:length(super_net.lambda_line)
+            super_net.lambda_line[i] += alpha_app * super_net.power_diff_line[i]
+        end
+        
+        # Calculate tolerances
+        tol_app = sum(super_net.diff_of_power .^ 2) + sum(super_net.power_diff_line .^ 2)
+        
+        # Calculate delayed tolerance (excluding dummy interval)
+        tol_app_delayed = if super_net.dummy_zero_flag
+            gen_count = get_gen_number(super_net)
+            delayed_start = 2 * gen_count + 1
+            sum(super_net.diff_of_power[delayed_start:end] .^ 2) + sum(super_net.power_diff_line .^ 2)
+        else
+            tol_app
+        end
+        
+        fin_tol = sqrt(tol_app)
+        fin_tol_delayed = sqrt(tol_app_delayed)
+        
+        # Store iteration results
+        result_data["Iteration_$(iter_count_app)"] = Dict(
+            "APP_Tolerance" => fin_tol,
+            "Delayed_APP_Tolerance" => fin_tol_delayed,
+            "Alpha_APP" => alpha_app,
+            "Largest_Supernet_Time" => largest_time
+        )
+        
+        push!(super_net.convergence_history, fin_tol)
+        
+        @printf("  📊 APP Tolerance = %.6f, Delayed Tolerance = %.6f, Alpha = %.2f\n", 
+                fin_tol, fin_tol_delayed, alpha_app)
+        
+        iter_count_app += 1
+        fin_tol = super_net.dummy_zero_flag ? fin_tol_delayed : fin_tol
+    end
+
+    super_net.total_execution_time = time() - start_time
+    super_net.virtual_execution_time = (super_net.total_execution_time - actual_supernet_time + 
+                                       sum(super_net.largest_supernet_time_vec))
+    
+    if fin_tol < 0.005
+        println("\n✅ APP Algorithm converged after $(iter_count_app - 1) iterations!")
+        super_net.converged = true
+    else
+        println("\n⚠️  Maximum iterations reached without convergence")
+        super_net.converged = false
+    end
+    
+    @printf("Execution time: %.2f seconds\n", super_net.total_execution_time)
+    @printf("Virtual execution time: %.2f seconds\n", super_net.virtual_execution_time)
+    
+    result_data["Final_Results"] = Dict(
+        "Total_Iterations" => iter_count_app - 1,
+        "Final_Tolerance" => fin_tol,
+        "Execution_Time" => super_net.total_execution_time,
+        "Virtual_Execution_Time" => super_net.virtual_execution_time,
+        "Converged" => super_net.converged
+    )
+    
+    # Generate results summary
+    generate_optimization_summary(super_net)
+    
+    return result_data
+end
+
+function run_power_lascopf_optimization!(super_net::SuperNetwork, distributed_flag::Bool=false)
+    println("\n*** APMP ALGORITHM BASED LASCOPF FOR POST CONTINGENCY RESTORATION ***")
+    println("*** CONTROLLING LINE TEMPERATURE SIMULATION (SERIAL IMPLEMENTATION) ***")
+    println("🚀 Starting PowerLASCOPF optimization...")
+    println("   System: $(super_net.system_size)-bus")
+    println("   RND Intervals: $(super_net.rnd_intervals)")
+    println("   RSD Intervals: $(super_net.rsd_intervals)")
+    println("   Scenarios: $(super_net.num_scenarios)")
+    
+    start_time = time()
+    actual_supernet_time = 0.0
+    
+    iter_count_app = 1
+    alpha_app = 100.0
+    fin_tol = 1000.0
+    fin_tol_delayed = 1000.0
+    
+    result_data = Dict{String, Any}()
+    result_data["Initial_Tolerance"] = fin_tol
+    
+    println("\n*** APP ALGORITHM ITERATIONS BEGIN ***")
+    println("*** SIMULATION IN PROGRESS ***")
+    
+    # Main APP iteration loop
     while fin_tol >= 0.005 && iter_count_app <= super_net.max_outer_iterations
         single_supernet_time_vec = Float64[]
         
@@ -796,6 +922,7 @@ export get_user_input, save_results
 if abspath(PROGRAM_FILE) == @__FILE__
     main()
 end
+"""
 Print information about current iteration
 """
 function print_iteration_info(iter_count::Int, net_sim_count::Int, number_of_cont::Int)

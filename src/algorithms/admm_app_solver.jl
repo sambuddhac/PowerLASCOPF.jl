@@ -125,7 +125,7 @@ end
 
 Solve all generator optimization subproblems
 """
-function solve_generator_subproblems!(solver::LASCOPFSolver, multithreaded::Bool=true=>true)
+function solve_generator_subproblems!(solver::LASCOPFSolver; multithreaded::Bool=true)
     println("    Solving generator subproblems...")
     
     rho = solver.parameters["rho"]
@@ -369,7 +369,7 @@ end
 
 Solve all transmission line optimization subproblems
 """
-function solve_transmission_subproblems!(solver::LASCOPFSolver, multithreaded::Bool=true)
+function solve_transmission_subproblems!(solver::LASCOPFSolver; multithreaded::Bool=true)
     println("    Solving transmission subproblems...")
     
     rho = solver.parameters["rho"]

@@ -1,4 +1,26 @@
+using Distributed
+
 mutable struct LASCOPFSys
+
+// ...existing code...
+
+
+function init_cluster_workers!()
+    if nworkers() > 0
+        return
+    end
+    if haskey(ENV, "SLURM_NTASKS")
+        # one Julia process per Slurm task; set --ntasks-per-node to sockets
+        addprocs(parse(Int, ENV["SLURM_NTASKS"]) - 1)
+    end
+end
+
+function run_sim_lascopf_temp(settings::Dict, inputPath::AbstractString)
+    init_cluster_workers!()
+    # delegate to new maintained path:
+    return run_simulation_lascopf()  # from maintwoserialLASCOPF.jl
+end
+// ...existing code...
 	
 @kwdef mutable struct SuperNetwork
 	net_id::Int
