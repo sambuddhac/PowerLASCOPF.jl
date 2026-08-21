@@ -711,9 +711,9 @@ function run_case(case_name::AbstractString;
         "solver"         => "ipopt"
     )
 
-    # Call execute_simulation from run_reader.jl, passing the real system if built (B12)
+    # Call execute_simulation from run_reader.jl, passing the real system and supernetworks if built (B12)
     try
-        simulation_results = execute_simulation(case_name, lascopf_system, system_data, config)
+        simulation_results = execute_simulation(case_name, lascopf_system, supernetworks, system_data, config)
         
         # Update results structure with simulation outcomes
         results.status = simulation_results["status"]

@@ -728,12 +728,13 @@ This function is called by run_reader_generic.jl after data loading.
 function execute_simulation(
     case_name::String,
     system,
+    supernetworks,    # Vector{PowerLASCOPF.SuperNetwork} built by Phase 2.5.1, or []
     system_data::Dict,
     config::Dict
 )
     println("\n🔄 EXECUTING LASCOPF SIMULATION")
     println("-" * "-"^69)
-    
+
     # Extract configuration
     max_iterations    = get(config, "max_iterations", 10)
     tolerance         = get(config, "tolerance",      1e-3)
@@ -746,7 +747,27 @@ function execute_simulation(
     verbose           = get(config, "verbose",        false)
     solver_choice     = get(config, "solver",         "ipopt")
 
-    # B12: Log whether a real PowerLASCOPFSystem was provided
+    # ── PRIMARY PATH: APP outer loop over pre-built SuperNetworks ────────────
+    # Preferred when Phase 2.5.1 successfully constructed a Vector{SuperNetwork}.
+    # Delegates to run_app_outer_loop! from run_sim_lascopf_temp_app.jl, which
+    # manages the outer APP consensus and calls run_simulation!(sn, …) for each
+    # SuperNetwork. run_simulation! in turn calls solve_lascopf! (via
+    # run_network_simulation!) for the per-system inner ADMM convergence.
+    if !isempty(supernetworks) && isdefined(Main, :run_app_outer_loop!)
+        println("  SuperNetworks available ($(length(supernetworks)) networks) — routing to APP outer loop.")
+        return run_app_outer_loop!(
+            supernetworks,
+            num_contingencies,
+            rnd_intervals,
+            rsd_intervals,
+            dummy_interval,
+            solver_choice_int;
+            max_app_iterations = max_iterations,
+            output_dir         = "results"
+        )
+    end
+
+    # B12: Log fallback reason
     if system !== nothing
         println("  Real PowerLASCOPFSystem provided — ADMM solver will use it when available.")
         println("  System type: $(typeof(system))")
@@ -770,12 +791,16 @@ function execute_simulation(
         "rho_tuning"           => rho_tuning,
         "solver"               => solver_choice
     )
-    
-    # Real ADMM/APP solver path (uses src/algorithms/admm_app_solver.jl)
+
+    # ── FALLBACK PATH: LASCOPFSolver (Dict-based) when SuperNetworks not built ─
+    # Used when Phase 2.5.1 failed to construct SuperNetworks (e.g., first-run
+    # environment issues) but a PowerLASCOPFSystem is available.
+    # solve_lascopf! runs the per-system inner ADMM convergence loop.
     if system !== nothing && isdefined(Main, :PowerLASCOPF) &&
        isdefined(PowerLASCOPF, :LASCOPFSolver) &&
        isdefined(PowerLASCOPF, :solve_lascopf!)
 
+        println("  Falling back to LASCOPFSolver-based ADMM (SuperNetworks not available).")
         solver_data = copy(system_data)
         if !haskey(solver_data, "storage_generators")
             solver_data["storage_generators"] = Any[]
