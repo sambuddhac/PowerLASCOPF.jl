@@ -749,22 +749,43 @@ function execute_simulation(
 
     # ── PRIMARY PATH: APP outer loop over pre-built SuperNetworks ────────────
     # Preferred when Phase 2.5.1 successfully constructed a Vector{SuperNetwork}.
-    # Delegates to run_app_outer_loop! from run_sim_lascopf_temp_app.jl, which
-    # manages the outer APP consensus and calls run_simulation!(sn, …) for each
-    # SuperNetwork. run_simulation! in turn calls solve_lascopf! (via
-    # run_network_simulation!) for the per-system inner ADMM convergence.
+    #
+    # HPC path  (run_lascopf_hpc.jl):  nworkers() > 1  (Slurm or local procs)
+    #   Tier 1 – pmap over contingency scenario groups (inter-node)
+    #   Tier 2 – Threads.@spawn over intervals within each group (intra-node)
+    #   Tier 3 – Threads.@threads over generators inside solve_lascopf! (cores)
+    #
+    # Serial path (run_sim_lascopf_temp_app.jl): nworkers() == 1
+    #   Same convergence logic, no distributed overhead.
     if !isempty(supernetworks) && isdefined(Main, :run_app_outer_loop!)
-        println("  SuperNetworks available ($(length(supernetworks)) networks) — routing to APP outer loop.")
-        return run_app_outer_loop!(
-            supernetworks,
-            num_contingencies,
-            rnd_intervals,
-            rsd_intervals,
-            dummy_interval,
-            solver_choice_int;
-            max_app_iterations = max_iterations,
-            output_dir         = "results"
-        )
+        n_nets = length(supernetworks)
+        if nworkers() > 1 && isdefined(Main, :run_lascopf_hpc!)
+            println("  SuperNetworks: $n_nets networks, $(nworkers()) workers — " *
+                    "routing to THREE-TIER HPC loop (run_lascopf_hpc!).")
+            return run_lascopf_hpc!(
+                supernetworks,
+                num_contingencies,
+                rnd_intervals,
+                rsd_intervals,
+                dummy_interval,
+                solver_choice_int;
+                max_app_iterations = max_iterations,
+                output_dir         = "results"
+            )
+        else
+            println("  SuperNetworks: $n_nets networks, 1 worker — " *
+                    "routing to serial APP outer loop (run_app_outer_loop!).")
+            return run_app_outer_loop!(
+                supernetworks,
+                num_contingencies,
+                rnd_intervals,
+                rsd_intervals,
+                dummy_interval,
+                solver_choice_int;
+                max_app_iterations = max_iterations,
+                output_dir         = "results"
+            )
+        end
     end
 
     # B12: Log fallback reason
