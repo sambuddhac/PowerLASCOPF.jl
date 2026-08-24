@@ -1325,3 +1325,171 @@ The restructuring makes it easy to:
 - Integrate with other tools
 - Customize simulation parameters
 - Process results systematically
+
+---
+
+# Running PowerLASCOPF — Execution Modes
+
+PowerLASCOPF supports four execution modes ranging from a simple serial run to a
+full three-tier distributed HPC run on a Slurm cluster.  All modes share the same
+entry points and accept the same case arguments.
+
+---
+
+## Execution Mode Overview
+
+| Mode | Entry point | Parallelism | When to use |
+|------|-------------|-------------|-------------|
+| Serial | `run_reader_generic.jl` | none | Development, debugging |
+| Threaded (Tier 3 only) | `run_reader_generic.jl --threads=auto` | `Threads.@threads` on generators | Single workstation, quick runs |
+| Local multi-worker (Tiers 2+3) | `run_hpc.jl workers=N` | `Threads.@spawn` + `Threads.@threads` | Local cluster simulation / testing |
+| Slurm cluster (all 3 tiers) | `sbatch slurm_powerlascopf.sh` | `pmap` + `Threads.@spawn` + `Threads.@threads` | Production HPC runs |
+
+---
+
+## Mode 1 — Serial (single thread)
+
+```bash
+# From the repository root
+julia --project=. examples/run_reader_generic.jl case=14bus
+
+# With explicit solver settings
+julia --project=. examples/run_reader_generic.jl \
+    case=14bus \
+    iterations=50 \
+    contingencies=4 \
+    verbose=true
+```
+
+No Distributed workers are created.  The APP outer loop runs sequentially through
+all SuperNetworks.  Tier-3 threading (`Threads.@threads` inside `solve_lascopf!`)
+still uses however many threads Julia was launched with (defaults to 1).
+
+---
+
+## Mode 2 — Single-node multi-threaded (Tier 3 only)
+
+```bash
+julia --project=. --threads=auto examples/run_reader_generic.jl case=14bus
+
+# Explicit thread count
+julia --project=. --threads=8 examples/run_reader_generic.jl case=RTS_GMLC iterations=100
+```
+
+`--threads=auto` lets Julia use all logical CPU cores.  Inside each call to
+`solve_lascopf!`, generator subproblems and transmission subproblems are solved
+in parallel via `Threads.@threads`.  No Distributed workers are started;
+`nworkers() == 1` so the serial APP outer loop runs.
+
+**When to use:** single workstation with many cores; no MPI/Distributed setup needed.
+
+---
+
+## Mode 3 — Local multi-worker test (Tiers 2 + 3)
+
+```bash
+# Add 4 local Distributed workers (simulates a 4-node cluster locally)
+julia --project=. --threads=auto examples/run_hpc.jl case=14bus workers=4
+
+# Larger local test
+julia --project=. --threads=4 examples/run_hpc.jl \
+    case=RTS_GMLC \
+    workers=8 \
+    contingencies=8 \
+    iterations=100
+```
+
+`run_hpc.jl` calls `setup_hpc_workers!(local_fallback_procs=N)`, which adds
+N-1 local Distributed workers via `Distributed.addprocs`.  When `nworkers() > 1`,
+`execute_simulation` routes to `run_lascopf_hpc!`, which:
+
+- **Tier 1** — `pmap` distributes contingency-scenario groups across workers.
+- **Tier 2** — within each worker, `Threads.@spawn` runs SuperNetworks for each
+  time interval concurrently on the worker's thread pool.
+- **Tier 3** — inside each `solve_lascopf!` call, `Threads.@threads` parallelises
+  generator and transmission subproblems across cores.
+
+**When to use:** local correctness testing of the full three-tier path before
+submitting to a cluster.
+
+---
+
+## Mode 4 — Slurm cluster (all 3 tiers, production)
+
+Edit `slurm_powerlascopf.sh` to match your case and cluster, then:
+
+```bash
+sbatch slurm_powerlascopf.sh
+```
+
+Key parameters to set in the script:
+
+```bash
+#SBATCH --nodes=5          # 1 master + 4 contingency-group workers
+                           # Rule: --nodes = n_contingencies + 2 (round up as needed)
+#SBATCH --ntasks-per-node=1   # one Julia process per node
+#SBATCH --cpus-per-task=16    # threads per process (16–64 depending on node)
+#SBATCH --mem=32G             # ≥8 GB for small cases; ≥64 GB for ACTIVSg/large
+
+CASE=14bus            # change to your case name
+ITERATIONS=100        # max APP outer iterations
+CONTINGENCIES=4       # must be ≤ --nodes - 1
+```
+
+On Slurm, `setup_hpc_workers!` uses `ClusterManagers.addprocs_slurm` to spawn
+one Julia worker per allocated node.  Each worker inherits
+`JULIA_NUM_THREADS=$SLURM_CPUS_PER_TASK` so Tiers 2 and 3 use all available cores.
+
+**Slurm resource sizing quick reference:**
+
+| Parameter | Value | Notes |
+|-----------|-------|-------|
+| `--nodes` | `n_cont + 2` | 1 master + 1 per contingency group + 1 spare |
+| `--ntasks-per-node` | `1` | fixed; one Julia process owns each node |
+| `--cpus-per-task` | `16` – `64` | match node core count; sets Tier 2+3 parallelism |
+| `--mem` | `≥ 8 GB` (small) / `≥ 64 GB` (large) | per node |
+| `JULIA_NUM_THREADS` | `= $SLURM_CPUS_PER_TASK` | already set in the script |
+
+---
+
+## Three-Tier Architecture Summary
+
+```
+Tier 1 — Inter-node (Distributed.pmap)
+  Each Slurm node handles one contingency scenario group.
+  Communication: belief arrays synchronised after each APP outer iteration.
+
+  └─ Tier 2 — Intra-node (Threads.@spawn)
+       Each node spawns one Julia Task per time interval within its group.
+       All tasks share the node's thread pool.
+
+       └─ Tier 3 — Core-level (Threads.@threads)
+            Inside solve_lascopf!, generator and transmission subproblems
+            are solved in parallel across threads (already implemented in
+            admm_app_solver.jl).
+```
+
+The APP outer loop convergence criterion is `fin_tol < 0.005` (primal
+feasibility of the generator belief consensus).  The APP inner loop per
+SuperNetwork uses `fin_tol < 0.5` over up to 10 inner iterations.
+
+**Alpha schedule** (`tune_alpha_app`):
+
+| APP iteration | α (step length) |
+|---------------|----------------|
+| 1 – 5         | 100.0           |
+| 6 – 10        | 75.0            |
+| 11 – 15       | 50.0            |
+| 16 – 20       | 25.0            |
+| > 20          | 10.0            |
+
+---
+
+## Output
+
+All modes write results to `results/<case>_lascopf_results.json` and print a
+summary to stdout.  HPC and threaded runs also write a timestamped log to
+`logs/hpc_<timestamp>.log`.
+
+For full technical detail on the three-tier implementation see
+[docs/HPC_DISTRIBUTED_COMPUTING.md](docs/HPC_DISTRIBUTED_COMPUTING.md).
