@@ -38,7 +38,7 @@ export POLYESTER_NUM_THREADS=$SLURM_CPUS_PER_TASK
 # export JULIA_DEPOT_PATH=/scratch/$USER/julia_depot
 
 # ── Case selection ─────────────────────────────────────────────────────────────
-CASE=14bus            # e.g., 14bus | 30bus | RTS_GMLC | ACTIVSg2000
+CASE=300bus            # e.g., 14bus | 30bus | RTS_GMLC | ACTIVSg2000
 ITERATIONS=100        # max APP outer iterations
 CONTINGENCIES=4       # must match --nodes - 1 (or fewer)
 

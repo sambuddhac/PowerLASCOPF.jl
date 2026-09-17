@@ -1,15 +1,17 @@
 name = "PowerLASCOPF"
 uuid = "12345678-1234-5678-9abc-123456789abc"
-authors = ["PowerLASCOPF Contributors"]
 version = "0.1.0"
+authors = ["PowerLASCOPF Contributors"]
 
 [deps]
 BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
 CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"
+ClusterManagers = "34f1f09b-3a8b-5176-ab39-66d58a4d544e"
 Colors = "5ae59095-9a9b-59fe-a467-6f913c188581"
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
 DataStructures = "864edb3b-99cc-5e75-8d2d-829cb0a9cfe8"
 Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
+Distributed = "8ba89e20-285c-5b6f-9357-94700520ee1b"
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
 GLPK = "60bf3e95-4087-53dc-ae20-288a0d20c6a6"
 GenX = "5d317b1e-30ec-4ed6-a8ce-8d2d88d7cfac"
@@ -53,6 +55,7 @@ YAML = "ddb6d928-2868-570f-bddf-ab3f9cf99eb6"
 [compat]
 BenchmarkTools = "1"
 CSV = "0.10"
+ClusterManagers = "2.0.0"
 Colors = "0.12"
 DataFrames = "1"
 DataStructures = "0.18"

@@ -1597,10 +1597,17 @@ function powerlascopf_branches_from_csv!(
     transmission_lines = PowerLASCOPF.transmissionLine[]
     contingency_tracker = 0
 
+    skipped_branches = String[]
     for (i, row) in enumerate(eachrow(df))
         line_type = String(row.LineType)
         from_num  = Int(row.fromNode)
         to_num    = Int(row.toNode)
+
+        if !haskey(bus_by_busnum, from_num) || !haskey(bus_by_busnum, to_num)
+            push!(skipped_branches, String(row.LineName))
+            continue
+        end
+
         from_bus  = bus_by_busnum[from_num]
         to_bus    = bus_by_busnum[to_num]
         from_node = node_by_busnum[from_num]
@@ -1712,6 +1719,9 @@ function powerlascopf_branches_from_csv!(
     #println("Transmission Lines vector from PowerLASCOPF struct", system.transmission_lines)
     PSY.show_components(system.psy_system, PSY.Line)
     #PSY.show_components(system.psy_system, PSY.HVDCLine)
+    if !isempty(skipped_branches)
+        @warn "Skipped $(length(skipped_branches)) branches whose bus endpoints were not in the nodes CSV: $(join(skipped_branches, ", "))"
+    end
     log_info("Created $(length(transmission_lines)) PowerLASCOPF Transmission Lines from CSV.")
     println("Created $(length(transmission_lines)) PowerLASCOPF Transmission Lines from CSV: $csv_path")
     return transmission_lines
@@ -1744,11 +1754,18 @@ function powerlascopf_branches_from_json!(
 
     transmission_lines = PowerLASCOPF.transmissionLine[]
     contingency_tracker = 0
+    skipped_json_branches = String[]
 
     for (i, row) in json_data
         line_type = String(row["LineType"])
         from_num  = Int(row["fromNode"])
         to_num    = Int(row["toNode"])
+
+        if !haskey(bus_by_busnum, from_num) || !haskey(bus_by_busnum, to_num)
+            push!(skipped_json_branches, String(row["LineName"]))
+            continue
+        end
+
         from_bus  = bus_by_busnum[from_num]
         to_bus    = bus_by_busnum[to_num]
         from_node = node_by_busnum[from_num]
@@ -1859,6 +1876,9 @@ function powerlascopf_branches_from_json!(
     #println("Transmission Lines vector from PowerLASCOPF struct", system.transmission_lines)
     PSY.show_components(system.psy_system, PSY.Line)
     #PSY.show_components(system.psy_system, PSY.HVDCLine)
+    if !isempty(skipped_json_branches)
+        @warn "Skipped $(length(skipped_json_branches)) branches whose bus endpoints were not in the nodes JSON: $(join(skipped_json_branches, ", "))"
+    end
     log_info("Created $(length(transmission_lines)) PowerLASCOPF Transmission Lines from JSON.")
     println("Created $(length(transmission_lines)) PowerLASCOPF Transmission Lines from JSON: $json_path")
     return transmission_lines
@@ -2128,8 +2148,13 @@ function powerlascopf_thermal_generators_from_csv!(
     generators = PowerLASCOPF.GeneralizedGenerator[]
     cols = names(df)
 
+    skipped_thermal = String[]
     for (i, row) in enumerate(eachrow(df))
         bus_num = Int(row.BusNumber)
+        if !haskey(bus_by_busnum, bus_num)
+            push!(skipped_thermal, String(row.GeneratorName))
+            continue
+        end
         bus     = bus_by_busnum[bus_num]
         node    = node_by_busnum[bus_num]
 
@@ -2228,6 +2253,9 @@ function powerlascopf_thermal_generators_from_csv!(
     log_info("PowerLASCOPF System after adding Thermal Generators: $(system)")
     #println("Thermal Generator vector from 5 bus file", generators)
     #println("Thermal Generator vector from PowerLASCOPF struct", system.extended_thermal_generators)
+    if !isempty(skipped_thermal)
+        @warn "Skipped $(length(skipped_thermal)) thermal generators whose bus was not in nodes: $(join(skipped_thermal, ", "))"
+    end
     PSY.show_components(system.psy_system, PSY.ThermalStandard)
     println("=" ^ 50)
     return generators
@@ -2260,8 +2288,13 @@ function powerlascopf_renewable_generators_from_csv!(
     wind_ts  = get(timeseries_data, "wind_ts_DA",  zeros(24))
     solar_ts = get(timeseries_data, "solar_ts_DA", zeros(24))
 
+    skipped_renewable = String[]
     for (i, row) in enumerate(eachrow(df))
         bus_num = Int(row.BusNumber)
+        if !haskey(bus_by_busnum, bus_num)
+            push!(skipped_renewable, String(row.GeneratorName))
+            continue
+        end
         bus     = bus_by_busnum[bus_num]
         node    = node_by_busnum[bus_num]
 
@@ -2337,6 +2370,9 @@ function powerlascopf_renewable_generators_from_csv!(
     log_info("PowerLASCOPF System after adding Renewable Generators: $(system)")
     #println("Renewable Generator vector from 5 bus file", generators)
     #println("Renewable Generator vector from PowerLASCOPF struct", system.extended_renewable_generators)
+    if !isempty(skipped_renewable)
+        @warn "Skipped $(length(skipped_renewable)) renewable generators whose bus was not in nodes: $(join(skipped_renewable, ", "))"
+    end
     PSY.show_components(system.psy_system, PSY.RenewableDispatch)
     println("=" ^ 50)
     return generators
@@ -2371,8 +2407,13 @@ function powerlascopf_hydro_generators_from_csv!(
                 DateTime("1/1/2024 23:00:00", "d/m/y H:M:S")))
     hydro_ts = get(timeseries_data, "hydro_inflow_ts_DA", zeros(24))
 
+    skipped_hydro = String[]
     for (i, row) in enumerate(eachrow(df))
         bus_num   = Int(row.BusNumber)
+        if !haskey(bus_by_busnum, bus_num)
+            push!(skipped_hydro, String(row.GeneratorName))
+            continue
+        end
         bus       = bus_by_busnum[bus_num]
         node      = node_by_busnum[bus_num]
         hydro_type = String(row.GeneratorType)
@@ -2492,6 +2533,9 @@ function powerlascopf_hydro_generators_from_csv!(
     log_info("PowerLASCOPF System after adding Hydro Generators: $(system)")
     #println("Hydro Generator vector from 5 bus file", generators)
     #println("Hydro Generator vector from PowerLASCOPF struct", system.extended_hydro_generators)
+    if !isempty(skipped_hydro)
+        @warn "Skipped $(length(skipped_hydro)) hydro generators whose bus was not in nodes: $(join(skipped_hydro, ", "))"
+    end
     PSY.show_components(system.psy_system, PSY.HydroDispatch)
     println("=" ^ 50)
     return generators
@@ -2532,8 +2576,13 @@ function powerlascopf_storage_from_csv!(
     name_col = "StorageName" in cols ? :StorageName :
                "BatteryName" in cols ? :BatteryName : :StorageName
 
+    skipped_storage = String[]
     for (i, row) in enumerate(eachrow(df))
         bus_num = Int(row.BusNumber)
+        if !haskey(bus_by_busnum, bus_num)
+            push!(skipped_storage, String(row[name_col]))
+            continue
+        end
         bus     = bus_by_busnum[bus_num]
         node    = node_by_busnum[bus_num]
 
@@ -2548,20 +2597,33 @@ function powerlascopf_storage_from_csv!(
             rp_min   = "ReactivePowerMin" in cols ? Float64(row.ReactivePowerMin) : 0.0
             rp_max   = "ReactivePowerMax" in cols ? Float64(row.ReactivePowerMax) : 0.0
             pm       = "PrimeMover"  in cols ? _prime_mover(row.PrimeMover) : PrimeMovers.BA
-            stor_tec = "StorageType" in cols && !ismissing(row.StorageType) ?
-                           getproperty(PSY.StorageTech, Symbol(row.StorageType)) :
-                           PSY.StorageTech.OTHER_CHEM
-
-            # storage_capacity (MWh): read from CSV if present, else assume 1-hour equivalent
-            if "StorageCapacity" in cols && !ismissing(row.StorageCapacity)
-                stor_cap = Float64(row.StorageCapacity)
+            stor_tec = if "StorageType" in cols && !ismissing(row.StorageType)
+                try
+                    getproperty(PSY.StorageTech, Symbol(row.StorageType))
+                catch
+                    PSY.StorageTech.OTHER_CHEM
+                end
             else
-                stor_cap = Float64(row.OutputActivePowerMax)   # 1-hour capacity fallback
-                log_warn("No StorageCapacity column for $(row[name_col]); defaulting to OutputActivePowerMax = $stor_cap MWh")
+                PSY.StorageTech.OTHER_CHEM
             end
 
-            # initial_storage_capacity_level is a fraction [0, 1]
-            init_lvl = "InitialEnergy" in cols ? Float64(row.InitialEnergy) : 0.5
+            # storage_capacity (MWh): prefer dedicated column, then SOC_Max (max storable energy),
+            # then OutputActivePowerMax (1-hour heuristic).
+            if "StorageCapacity" in cols && !ismissing(row.StorageCapacity)
+                stor_cap = Float64(row.StorageCapacity)
+            elseif soc_max > 0.0
+                stor_cap = soc_max   # max absolute energy IS the capacity
+            else
+                stor_cap = Float64(row.OutputActivePowerMax)
+                log_warn("No StorageCapacity/SOC_Max for $(row[name_col]); defaulting to OutputActivePowerMax = $stor_cap MWh")
+            end
+
+            # PSY requires storage_level_limits and initial_storage_capacity_level as fractions [0,1].
+            # CSV columns SOC_Min, SOC_Max, InitialEnergy store absolute MWh values.
+            soc_min_frac  = clamp(stor_cap > 0.0 ? soc_min / stor_cap : 0.0, 0.0, 1.0)
+            soc_max_frac  = clamp(stor_cap > 0.0 ? soc_max / stor_cap : 1.0, 0.0, 1.0)
+            init_lvl_raw  = "InitialEnergy" in cols ? Float64(row.InitialEnergy) : stor_cap * 0.5
+            init_lvl_frac = clamp(stor_cap > 0.0 ? init_lvl_raw / stor_cap : 0.5, 0.0, 1.0)
 
             has_cost   = "EnergyShortageCost" in cols &&
                          !ismissing(row.EnergyShortageCost) && !ismissing(row.EnergySurplusCost)
@@ -2588,8 +2650,8 @@ function powerlascopf_storage_from_csv!(
                 prime_mover_type               = pm,
                 storage_technology_type        = stor_tec,
                 storage_capacity               = stor_cap,
-                storage_level_limits           = (min = soc_min, max = soc_max),
-                initial_storage_capacity_level = init_lvl,
+                storage_level_limits           = (min = soc_min_frac, max = soc_max_frac),
+                initial_storage_capacity_level = init_lvl_frac,
                 rating                         = rating,
                 active_power                   = Float64(row.ActivePower),
                 input_active_power_limits      = (min = Float64(row.InputActivePowerMin),  max = Float64(row.InputActivePowerMax)),
@@ -2598,14 +2660,15 @@ function powerlascopf_storage_from_csv!(
                 reactive_power                 = Float64(row.ReactivePower),
                 reactive_power_limits          = (min = rp_min, max = rp_max),
                 base_power                     = Float64(row.BasePower),
-                storage_target                 = has_target ? Float64(row.StorageTarget) : 0.0,
+                storage_target                 = has_target ? clamp(Float64(row.StorageTarget) / stor_cap, 0.0, 1.0) : 0.0,
                 operation_cost                 = op_cost
             )
         else
             # Old format: BatteryName, StorageCapacity (MWh), no SOC fractions.
             # PSY v4.6: storage_level_limits is (0.0, 1.0) fractions; storage_capacity is the MWh value.
-            stor_cap = "StorageCapacity" in cols ? Float64(row.StorageCapacity) : Float64(row.OutputActivePowerMax)
-            init_lvl = "InitialEnergy"   in cols ? Float64(row.InitialEnergy)   : 0.5
+            stor_cap     = "StorageCapacity" in cols ? Float64(row.StorageCapacity) : Float64(row.OutputActivePowerMax)
+            init_lvl_raw = "InitialEnergy"   in cols ? Float64(row.InitialEnergy)   : stor_cap * 0.5
+            init_lvl     = clamp(stor_cap > 0.0 ? init_lvl_raw / stor_cap : 0.5, 0.0, 1.0)
 
             gen = PSY.EnergyReservoirStorage(;
                 name                           = String(row[name_col]),
@@ -2675,6 +2738,9 @@ function powerlascopf_storage_from_csv!(
     log_info("PSY System after adding Storage: $(system.psy_system)")
     println("PowerLASCOPF System after adding Storage: ", system)
     log_info("PowerLASCOPF System after adding Storage: $(system)")
+    if !isempty(skipped_storage)
+        @warn "Skipped $(length(skipped_storage)) storage units whose bus was not in nodes: $(join(skipped_storage, ", "))"
+    end
     PSY.show_components(system.psy_system, PSY.EnergyReservoirStorage)
     println("=" ^ 50)
     return generators
@@ -2704,8 +2770,13 @@ function powerlascopf_loads_from_csv!(
         collect(DateTime("1/1/2024 0:00:00", "d/m/y H:M:S"):Hour(1):
                 DateTime("1/1/2024 23:00:00", "d/m/y H:M:S")))
 
+    skipped_loads = String[]
     for (i, row) in enumerate(eachrow(df))
         bus_num = Int(row.BusNumber)
+        if !haskey(bus_by_busnum, bus_num)
+            push!(skipped_loads, String(row.LoadName))
+            continue
+        end
         bus     = bus_by_busnum[bus_num]
         node    = node_by_busnum[bus_num]
 
@@ -2743,6 +2814,9 @@ function powerlascopf_loads_from_csv!(
     log_info("PowerLASCOPF System after adding Electric Loads: $(system)")
     #println("Electric Load vector from 5 bus file", loads)
     #println("Electric Load vector from PowerLASCOPF struct", system.extended_loads)
+    if !isempty(skipped_loads)
+        @warn "Skipped $(length(skipped_loads)) loads whose bus was not in nodes: $(join(skipped_loads, ", "))"
+    end
     PSY.show_components(system.psy_system, PSY.PowerLoad)
     println("=" ^ 50)
     return loads

@@ -60,7 +60,7 @@ local_workers = 0
 hpc_args = String[]
 for arg in ARGS
     if startswith(lowercase(arg), "workers=")
-        local_workers = parse(Int, split(arg, "=")[2])
+        global local_workers = parse(Int, split(arg, "=")[2])
     else
         push!(hpc_args, arg)
     end
@@ -69,6 +69,7 @@ end
 # ── Load data reader and simulation runner ────────────────────────────────────
 include(joinpath(PROJECT_ROOT, "example_cases", "data_reader_generic.jl"))
 include(joinpath(PROJECT_ROOT, "examples",      "run_reader.jl"))
+include(joinpath(PROJECT_ROOT, "examples",      "run_reader_generic.jl"))
 
 # ── Load the HPC module on the master BEFORE adding workers ──────────────────
 # run_lascopf_hpc.jl defines setup_hpc_workers!, run_lascopf_hpc!, etc.

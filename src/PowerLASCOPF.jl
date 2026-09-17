@@ -27,7 +27,6 @@ using PowerNetworkMatrices
 using MathOptInterface
 using MathOptInterface.Utilities
 using Distributed
-using DistributedArrays
 import GenX
 import LazyArtifacts
 import PowerSystemCaseBuilder: SystemCategory

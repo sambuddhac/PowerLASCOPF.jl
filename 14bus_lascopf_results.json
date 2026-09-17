@@ -2,9 +2,9 @@
     "line_flows": {
     },
     "convergence": {
-        "iterations": 13,
-        "final_residual": 0,
-        "converged": true
+        "iterations": 1,
+        "final_residual": 2.2680000000000007,
+        "converged": false
     },
     "data_summary": {
         "nodes": 14,
@@ -19,13 +19,18 @@
         "total_generation_capacity_MW": 38.732,
         "total_load_MW": 10
     },
-    "status": "FEASIBLE",
+    "status": "not_converged",
     "case_name": "14bus",
-    "timestamp": "2026-03-11 00:49:07",
+    "timestamp": "2026-09-12 17:17:03",
     "bus_count": 14,
     "costs": {
-        "total_cost": 2958.9429855976236
+        "total_cost": 147.971
     },
     "generator_dispatch": {
+        "nodeC_Gen": 1,
+        "nodeH_Gen": 1,
+        "nodeA_Gen": 3.332,
+        "nodeF_Gen": 1,
+        "nodeB_Gen": 1.4
     }
 }

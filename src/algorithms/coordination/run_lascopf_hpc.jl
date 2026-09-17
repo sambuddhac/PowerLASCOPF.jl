@@ -106,8 +106,8 @@ without re-instantiating the module on each worker.
 function _broadcast_solver_stack!()
     src = joinpath(@__DIR__, "..", "..")   # …/src/
     @everywhere begin
-        using Base.Threads, Printf, JSON3
-        try using Polyester catch end
+        Core.eval(Main, :(using Base.Threads, Printf, JSON3))
+        try Core.eval(Main, :(using Polyester)) catch end
         # Include in dependency order; try/catch prevents errors when the module
         # image is already loaded (e.g., sysimage, PackageCompiler).
         for f in [
@@ -479,8 +479,7 @@ function run_lascopf_hpc!(
                 "Delayed_APP_Tolerance" => fin_tol_delayed,
                 "alpha_app"             => alpha_app
             )
-            @printf("HPC APP iter %d: tol = %.6f, delayed = %.6f, α = %.1f  " *
-                    "[max interval time = %.3f s]\n",
+            @printf("HPC APP iter %d: tol = %.6f, delayed = %.6f, α = %.1f  [max interval time = %.3f s]\n",
                     iter_count_app, fin_tol, fin_tol_delayed, alpha_app,
                     isempty(all_times) ? 0.0 : maximum(all_times))
             fin_tol = fin_tol_delayed
