@@ -1185,7 +1185,105 @@ function load_case_data(case_name::String, data_format::String="CSV";
     println("  RNDIntervals: $(settings["RNDIntervals"])  RSDIntervals: $(settings["RSDIntervals"])")
     println("-" ^ 70)
 
+    _audit_case_integrity(result)
+
     return result
+end
+
+function _component_missing_buses(df::DataFrame, node_buses::Set{Int})
+    !hasproperty(df, :BusNumber) && return Int[]
+    missing = Int[]
+    for value in df[!, :BusNumber]
+        if value isa Missing
+            continue
+        end
+        bus = Int(value)
+        bus in node_buses || push!(missing, bus)
+    end
+    return sort(unique(missing))
+end
+
+function _branch_endpoints(branches::DataFrame)
+    if hasproperty(branches, :fromNode) && hasproperty(branches, :toNode)
+        return branches[!, :fromNode], branches[!, :toNode]
+    elseif hasproperty(branches, :FromBus) && hasproperty(branches, :ToBus)
+        return branches[!, :FromBus], branches[!, :ToBus]
+    end
+    return Int[], Int[]
+end
+
+function _component_total_max(df::DataFrame)
+    if isempty(df)
+        return 0.0
+    end
+    if hasproperty(df, :ActivePowerMax)
+        return sum(Float64.(coalesce.(df[!, :ActivePowerMax], 0.0)))
+    elseif hasproperty(df, :Rating)
+        return sum(Float64.(coalesce.(df[!, :Rating], 0.0)))
+    end
+    return 0.0
+end
+
+function _audit_case_integrity(result::Dict{Symbol, Any})
+    nodes = result[:nodes]
+    branches = result[:branches]
+
+    if isempty(nodes) || !hasproperty(nodes, :BusNumber)
+        return
+    end
+
+    node_buses = Set(Int.(nodes[!, :BusNumber]))
+
+    for (label, df) in (
+        ("Thermal generators", result[:thermal]),
+        ("Renewable generators", result[:renewable]),
+        ("Hydro generators", result[:hydro]),
+        ("Storage devices", result[:storage]),
+        ("Loads", result[:loads]),
+    )
+        missing = _component_missing_buses(df, node_buses)
+        isempty(missing) || log_warn("$label reference missing buses: $(join(missing, ", ")).")
+    end
+
+    froms, tos = _branch_endpoints(branches)
+    if !isempty(froms) && !isempty(tos)
+        adjacency = Dict(bus => Int[] for bus in node_buses)
+        for (from_bus, to_bus) in zip(froms, tos)
+            if from_bus isa Missing || to_bus isa Missing
+                continue
+            end
+            from_int = Int(from_bus)
+            to_int = Int(to_bus)
+            if haskey(adjacency, from_int) && haskey(adjacency, to_int)
+                push!(adjacency[from_int], to_int)
+                push!(adjacency[to_int], from_int)
+            end
+        end
+
+        visited = Set{Int}()
+        island_count = 0
+        for start_bus in sort(collect(node_buses))
+            start_bus in visited && continue
+            island_count += 1
+            stack = [start_bus]
+            while !isempty(stack)
+                bus = pop!(stack)
+                bus in visited && continue
+                push!(visited, bus)
+                append!(stack, [n for n in get(adjacency, bus, Int[]) if !(n in visited)])
+            end
+        end
+        island_count > 1 && log_warn("Detected $island_count disconnected bus groups; check for islands or missing branches.")
+    end
+
+    total_load = hasproperty(result[:loads], :ActivePower) ?
+        sum(Float64.(coalesce.(result[:loads][!, :ActivePower], 0.0))) : 0.0
+    total_generation = _component_total_max(result[:thermal]) +
+                       _component_total_max(result[:renewable]) +
+                       _component_total_max(result[:hydro])
+    total_generation < total_load && log_warn(
+        "Nominal generation capacity ($(round(total_generation, digits=4))) is below nominal load ($(round(total_load, digits=4))); the case may be infeasible."
+    )
 end
 
 # ============================================================================

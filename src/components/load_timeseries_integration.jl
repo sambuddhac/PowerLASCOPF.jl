@@ -16,27 +16,34 @@ const IS = InfrastructureSystems
 """
     update_load_from_timeseries!(load::Load, time_step::Int, scenario::Int=1)
 
-Updates the load Pl value from timeseries data for a specific time step and scenario.
+Move `load` to `time_step`, taking the value from the PL array attached at build
+time when there is one, and otherwise reading the PSY component's series.
+
+Returns the demand now active on the load.
 """
 function update_load_from_timeseries!(load::Load, time_step::Int, scenario::Int=1)
+    # Preferred path: the PL array built by the data reader (nominal × shape).
+    if has_profile(load)
+        return set_interval!(load, time_step)
+    end
+
     if !isnothing(load.load_type) && PSY.has_time_series(load.load_type)
-        # Get the timeseries data
-        ts_keys = PSY.get_time_series_keys(load.load_type)
-        
-        for key in ts_keys
+        for key in PSY.get_time_series_keys(load.load_type)
             if key.name == "max_active_power" || key.name == "active_power"
-                ts_data = PSY.get_time_series(PSY.Deterministic, load.load_type, key.name)
-                
-                # Extract value for the specific time step
-                ts_values = PSY.get_data(ts_data)
+                # The readers attach SingleTimeSeries, not Deterministic.
+                ts_values = PSY.get_time_series_values(PSY.SingleTimeSeries, load.load_type, key.name)
                 if time_step <= length(ts_values)
                     load.Pl = ts_values[time_step]
-                    load.P_avg = load.Pl  # Update average for ADMM
+                    load.interval = time_step
+                    if !isnothing(load.conn_node_ptr)
+                        set_load_val!(load.conn_node_ptr, Float64(load.Pl))
+                    end
                 end
                 break
             end
         end
     end
+    return load.Pl
 end
 
 """
@@ -45,18 +52,21 @@ end
 Creates multiple stochastic scenarios for a load based on uncertainty parameters.
 """
 function create_stochastic_load_scenarios(base_load::Load, scenario_count::Int, uncertainty::Float64=0.1)
-    scenarios = Vector{Load}[]
-    
-    for scenario in 1:scenario_count
+    scenarios = Load[]
+
+    for _ in 1:scenario_count
         scenario_load = deepcopy(base_load)
-        
+
         # Add stochastic variation
         random_factor = 1.0 + uncertainty * (2 * rand() - 1)  # ±uncertainty around nominal
         scenario_load.Pl *= random_factor
-        
+        scenario_load.Pl_nominal *= random_factor
+        # Scale the whole PL array so the scenario stays consistent across hours.
+        scenario_load.Pl_profile = scenario_load.Pl_profile .* random_factor
+
         push!(scenarios, scenario_load)
     end
-    
+
     return scenarios
 end
 

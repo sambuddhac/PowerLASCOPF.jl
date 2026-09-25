@@ -133,65 +133,131 @@ HOW:
   - JSON: Parse JSON object, extract arrays from keys
 
 STRUCTURE EXPECTED:
-  CSV: Columns = Hour, Solar, Wind, HydroInflow, LoadBus2, LoadBus3, LoadBus4
-  JSON: {"Solar": [...], "Wind": [...], "HydroInflow": [...], "LoadBus2": [...]}
+  CSV: Columns = Hour, Solar, Wind, HydroInflow, LoadBus<N>, LoadBus<M>, ...
+  JSON: {"Solar": [...], "Wind": [...], "HydroInflow": [...], "LoadBus<N>": [...]}
 
-RETURNS: Dict with keys: "DayAhead", "solar_ts_DA", "wind_ts_DA", etc.
+Any number of `LoadBus<N>` columns is accepted and each becomes a
+`loadbus<N>_ts_DA` key, so cases carrying profiles for buses beyond 2/3/4 are
+picked up automatically. The bus numbers found are also returned under
+"load_profile_buses" so callers can do ad hoc assignment for the remaining buses.
+
+Load / solar / wind series are PER-UNIT SHAPE FACTORS, not MW: the nominal
+demand from Loads<N>_sahar.csv is multiplied by them to obtain the PL array.
+
+RETURNS: Dict with keys: "DayAhead", "solar_ts_DA", "wind_ts_DA",
+         "loadbus<N>_ts_DA" (one per LoadBus column), "load_profile_buses".
 """
+# Column names carrying a per-bus load shape, e.g. "LoadBus14" -> 14
+function _parse_load_bus_column(colname::AbstractString)
+    m = match(r"^LoadBus(\d+)$", strip(colname))
+    return m === nothing ? nothing : parse(Int, m.captures[1])
+end
+
+# JSON nulls and blank CSV cells both mean "no value" here, not an error.
+_as_float(x) = (x === nothing || x === missing) ? 0.0 : Float64(x)
+
+# Build the hourly DateTime index for a horizon of `n` hours.
+function _day_ahead_index(n::Int)
+    start = DateTime("1/1/2024 0:00:00", "d/m/y H:M:S")
+    return collect(start:Hour(1):(start + Hour(n - 1)))
+end
+
 function read_timeseries_data(data_path::String, file_format::String="CSV")
     log_info("Reading time series data from: $data_path")
-    
+
+    # Normalise both formats into (column name => raw vector) before extracting,
+    # so the LoadBus discovery below is written once.
+    columns = Dict{String, Vector{Float64}}()
+
     if uppercase(file_format) == "CSV"
-        # CSV Path: DataFrame-based reading
-        # WHY: CSV.jl is optimized for tabular data
         df = CSV.read(data_path, DataFrame)
-        
-        # Create 24-hour DayAhead time array (standard for day-ahead markets)
-        # WHY: PowerSystems.jl requires DateTime objects for time series
-        DayAhead = collect(
-            DateTime("1/1/2024 0:00:00", "d/m/y H:M:S"):Hour(1):
-            DateTime("1/1/2024 23:00:00", "d/m/y H:M:S")
-        )
-        
-        # Extract columns as vectors
-        # WHY: PowerSystems SingleTimeSeries expects Vector{Float64}
-        timeseries_data = Dict(
-            "DayAhead" => DayAhead,
-            "solar_ts_DA" => Vector{Float64}(df.Solar),
-            "wind_ts_DA" => Vector{Float64}(df.Wind),
-            "hydro_inflow_ts_DA" => Vector{Float64}(df.HydroInflow),
-            "loadbus2_ts_DA" => Vector{Float64}(df.LoadBus2),
-            "loadbus3_ts_DA" => Vector{Float64}(df.LoadBus3),
-            "loadbus4_ts_DA" => Vector{Float64}(df.LoadBus4)
-        )
-        
+        for col in names(df)
+            vals = df[!, col]
+            eltype(vals) <: Union{Missing, Real} || continue
+            columns[String(col)] = Float64.(coalesce.(vals, 0.0))
+        end
     elseif uppercase(file_format) == "JSON"
-        # JSON Path: Direct parsing to Dict
-        # WHY: JSON3.jl handles nested structures efficiently
         json_data = JSON3.read(read(data_path, String))
-        
-        DayAhead = collect(
-            DateTime("1/1/2024 0:00:00", "d/m/y H:M:S"):Hour(1):
-            DateTime("1/1/2024 23:00:00", "d/m/y H:M:S")
-        )
-        
-        # JSON keys map directly to arrays
-        # WHY: JSON structure matches our dict structure 1:1
-        timeseries_data = Dict(
-            "DayAhead" => DayAhead,
-            "solar_ts_DA" => Vector{Float64}(json_data["Solar"]),
-            "wind_ts_DA" => Vector{Float64}(json_data["Wind"]),
-            "hydro_inflow_ts_DA" => Vector{Float64}(json_data["HydroInflow"]),
-            "loadbus2_ts_DA" => Vector{Float64}(json_data["LoadBus2"]),
-            "loadbus3_ts_DA" => Vector{Float64}(json_data["LoadBus3"]),
-            "loadbus4_ts_DA" => Vector{Float64}(json_data["LoadBus4"])
-        )
+
+        # Three shapes appear across the cases:
+        #   row-oriented wrapped  {"DayAhead": [{"Hour":1,"Solar":0,...}, ...]}
+        #   row-oriented bare     [{"Hour":1,"Solar":0,...}, ...]
+        #   column-oriented       {"Solar": [...], "LoadBus2": [...]}
+        rows = nothing
+        if json_data isa AbstractVector
+            rows = json_data
+        else
+            for (_, v) in pairs(json_data)
+                if v isa AbstractVector && !isempty(v) && !(first(v) isa Real)
+                    rows = v
+                    break
+                end
+            end
+        end
+
+        if rows !== nothing && !isempty(rows)
+            for key in keys(first(rows))
+                columns[String(key)] = [_as_float(get(r, key, 0.0)) for r in rows]
+            end
+        else
+            for (k, v) in pairs(json_data)
+                v isa AbstractVector || continue
+                columns[String(k)] = [_as_float(x) for x in v]
+            end
+        end
     else
         error("Unsupported file format: $file_format. Use 'CSV' or 'JSON'")
     end
-    
-    log_success("Time series data loaded: $(length(timeseries_data["DayAhead"])) hours")
+
+    isempty(columns) && error("No numeric time series columns found in: $data_path")
+
+    # Horizon comes from the data, not a hardcoded 24, so shorter or longer
+    # study periods load correctly.
+    horizon = maximum(length, values(columns))
+    DayAhead = _day_ahead_index(horizon)
+
+    timeseries_data = Dict{String, Any}("DayAhead" => DayAhead)
+
+    # Generation-side series keep their existing key names; absent columns fall
+    # back to zeros rather than throwing, since not every case has every type.
+    for (col, key) in ("Solar"       => "solar_ts_DA",
+                       "Wind"        => "wind_ts_DA",
+                       "HydroInflow" => "hydro_inflow_ts_DA")
+        timeseries_data[key] = get(columns, col, zeros(horizon))
+    end
+
+    # Per-bus load shapes: one key per LoadBus<N> column present.
+    load_profile_buses = Int[]
+    for (col, vals) in columns
+        bus = _parse_load_bus_column(col)
+        bus === nothing && continue
+        timeseries_data["loadbus$(bus)_ts_DA"] = vals
+        push!(load_profile_buses, bus)
+    end
+    sort!(load_profile_buses)
+    timeseries_data["load_profile_buses"] = load_profile_buses
+
+    log_success("Time series data loaded: $horizon hours, " *
+                "$(length(load_profile_buses)) per-bus load profile(s) " *
+                "(buses: $(isempty(load_profile_buses) ? "none" : join(load_profile_buses, ", ")))")
     return timeseries_data
+end
+
+"""
+    _read_case_timeseries(case_dir::String, bus_count::Int, fmt::String="CSV")
+
+Read a case's TimeSeries_DA file, accepting either naming convention
+(`TimeSeries_DA118_sahar.csv` or `TimeSeries_DA_sahar.csv`). Returns an empty
+Dict when the case ships no time series, in which case loads stay at nominal.
+"""
+function _read_case_timeseries(case_dir::String, bus_count::Int, fmt::String="CSV")
+    ext = uppercase(fmt) == "JSON" ? "json" : "csv"
+    for name in ("TimeSeries_DA$(bus_count)_sahar.$(ext)", "TimeSeries_DA_sahar.$(ext)")
+        path = joinpath(case_dir, name)
+        isfile(path) && return read_timeseries_data(path, uppercase(fmt))
+    end
+    log_warn("No TimeSeries_DA file found in $case_dir; loads stay flat at nominal demand.")
+    return Dict{String, Any}()
 end
 
 # ============================================================================
@@ -1420,19 +1486,21 @@ function power_lascopf_storage_generators_generic!(
 end
 
 function powerlascopf_loads_generic!(
-    system::PowerLASCOPF.PowerLASCOPFSystem, 
-    nodes::Vector{PowerLASCOPF.Node{PSY.Bus}}, 
-    bus_num::Int, csv_path::Bool = true
+    system::PowerLASCOPF.PowerLASCOPFSystem,
+    nodes::Vector{PowerLASCOPF.Node{PSY.Bus}},
+    bus_num::Int, use_csv::Bool = true,
+    timeseries_data::Dict = Dict{String, Any}()
 )
-    csv_path = joinpath(@__DIR__, "IEEE_Test_Cases", "IEEE_$(bus_num)_bus", "Loads$(bus_num)_sahar.csv")
-    json_path = joinpath(@__DIR__, "IEEE_Test_Cases", "IEEE_$(bus_num)_bus", "Loads$(bus_num)_sahar.json")
-    if isfile(csv_path) && csv_path
-        return powerlascopf_loads_from_csv!(system, nodes, csv_path)
-    elseif isfile(json_path) && !csv_path
-        return powerlascopf_loads_from_json!(system, nodes, json_path)
-    else
-        error("No valid load file found for $bus_num-bus case.")
-    end
+    case_dir  = joinpath(@__DIR__, "IEEE_Test_Cases", "IEEE_$(bus_num)_bus")
+    ts        = isempty(timeseries_data) ? _read_case_timeseries(case_dir, bus_num) : timeseries_data
+    csv_path  = joinpath(case_dir, "Loads$(bus_num)_sahar.csv")
+    json_path = joinpath(case_dir, "Loads$(bus_num)_sahar.json")
+
+    # Try the requested format first, then fall back to the other one.
+    candidates = use_csv ? (csv_path, json_path) : (json_path, csv_path)
+    idx = findfirst(isfile, candidates)
+    idx === nothing && error("No valid load file found for $bus_num-bus case in $case_dir.")
+    return powerlascopf_loads_from_csv!(system, nodes, candidates[idx], ts)
 end
 
 """
@@ -2130,8 +2198,13 @@ function powerlascopf_thermal_generators_from_csv!(
 
     for (i, row) in enumerate(eachrow(df))
         bus_num = Int(row.BusNumber)
-        bus     = bus_by_busnum[bus_num]
-        node    = node_by_busnum[bus_num]
+        bus     = get(bus_by_busnum, bus_num, nothing)
+        node    = get(node_by_busnum, bus_num, nothing)
+
+        if bus === nothing || node === nothing
+            log_warn("Thermal generator $(row.GeneratorName) references missing bus $bus_num; skipping this generator.")
+            continue
+        end
 
         # Handle optional columns with defaults
         status       = "Status"       in cols ? Bool(row.Status)       : true
@@ -2262,8 +2335,13 @@ function powerlascopf_renewable_generators_from_csv!(
 
     for (i, row) in enumerate(eachrow(df))
         bus_num = Int(row.BusNumber)
-        bus     = bus_by_busnum[bus_num]
-        node    = node_by_busnum[bus_num]
+        bus     = get(bus_by_busnum, bus_num, nothing)
+        node    = get(node_by_busnum, bus_num, nothing)
+
+        if bus === nothing || node === nothing
+            log_warn("Renewable generator $(row.GeneratorName) references missing bus $bus_num; skipping this generator.")
+            continue
+        end
 
         gen = PSY.RenewableDispatch(
             String(row.GeneratorName),
@@ -2373,9 +2451,14 @@ function powerlascopf_hydro_generators_from_csv!(
 
     for (i, row) in enumerate(eachrow(df))
         bus_num   = Int(row.BusNumber)
-        bus       = bus_by_busnum[bus_num]
-        node      = node_by_busnum[bus_num]
+        bus       = get(bus_by_busnum, bus_num, nothing)
+        node      = get(node_by_busnum, bus_num, nothing)
         hydro_type = String(row.GeneratorType)
+
+        if bus === nothing || node === nothing
+            log_warn("Hydro generator $(row.GeneratorName) references missing bus $bus_num; skipping this generator.")
+            continue
+        end
 
         ramp_up   = "RampUp"   in cols && !ismissing(row.RampUp)   ? Float64(row.RampUp)   : nothing
         ramp_down = "RampDown" in cols && !ismissing(row.RampDown) ? Float64(row.RampDown) : nothing
@@ -2534,8 +2617,13 @@ function powerlascopf_storage_from_csv!(
 
     for (i, row) in enumerate(eachrow(df))
         bus_num = Int(row.BusNumber)
-        bus     = bus_by_busnum[bus_num]
-        node    = node_by_busnum[bus_num]
+        bus     = get(bus_by_busnum, bus_num, nothing)
+        node    = get(node_by_busnum, bus_num, nothing)
+
+        if bus === nothing || node === nothing
+            log_warn("Storage device $(row[name_col]) references missing bus $bus_num; skipping this storage device.")
+            continue
+        end
 
         rating = "Rating" in cols ? Float64(row.Rating) :
                  max(Float64(row.InputActivePowerMax), Float64(row.OutputActivePowerMax))
@@ -2681,20 +2769,107 @@ function powerlascopf_storage_from_csv!(
 end
 
 """
-    powerlascopf_loads_from_csv!(system, nodes, csv_path, timeseries_data)
+    _read_loads_table(path::String) -> DataFrame
+
+Read a Loads*_sahar file. The CSV and JSON variants carry identical columns, so
+both are accepted and the extension selects the parser.
+"""
+function _read_loads_table(path::String)
+    endswith(lowercase(path), ".json") && return DataFrame(JSON3.read(read(path, String)))
+    return CSV.read(path, DataFrame)
+end
+
+"""
+    _normalise_shape(shape, horizon, label)
+
+Coerce a per-unit shape vector to exactly `horizon` entries, truncating a longer
+series and padding a shorter one with its final value.
+"""
+function _normalise_shape(shape::Vector{Float64}, horizon::Int, label::AbstractString)
+    n = length(shape)
+    n == horizon && return shape
+    if n > horizon
+        log_warn("Load shape '$label' has $n entries; truncating to $horizon.")
+        return shape[1:horizon]
+    end
+    log_warn("Load shape '$label' has only $n entries; padding to $horizon with its last value.")
+    pad = isempty(shape) ? 1.0 : shape[end]
+    return vcat(shape, fill(pad, horizon - n))
+end
+
+"""
+    _resolve_load_shape(timeseries_data, bus_num, horizon, donor_buses, fallback_index, strategy)
+
+Pick the per-unit hourly shape for the load at `bus_num` and describe the choice.
+
+A bus with its own `LoadBus<N>` column always uses it. Buses without one are
+covered by `strategy`, since the IEEE time series files ship shapes for only a
+handful of buses:
+
+  `:round_robin` — cycle through the available profiles so buses get real,
+                   differing shapes (the ad hoc default)
+  `:mean`        — the average of all available profiles (one system shape)
+  `:by_bus`      — no substitution; unmatched buses stay flat at nominal
+  `:flat`        — every unmatched bus stays flat at nominal
+
+Returns `(shape, description)`.
+"""
+function _resolve_load_shape(
+    timeseries_data::Dict,
+    bus_num::Int,
+    horizon::Int,
+    donor_buses::Vector{Int},
+    fallback_index::Int,
+    strategy::Symbol
+)
+    own_key = "loadbus$(bus_num)_ts_DA"
+    if haskey(timeseries_data, own_key)
+        return _normalise_shape(Vector{Float64}(timeseries_data[own_key]), horizon,
+                                "LoadBus$bus_num"), "own LoadBus$bus_num profile"
+    end
+
+    (isempty(donor_buses) || strategy in (:by_bus, :flat)) &&
+        return ones(horizon), "flat at nominal"
+
+    if strategy == :mean
+        acc = zeros(horizon)
+        for b in donor_buses
+            acc .+= _normalise_shape(Vector{Float64}(timeseries_data["loadbus$(b)_ts_DA"]),
+                                     horizon, "LoadBus$b")
+        end
+        return acc ./ length(donor_buses), "mean of $(length(donor_buses)) profile(s)"
+    end
+
+    # :round_robin (default)
+    donor = donor_buses[mod1(fallback_index, length(donor_buses))]
+    return _normalise_shape(Vector{Float64}(timeseries_data["loadbus$(donor)_ts_DA"]),
+                            horizon, "LoadBus$donor"), "ad hoc from LoadBus$donor"
+end
+
+"""
+    powerlascopf_loads_from_csv!(system, nodes, csv_path, timeseries_data; profile_assignment)
 
 Read loads from a Loads*_sahar.csv file and create PowerLASCOPF Loads.
 Expected CSV columns: LoadName, BusNumber, Available, ActivePower, ReactivePower,
   MaxActivePower, MaxReactivePower, BasePower
+
+Each load's nominal ActivePower is multiplied by its per-unit hourly shape to
+build the PL array, which is attached to the Load and also stored on the PSY
+component as an absolute-MW `max_active_power` series. Loads are connected to
+their Node so the node's averaging divisor and `conn_load_val` include them.
+
+`profile_assignment` selects how buses without their own `LoadBus<N>` column are
+handled — see `_resolve_load_shape`.
 """
 function powerlascopf_loads_from_csv!(
     system::PowerLASCOPF.PowerLASCOPFSystem,
     nodes::Vector{PowerLASCOPF.Node{PSY.Bus}},
     csv_path::String,
-    timeseries_data::Dict = Dict()
+    timeseries_data::Dict = Dict();
+    profile_assignment::Symbol = :round_robin
 )
-    log_info("Creating PowerLASCOPF Loads from CSV: $csv_path")
-    df = CSV.read(csv_path, DataFrame)
+    log_info("Creating PowerLASCOPF Loads from: $csv_path")
+    df = _read_loads_table(csv_path)
 
     node_by_busnum = Dict(PSY.get_number(n.node_type) => n for n in nodes)
     bus_by_busnum  = Dict(PSY.get_number(n.node_type) => n.node_type for n in nodes)
@@ -2703,11 +2878,31 @@ function powerlascopf_loads_from_csv!(
     DayAhead = get(timeseries_data, "DayAhead",
         collect(DateTime("1/1/2024 0:00:00", "d/m/y H:M:S"):Hour(1):
                 DateTime("1/1/2024 23:00:00", "d/m/y H:M:S")))
+    horizon = length(DayAhead)
+
+    # Buses that ship their own shape; donors for the ad hoc assignment below.
+    donor_buses = Vector{Int}(get(timeseries_data, "load_profile_buses", Int[]))
+    if isempty(timeseries_data)
+        log_warn("No time series supplied: every load stays flat at its nominal ActivePower.")
+    elseif isempty(donor_buses)
+        log_warn("Time series supplied but no LoadBus<N> columns found: loads stay flat at nominal.")
+    end
 
     for (i, row) in enumerate(eachrow(df))
         bus_num = Int(row.BusNumber)
-        bus     = bus_by_busnum[bus_num]
-        node    = node_by_busnum[bus_num]
+        bus     = get(bus_by_busnum, bus_num, nothing)
+        node    = get(node_by_busnum, bus_num, nothing)
+
+        if bus === nothing || node === nothing
+            log_warn("Load $(row.LoadName) references missing bus $bus_num; skipping this load.")
+            continue
+        end
+
+        nominal = Float64(row.ActivePower)
+        shape, shape_desc = _resolve_load_shape(timeseries_data, bus_num, horizon,
+                                                donor_buses, i, profile_assignment)
+        # The PL array Sam asked for: nominal demand scaled by the hourly shape.
+        pl_profile = nominal .* shape
 
         load = PSY.PowerLoad(
             String(row.LoadName),
@@ -2722,16 +2917,18 @@ function powerlascopf_loads_from_csv!(
 
         PSY.add_component!(system.psy_system, load)
 
-        # Use load-specific or default time series
-        load_ts_key = "loadbus$(bus_num)_ts_DA"
-        load_ts = get(timeseries_data, load_ts_key,
-                      ones(24) * Float64(row.ActivePower))
-        ts_data = TimeSeries.TimeArray(DayAhead, load_ts)
+        # Stored in absolute MW, matching the units of the PowerLoad fields.
+        ts_data = TimeSeries.TimeArray(DayAhead, pl_profile)
         PSY.add_time_series!(system.psy_system, load, PSY.SingleTimeSeries("max_active_power", ts_data))
 
-        lascopf_load = PowerLASCOPF.Load(load, i, Float64(row.ActivePower))
+        lascopf_load = PowerLASCOPF.Load(load, i, nominal, pl_profile)
+        PowerLASCOPF.connect_to_node!(lascopf_load, node)
         PowerLASCOPF.add_extended_load!(system, lascopf_load)
         push!(loads, lascopf_load)
+
+        log_info("Load $(row.LoadName) @ bus $bus_num: nominal $(round(nominal, digits=4)), " *
+                 "PL array $(round(minimum(pl_profile), digits=4))–$(round(maximum(pl_profile), digits=4)) " *
+                 "[$shape_desc]")
     end
 
     println("=" ^ 50)
@@ -3101,6 +3298,7 @@ function powerlascopf_from_psy_system!(
         end
         active_power = PSY.get_active_power(load)
         lascopf_load = PowerLASCOPF.Load(load, i, active_power)
+        PowerLASCOPF.connect_to_node!(lascopf_load, node)
         PowerLASCOPF.add_extended_load!(system, lascopf_load)
         push!(lascopf_loads, lascopf_load)
     end
@@ -3731,6 +3929,7 @@ function powerlascopf_from_rts_gmlc!(
         PSY.add_component!(system.psy_system, load)
 
         lascopf_load = PowerLASCOPF.Load(load, load_idx, mw_load)
+        PowerLASCOPF.connect_to_node!(lascopf_load, node)
         PowerLASCOPF.add_extended_load!(system, lascopf_load)
         push!(lascopf_loads, lascopf_load)
     end
@@ -3859,10 +4058,13 @@ Create PowerLASCOPF loads for the IEEE 57-bus case from CSV data.
 """
 function powerlascopf_loads57!(
     system::PowerLASCOPF.PowerLASCOPFSystem,
-    nodes::Vector{PowerLASCOPF.Node{PSY.Bus}}
+    nodes::Vector{PowerLASCOPF.Node{PSY.Bus}},
+    timeseries_data::Dict = Dict{String, Any}()
 )
-    csv_path = joinpath(@__DIR__, "IEEE_Test_Cases", "IEEE_57_bus", "Loads57_sahar.csv")
-    return powerlascopf_loads_from_csv!(system, nodes, csv_path)
+    case_dir = joinpath(@__DIR__, "IEEE_Test_Cases", "IEEE_57_bus")
+    ts = isempty(timeseries_data) ? _read_case_timeseries(case_dir, 57) : timeseries_data
+    csv_path = joinpath(case_dir, "Loads57_sahar.csv")
+    return powerlascopf_loads_from_csv!(system, nodes, csv_path, ts)
 end
 
 """
@@ -4016,10 +4218,13 @@ Create PowerLASCOPF loads for the IEEE 118-bus case from CSV data.
 """
 function powerlascopf_loads118!(
     system::PowerLASCOPF.PowerLASCOPFSystem,
-    nodes::Vector{PowerLASCOPF.Node{PSY.Bus}}
+    nodes::Vector{PowerLASCOPF.Node{PSY.Bus}},
+    timeseries_data::Dict = Dict{String, Any}()
 )
-    csv_path = joinpath(@__DIR__, "IEEE_Test_Cases", "IEEE_118_bus", "Loads118_sahar.csv")
-    return powerlascopf_loads_from_csv!(system, nodes, csv_path)
+    case_dir = joinpath(@__DIR__, "IEEE_Test_Cases", "IEEE_118_bus")
+    ts = isempty(timeseries_data) ? _read_case_timeseries(case_dir, 118) : timeseries_data
+    csv_path = joinpath(case_dir, "Loads118_sahar.csv")
+    return powerlascopf_loads_from_csv!(system, nodes, csv_path, ts)
 end
 
 """
@@ -4168,10 +4373,13 @@ Create PowerLASCOPF loads for the IEEE 300-bus case from CSV data.
 """
 function powerlascopf_loads300!(
     system::PowerLASCOPF.PowerLASCOPFSystem,
-    nodes::Vector{PowerLASCOPF.Node{PSY.Bus}}
+    nodes::Vector{PowerLASCOPF.Node{PSY.Bus}},
+    timeseries_data::Dict = Dict{String, Any}()
 )
-    csv_path = joinpath(@__DIR__, "IEEE_Test_Cases", "IEEE_300_bus", "Loads300_sahar.csv")
-    return powerlascopf_loads_from_csv!(system, nodes, csv_path)
+    case_dir = joinpath(@__DIR__, "IEEE_Test_Cases", "IEEE_300_bus")
+    ts = isempty(timeseries_data) ? _read_case_timeseries(case_dir, 300) : timeseries_data
+    csv_path = joinpath(case_dir, "Loads300_sahar.csv")
+    return powerlascopf_loads_from_csv!(system, nodes, csv_path, ts)
 end
 
 """
