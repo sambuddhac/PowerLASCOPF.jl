@@ -33,10 +33,11 @@ function update_load_from_timeseries!(load::Load, time_step::Int, scenario::Int=
                 # The readers attach SingleTimeSeries, not Deterministic.
                 ts_values = PSY.get_time_series_values(PSY.SingleTimeSeries, load.load_type, key.name)
                 if time_step <= length(ts_values)
+                    old_load_val = Float64(load.Pl)
                     load.Pl = ts_values[time_step]
                     load.interval = time_step
                     if !isnothing(load.conn_node_ptr)
-                        set_load_val!(load.conn_node_ptr, Float64(load.Pl))
+                        set_load_val!(load.conn_node_ptr, old_load_val, Float64(load.Pl))
                     end
                 end
                 break

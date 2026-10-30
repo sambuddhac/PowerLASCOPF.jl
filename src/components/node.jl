@@ -212,14 +212,14 @@ end
 function set_l_conn!(node::Node, load_id::Int, load_val::Float64)
     node.l_conn_number += 1
     push!(node.load_serial_num, load_id)
-    node.conn_load_val = load_val
+    node.conn_load_val += load_val
     return nothing
 end
 
 # Refresh the demand registered at this node without re-registering the load
 # itself; set_l_conn! must stay one-call-per-load or l_conn_number double counts.
-function set_load_val!(node::Node, load_val::Float64)
-    node.conn_load_val = load_val
+function set_load_val!(node::Node, old_load_val::Float64, load_val::Float64)
+    node.conn_load_val += load_val - old_load_val
     return nothing
 end
 

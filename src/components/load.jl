@@ -168,10 +168,11 @@ Load interval `t` of the PL array into `Pl`, keeping the demand registered on
 the connected node in step.
 """
 function set_interval!(load::Load, t::Int)
+    old_load_val = Float64(load.Pl)
     load.Pl = get_pl_at(load, t)
     load.interval = t
     if !isnothing(load.conn_node_ptr)
-        set_load_val!(load.conn_node_ptr, Float64(load.Pl))
+        set_load_val!(load.conn_node_ptr, old_load_val, Float64(load.Pl))
     end
     return load.Pl
 end
