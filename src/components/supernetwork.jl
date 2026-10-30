@@ -423,47 +423,39 @@ function run_network_simulation!(
     pow_self_flow_bel::Vector{Float64},
     pow_next_flow_bel::Vector{Float64}
 )
-    """Run simulation on a specific network system"""
-    # TODO: Implement the actual network simulation logic
-    # This would involve:
-    # 1. Solving generator optimization problems
-    # 2. Solving transmission line optimization problems
-    # 3. Updating node variables
-    # 4. Performing message passing between components
-    
+    # One ADMM pass for a single PowerLASCOPFSystem, called from run_simulation!'s
+    # inner APP loop.  Packages the PowerLASCOPFSystem into a LASCOPFSolver and
+    # delegates to solve_lascopf! so that generator, line, and node subproblems
+    # are solved using the same code path as the standalone solver.
     println("  Running network simulation for system $(system.network_id)")
-    
-    # Solve generator subproblems for all generator technologies
-    all_generators = [
-        get_extended_thermal_generators(system);
-        get_extended_renewable_generators(system);
-        get_extended_hydro_generators(system);
-        get_extended_storage_generators(system)
-    ]
-    for gen in all_generators
-        @debug "Processing generator $(get_gen_id(gen))"
-        solve_generator_subproblem!(gen, rho_tuning, iter_count)
-    end
-    
-    for line in get_transmission_lines(system)
-        # Update transmission line variables
-        # This would call the line solver methods
-        @debug "Processing transmission line $(get_transl_id(line))"
-        solve_transmission_subproblems!(
-            line,
-            lambda_line,
-            power_diff_line,
-            pow_self_flow_bel,
-            pow_next_flow_bel,
-            iter_count
-        )
-    end
-    
-    for node in get_nodes(system)
-        # Update node variables and perform message passing
-        @debug "Processing node $(get_node_id(node))"
-        update_node_variables!(node, iter_count)
-    end
+
+    # ── Build system_data dict from the live PowerLASCOPFSystem ─────────────
+    solver_data = Dict{String, Any}(
+        "name"                  => "network_outer$(outer_iter)_inner$(iter_count)",
+        "nodes"                 => get_nodes(system),
+        "branches"              => get_transmission_lines(system),
+        "thermal_generators"    => get_extended_thermal_generators(system),
+        "renewable_generators"  => get_extended_renewable_generators(system),
+        "hydro_generators"      => get_extended_hydro_generators(system),
+        "storage_generators"    => get_extended_storage_generators(system),
+        "base_power"            => 100.0,
+    )
+
+    # ── ADMM parameters for the innermost convergence loop ──────────────────
+    # max_iterations is intentionally small: convergence for a single pass inside
+    # the inner APP loop of run_simulation! is handled at the APP level.
+    admm_params = Dict{String, Any}(
+        "max_iterations"   => 30,
+        "tolerance"        => 1e-4,
+        "rho"              => rho_tuning,
+        "beta"             => 1.0,
+        "gamma"            => 1.0,
+        "inner_iterations" => 5,
+    )
+
+    # ── Delegate to solve_lascopf! (inner ADMM convergence) ─────────────────
+    solver = LASCOPFSolver(solver_data, admm_params)
+    solve_lascopf!(solver)
 end
 
 function calculate_power_differences!(super_net::SuperNetwork, pow_diff::Vector{Float64})

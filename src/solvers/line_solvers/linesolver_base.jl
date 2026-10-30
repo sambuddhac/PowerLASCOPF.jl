@@ -11,8 +11,14 @@ import MathOptInterface as MOI
 using Dates
 using BenchmarkTools
 using Statistics
+try
+    using DocStringExtensions
+catch
+    # DocStringExtensions not available, ignore
+end
 
 include("../../core/solver_model_types.jl")
+include("../../core/cost_utilities.jl")
 
 @kwdef mutable struct LineSolverBase{T<:LineIntervals} <: AbstractModel
     lambda_txr::Array{Float64} # APP Lagrange Multiplier corresponding to the complementary slackness
