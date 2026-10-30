@@ -2107,6 +2107,7 @@ function _make_gen_interval(cont_count::Int)
         Pg_nu        = 0.0,
         Pg_nu_inner  = 0.0,
         Pg_prev_nu   = 0.0,
+        Pg_next_nu   = 0.0,
         Pg_next      = 0.0,
         select_zero  = 0
     )
@@ -2133,6 +2134,7 @@ function _make_gen_interval(cont_count::Int)
         Pg_nu        = 0.0,
         Pg_nu_inner  = 0.0,
         Pg_prev_nu   = 0.0,
+        Pg_next_nu   = 0.0,
         Pg_next      = 0.0,
         select_zero  = 0
     )

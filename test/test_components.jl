@@ -17,4 +17,18 @@ using PowerLASCOPF
         set_interval!(second_load, 2)
         @test get_load_val(node) == 40.0
     end
+
+    @testset "Empty profile restores nominal demand" begin
+        node = Node(PowerLASCOPF.PSY.ACBus(nothing), 1, 1)
+        load = Load(1, 10.0)
+        attach_profile!(load, [5.0, 8.0])
+        connect_to_node!(load, node)
+
+        set_interval!(load, 2)
+        attach_profile!(load, Float64[])
+
+        @test load.Pl == 10.0
+        @test load.interval == 0
+        @test get_load_val(node) == 10.0
+    end
 end

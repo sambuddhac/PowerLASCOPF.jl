@@ -136,8 +136,12 @@ series — and move the load to the first interval.
 function attach_profile!(load::Load, profile::AbstractVector{<:Real})
     load.Pl_profile = Vector{Float64}(profile)
     if isempty(load.Pl_profile)
+        old_load_val = Float64(load.Pl)
         load.Pl = load.Pl_nominal
-        set_interval!(load, 0)
+        load.interval = 0
+        if !isnothing(load.conn_node_ptr)
+            set_load_val!(load.conn_node_ptr, old_load_val, Float64(load.Pl))
+        end
     else
         set_interval!(load, 1)
     end
