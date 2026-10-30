@@ -591,6 +591,22 @@ function run_case(case_name::AbstractString;
             branches_path = joinpath(case_path_val, (file_fmt == :sahar ?
                 "Trans$(bus_count_val)$(sfx)$(ext)" : "Tran$(bus_count_val)$(ext)"))
 
+            # Time series ships under two names across the cases: with the bus
+            # count (TimeSeries_DA118_sahar.csv) and without (TimeSeries_DA_sahar.csv).
+            timeseries_path = let
+                candidates = [joinpath(case_path_val, "TimeSeries_DA$(bus_count_val)$(sfx)$(ext)"),
+                              joinpath(case_path_val, "TimeSeries_DA$(sfx)$(ext)")]
+                idx = findfirst(isfile, candidates)
+                idx === nothing ? nothing : candidates[idx]
+            end
+            timeseries_v = if isnothing(timeseries_path)
+                println("  ⚠️  No TimeSeries_DA file found: loads stay flat at nominal demand.")
+                Dict{String, Any}()
+            else
+                println("  Reading time series: $timeseries_path")
+                read_timeseries_data(timeseries_path, uppercase(format) == "JSON" ? "JSON" : "CSV")
+            end
+
             lascopf_system = PowerLASCOPF.PowerLASCOPFSystem(PSY.System(100.0))
             nodes_v = isfile(nodes_path) ?
                 powerlascopf_nodes_from_csv!(lascopf_system, nodes_path) :
@@ -625,7 +641,7 @@ function run_case(case_name::AbstractString;
             storage_v   = isfile(storage_path)  ?
                 powerlascopf_storage_from_csv!(lascopf_system, nodes_v, storage_path, actual_cont_count) : []
             loads_v     = isfile(loads_path)    ?
-                powerlascopf_loads_from_csv!(lascopf_system, nodes_v, loads_path) : []
+                powerlascopf_loads_from_csv!(lascopf_system, nodes_v, loads_path, timeseries_v) : []
 
             system_result = (
                 nodes=nodes_v, branches=branches_v,

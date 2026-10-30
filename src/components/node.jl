@@ -212,7 +212,14 @@ end
 function set_l_conn!(node::Node, load_id::Int, load_val::Float64)
     node.l_conn_number += 1
     push!(node.load_serial_num, load_id)
-    node.conn_load_val = load_val
+    node.conn_load_val += load_val
+    return nothing
+end
+
+# Refresh the demand registered at this node without re-registering the load
+# itself; set_l_conn! must stay one-call-per-load or l_conn_number double counts.
+function set_load_val!(node::Node, old_load_val::Float64, load_val::Float64)
+    node.conn_load_val += load_val - old_load_val
     return nothing
 end
 
@@ -309,7 +316,7 @@ export set_g_conn!, get_gen_length, get_gen_serial
 export set_t_conn!, get_to_react, get_from_react
 export get_conn_node_length, get_conn_serial, get_conn_react
 export get_conn_serial_scenario, get_conn_react_compensate
-export set_l_conn!, get_load_val, get_load_length, get_load_serial
+export set_l_conn!, set_load_val!, get_load_val, get_load_length, get_load_serial
 export np_init_message!, dev_p_init_message, power_angle_message!
 export p_avg_message, u_message!, theta_avg_message, v_avg_message
 export reset!, get_total_connections, is_complete
