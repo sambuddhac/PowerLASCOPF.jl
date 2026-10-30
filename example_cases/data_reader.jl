@@ -1492,7 +1492,11 @@ function powerlascopf_loads_generic!(
     timeseries_data::Dict = Dict{String, Any}()
 )
     case_dir  = joinpath(@__DIR__, "IEEE_Test_Cases", "IEEE_$(bus_num)_bus")
-    ts        = isempty(timeseries_data) ? _read_case_timeseries(case_dir, bus_num) : timeseries_data
+    ts = timeseries_data
+    if isempty(ts)
+        ts = _read_case_timeseries(case_dir, bus_num, use_csv ? "CSV" : "JSON")
+        isempty(ts) && (ts = _read_case_timeseries(case_dir, bus_num, use_csv ? "JSON" : "CSV"))
+    end
     csv_path  = joinpath(case_dir, "Loads$(bus_num)_sahar.csv")
     json_path = joinpath(case_dir, "Loads$(bus_num)_sahar.json")
 
