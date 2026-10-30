@@ -2058,7 +2058,7 @@ function _make_gen_interval(cont_count::Int)
         Pg_prev      = 0.0
     )
 
-    # GenFirstContIntervalDZ — same structure as GenFirstContInterval; uses Pg_prev (scalar)
+    # GenFirstContIntervalDZ — same structure as GenFirstContInterval; uses Pg_prev_nu and A
     first_cont_dz = PowerLASCOPF.GenFirstContIntervalDZ(;
         rho          = 0.1,
         beta         = 0.1,
@@ -2080,7 +2080,8 @@ function _make_gen_interval(cont_count::Int)
         Pg_nu        = 0.0,
         Pg_nu_inner  = 0.0,
         Pg_next_nu   = zeros(nc),
-        Pg_prev      = 0.0
+        Pg_prev_nu   = 0.0,
+        A            = 0.0
     )
 
     # GenLastBaseInterval — lambda_1_sc and BSC are arrays; A, B are scalars;
