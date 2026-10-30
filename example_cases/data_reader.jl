@@ -188,7 +188,7 @@ function read_timeseries_data(data_path::String, file_format::String="CSV")
             rows = json_data
         else
             for (_, v) in pairs(json_data)
-                if v isa AbstractVector && !isempty(v) && !(first(v) isa Real)
+                if v isa AbstractVector && !isempty(v) && first(v) isa AbstractDict
                     rows = v
                     break
                 end
