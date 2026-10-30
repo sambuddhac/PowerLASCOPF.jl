@@ -1036,7 +1036,7 @@ Generator Intermediate RSD Interval for OPF
     Pg_nu::Float64 # Previous iterates of the corresponding decision variable values
     Pg_nu_inner::Float64 # Previous iterates of the corresponding decision variable values
     Pg_prev_nu::Float64 # Previous iterates of the corresponding decision variable values
-    Pg_next_nu::Float64 # Previous iterates of the next-interval decision variable
+    Pg_next_nu::Float64 = 0.0 # Previous iterates of the next-interval decision variable
     Pg_next::Float64 # Generator's belief about its output in the next interval
     select_zero::Int # Selection parameter to include or not include the last interval for PgNext constraint
 end
